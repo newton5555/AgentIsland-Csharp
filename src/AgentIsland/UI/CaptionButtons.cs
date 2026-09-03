@@ -1,7 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 
 namespace AgentIsland.UI;
@@ -9,77 +8,117 @@ namespace AgentIsland.UI;
 /// Minimize / maximize-restore / close, embedded in a window's top-right
 /// corner — the in-page caption strip used instead of a system title bar
 /// (settings window, turn alarm).
-public static class CaptionButtons
+public sealed partial class CaptionButtons : UserControl
 {
+    private Window? _targetWindow;
+
+    public Window? TargetWindow
+    {
+        get => _targetWindow;
+        set
+        {
+            if (_targetWindow != null)
+            {
+                _targetWindow.StateChanged -= OnWindowStateChanged;
+            }
+            _targetWindow = value;
+            if (_targetWindow != null)
+            {
+                _targetWindow.StateChanged += OnWindowStateChanged;
+                UpdateMaxGlyph();
+            }
+        }
+    }
+
+    public Action? CloseAction { get; set; }
+
     /// onClose lets an alarm route its close through Acknowledge();
     /// defaults to Window.Close().
     public static UIElement Build(Window window, Action? onClose = null)
     {
-        var panel = new StackPanel
+        return new CaptionButtons
         {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Top,
+            TargetWindow = window,
+            CloseAction = onClose,
+        };
+    }
+
+    public CaptionButtons()
+    {
+        InitializeComponent();
+
+        Loaded += (_, _) =>
+        {
+            if (TargetWindow == null)
+            {
+                TargetWindow = Window.GetWindow(this);
+            }
         };
 
-        UIElement Make(string glyph, Action click, bool destructive, out TextBlock text)
+        AttachButton(MinButton, MinText, false, () =>
         {
-            var glyphText = new TextBlock
-            {
-                Text = glyph,
-                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-                FontSize = 9.5,
-                Foreground = IslandColors.Brush(IslandColors.White(0.55)),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-            };
-            text = glyphText;
-            var host = new Border
-            {
-                Width = 38,
-                Height = 28,
-                Background = Brushes.Transparent,
-                Child = glyphText,
-            };
-            host.MouseEnter += (_, _) =>
-            {
-                host.Background = destructive
-                    ? IslandColors.Brush(Color.FromRgb(0xC4, 0x2B, 0x1C))
-                    : IslandColors.Brush(IslandColors.White(0.08));
-                glyphText.Foreground = Brushes.White;
-            };
-            host.MouseLeave += (_, _) =>
-            {
-                host.Background = Brushes.Transparent;
-                glyphText.Foreground = IslandColors.Brush(IslandColors.White(0.55));
-            };
-            host.MouseLeftButtonUp += (_, args) =>
-            {
-                args.Handled = true;
-                click();
-            };
-            // Also swallow the press so borderless windows don't treat the
-            // click as a DragMove, and WindowChrome captions don't eat it.
-            host.MouseLeftButtonDown += (_, args) => args.Handled = true;
-            System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(host, true);
-            return host;
-        }
+            var win = TargetWindow ?? Window.GetWindow(this);
+            if (win != null) win.WindowState = WindowState.Minimized;
+        });
 
-        panel.Children.Add(Make("", () => window.WindowState = WindowState.Minimized, destructive: false, out _));
-        TextBlock? maxGlyph = null;
-        var maximize = Make("", () =>
+        AttachButton(MaxButton, MaxText, false, () =>
         {
-            window.WindowState = window.WindowState == WindowState.Maximized
-                ? WindowState.Normal
-                : WindowState.Maximized;
-            if (maxGlyph is not null)
+            var win = TargetWindow ?? Window.GetWindow(this);
+            if (win != null)
             {
-                maxGlyph.Text = window.WindowState == WindowState.Maximized ? "" : "";
+                win.WindowState = win.WindowState == WindowState.Maximized
+                    ? WindowState.Normal
+                    : WindowState.Maximized;
+                UpdateMaxGlyph();
             }
-        }, destructive: false, out var glyphRef);
-        maxGlyph = glyphRef;
-        panel.Children.Add(maximize);
-        panel.Children.Add(Make("", onClose ?? window.Close, destructive: true, out _));
-        return panel;
+        });
+
+        AttachButton(CloseButton, CloseText, true, () =>
+        {
+            if (CloseAction != null)
+            {
+                CloseAction();
+            }
+            else
+            {
+                var win = TargetWindow ?? Window.GetWindow(this);
+                win?.Close();
+            }
+        });
+    }
+
+    private void OnWindowStateChanged(object? sender, EventArgs e) => UpdateMaxGlyph();
+
+    private void UpdateMaxGlyph()
+    {
+        var win = TargetWindow ?? Window.GetWindow(this);
+        if (win != null && MaxText != null)
+        {
+            MaxText.Text = win.WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+        }
+    }
+
+    private static void AttachButton(Border host, TextBlock glyphText, bool destructive, Action click)
+    {
+        host.MouseEnter += (_, _) =>
+        {
+            host.Background = destructive
+                ? IslandColors.Brush(Color.FromRgb(0xC4, 0x2B, 0x1C))
+                : IslandColors.Brush(IslandColors.White(0.08));
+            glyphText.Foreground = Brushes.White;
+        };
+        host.MouseLeave += (_, _) =>
+        {
+            host.Background = Brushes.Transparent;
+            glyphText.Foreground = IslandColors.Brush(IslandColors.White(0.55));
+        };
+        host.MouseLeftButtonUp += (_, args) =>
+        {
+            args.Handled = true;
+            click();
+        };
+        // Swallow press so borderless windows don't treat it as drag
+        host.MouseLeftButtonDown += (_, args) => args.Handled = true;
+        System.Windows.Shell.WindowChrome.SetIsHitTestVisibleInChrome(host, true);
     }
 }

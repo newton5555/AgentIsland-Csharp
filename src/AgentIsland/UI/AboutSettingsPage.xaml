@@ -1,0 +1,91 @@
+<UserControl x:Class="AgentIsland.UI.AboutSettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <Grid MinHeight="395" ClipToBounds="True">
+        <!-- Ghost Brand Mark -->
+        <Image Source="pack://application:,,,/Assets/agentisland_logo.png"
+               Width="205" Opacity="0.07"
+               HorizontalAlignment="Right" VerticalAlignment="Bottom"
+               Margin="0,0,-30,-60"
+               RenderTransformOrigin="0.5,0.5"
+               IsHitTestVisible="False">
+            <Image.RenderTransform>
+                <RotateTransform Angle="-9" />
+            </Image.RenderTransform>
+            <Image.Effect>
+                <BlurEffect Radius="2.5" />
+            </Image.Effect>
+        </Image>
+
+        <!-- Main Content -->
+        <StackPanel Margin="24,8,24,12">
+            <!-- App Name -->
+            <TextBlock Text="Agent Island"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="26" FontWeight="Bold"
+                       Foreground="#F2FFFFFF"
+                       Margin="0,0,0,16" />
+
+            <!-- Manifesto Paragraphs -->
+            <TextBlock x:Name="Paragraph1"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
+                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
+                       Margin="0,0,0,12" />
+            <TextBlock x:Name="Paragraph2"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
+                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
+                       Margin="0,0,0,12" />
+            <TextBlock x:Name="Paragraph3"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
+                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
+                       Margin="0,0,0,12" />
+            <TextBlock x:Name="Paragraph4"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
+                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
+                       Margin="0,0,0,12" />
+
+            <!-- Divider -->
+            <Border Height="0.5" Background="#12FFFFFF" Margin="0,8,0,12" />
+
+            <!-- Fact 1: Made by -->
+            <Border x:Name="MadeByRow" Cursor="Hand" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="MadeByLabel" Width="74"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               Foreground="#66FFFFFF" />
+                    <TextBlock Text="Tristan Tang"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               FontWeight="SemiBold" Foreground="#CCFFFFFF" />
+                    <TextBlock Text=" &#xE8A7;" FontFamily="Segoe MDL2 Assets"
+                               FontSize="8" Foreground="#4DFFFFFF" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Fact 2: Sponsor -->
+            <Border x:Name="SponsorRow" Cursor="Hand" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock x:Name="SponsorLabel" Width="74"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               Foreground="#66FFFFFF" />
+                    <TextBlock x:Name="SponsorValue"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               FontWeight="SemiBold" Foreground="#CCFFFFFF" />
+                    <TextBlock Text=" &#xE8A7;" FontFamily="Segoe MDL2 Assets"
+                               FontSize="8" Foreground="#4DFFFFFF" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Grid>
+</UserControl>

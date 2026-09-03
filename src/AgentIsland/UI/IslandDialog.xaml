@@ -1,0 +1,144 @@
+<Window x:Class="AgentIsland.UI.IslandDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+        xmlns:theme="clr-namespace:AgentIsland.UI.Theme"
+        Width="420"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        Topmost="True"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <SolidColorBrush x:Key="AlarmBackgroundBrush" Color="{x:Static theme:IslandColors.AlarmBackground}" />
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="#12FFFFFF" />
+        <SolidColorBrush x:Key="MessageTextBrush" Color="#B3FFFFFF" />
+
+        <Style x:Key="DialogPillButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="38" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ButtonBorder"
+                                CornerRadius="10"
+                                Background="{TemplateBinding Background}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border x:Name="RootBorder"
+            CornerRadius="18"
+            Background="{StaticResource AlarmBackgroundBrush}"
+            BorderBrush="{StaticResource BorderSubtleBrush}"
+            BorderThickness="1"
+            Margin="12">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="4"
+                              Direction="270"
+                              BlurRadius="18"
+                              Color="Black"
+                              Opacity="0.55" />
+        </Border.Effect>
+
+        <StackPanel Margin="32,26,32,24">
+            <!-- Icon Container (App Icon or Glowing Brand Glyph) -->
+            <Grid x:Name="IconSlot"
+                  HorizontalAlignment="Center"
+                  Margin="0,0,0,16" />
+
+            <!-- Title -->
+            <TextBlock x:Name="TitleBlock"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="17"
+                       FontWeight="Bold"
+                       Foreground="White"
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center" />
+
+            <!-- Message -->
+            <TextBlock x:Name="MessageBlock"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="12.5"
+                       Foreground="{StaticResource MessageTextBrush}"
+                       HorizontalAlignment="Center"
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,8,0,0"
+                       LineHeight="19" />
+
+            <!-- Meta Key-Value Grid (Optional) -->
+            <Grid x:Name="MetaGrid"
+                  Margin="0,18,0,0"
+                  Visibility="Collapsed" />
+
+            <!-- Button Stack (Vertical Mode) -->
+            <StackPanel x:Name="VerticalButtonStack"
+                        Margin="0,22,0,0"
+                        Visibility="Collapsed">
+                <Button x:Name="PrimaryVerticalButton"
+                        Style="{StaticResource DialogPillButtonStyle}"
+                        Click="OnPrimaryClicked">
+                    <TextBlock x:Name="PrimaryVerticalText"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                </Button>
+                <Button x:Name="SecondaryVerticalButton"
+                        Style="{StaticResource DialogPillButtonStyle}"
+                        Margin="0,10,0,0"
+                        Visibility="Collapsed"
+                        Click="OnSecondaryClicked">
+                    <TextBlock x:Name="SecondaryVerticalText"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="13"
+                               FontWeight="Medium"
+                               Foreground="#D9FFFFFF" />
+                </Button>
+            </StackPanel>
+
+            <!-- Button Row (Horizontal / Sparkle Mode) -->
+            <Grid x:Name="HorizontalButtonRow"
+                  Margin="0,22,0,0"
+                  Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="10" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Button x:Name="SecondaryHorizontalButton"
+                        Grid.Column="0"
+                        Style="{StaticResource DialogPillButtonStyle}"
+                        Click="OnSecondaryClicked">
+                    <TextBlock x:Name="SecondaryHorizontalText"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="13"
+                               FontWeight="Medium"
+                               Foreground="#D9FFFFFF" />
+                </Button>
+                <Button x:Name="PrimaryHorizontalButton"
+                        Grid.Column="2"
+                        Style="{StaticResource DialogPillButtonStyle}"
+                        Click="OnPrimaryClicked">
+                    <TextBlock x:Name="PrimaryHorizontalText"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="13"
+                               FontWeight="SemiBold" />
+                </Button>
+            </Grid>
+        </StackPanel>
+    </Border>
+</Window>

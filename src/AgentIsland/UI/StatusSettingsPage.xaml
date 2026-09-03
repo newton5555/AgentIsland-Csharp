@@ -1,0 +1,207 @@
+<UserControl x:Class="AgentIsland.UI.StatusSettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:ui="clr-namespace:AgentIsland.UI"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+             xmlns:theme="clr-namespace:AgentIsland.UI.Theme">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <StackPanel Margin="14,18,14,6">
+        <!-- Description -->
+        <TextBlock Text="{x:Static ui:StatusSettingsPage.DescriptionText}"
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="11"
+                   Foreground="#80FFFFFF"
+                   Margin="10,0,10,12"
+                   TextWrapping="Wrap" />
+
+        <!-- Logo states Section -->
+        <TextBlock Text="{x:Static ui:StatusSettingsPage.LogoStatesLabel}"
+                   Style="{StaticResource SettingsSectionHeaderStyle}" />
+
+        <!-- 1. Working -->
+        <Border Padding="10,9,10,9">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ui:ProviderLogo x:Name="WorkingLogo" Tool="Codex" Width="30" Height="26" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.WorkingName}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="13" FontWeight="Medium"
+                               Foreground="#EBFFFFFF" />
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.WorkingCaption}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               Foreground="#9EFFFFFF" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 2. Your turn (with bell badge) -->
+        <Border Padding="10,9,10,9">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid Width="24" Height="22" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Path Data="{x:Static ui:StatusSettingsPage.CodexPathGeometry}"
+                          Fill="{x:Static ui:StatusSettingsPage.CodexBrush}" Width="20" Height="20" Stretch="Uniform" />
+                    <Border Width="11" Height="11" CornerRadius="5.5" Background="#13161C"
+                            BorderBrush="#2EFFFFFF" BorderThickness="0.5"
+                            HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-3,-2">
+                        <TextBlock Text="&#xE7ED;" FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                                   FontSize="5.5" FontWeight="Bold" Foreground="White"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                </Grid>
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.YourTurnName}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="13" FontWeight="Medium"
+                               Foreground="#EBFFFFFF" />
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.YourTurnCaption}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               Foreground="#9EFFFFFF" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- 3. Needs attention -->
+        <Border Padding="10,9,10,9">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <ui:ProviderLogo x:Name="AttentionLogo" Tool="Codex" Width="30" Height="26" VerticalAlignment="Center" />
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="14,0,0,0">
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.AttentionName}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="13" FontWeight="Medium"
+                               Foreground="#EBFFFFFF" />
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.AttentionCaption}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
+                               Foreground="#9EFFFFFF" TextWrapping="Wrap" Margin="0,2,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Reminders Section -->
+        <TextBlock Text="{x:Static ui:StatusSettingsPage.RemindersLabel}"
+                   Style="{StaticResource SettingsSectionHeaderStyle}" />
+
+        <ui:SettingsRowControl Title="Turn alarm"
+                               Subtitle="Pop up a foreground alarm and system notification when a background run needs you.">
+            <ui:CobaltToggle x:Name="TurnAlarmToggle" />
+        </ui:SettingsRowControl>
+
+        <ui:SettingsRowControl Title="Alarm even when in front"
+                               Subtitle="Alarm on a finished turn even while that session's own app is frontmost">
+            <ui:CobaltToggle x:Name="AlarmWhenFrontToggle" />
+        </ui:SettingsRowControl>
+
+        <ui:SettingsRowControl Title="Frontmost chime"
+                               Subtitle="Chime instead of staying silent when the session's app is frontmost">
+            <ui:CobaltToggle x:Name="FrontChimeToggle" />
+        </ui:SettingsRowControl>
+
+        <ui:SettingsRowControl Title="Show thread details"
+                               Subtitle="Show session and project names in alarms and notifications.">
+            <ui:CobaltToggle x:Name="ThreadDetailsToggle" />
+        </ui:SettingsRowControl>
+
+        <ui:SettingsRowControl Title="Out-of-quota alarm">
+            <ui:CobaltToggle x:Name="QuotaAlarmToggle" />
+        </ui:SettingsRowControl>
+
+        <ui:SettingsRowControl Title="Alarm sound">
+            <ui:CobaltToggle x:Name="AlarmSoundToggle" />
+        </ui:SettingsRowControl>
+
+        <!-- Sound Controls Host -->
+        <StackPanel x:Name="SoundHost">
+            <!-- Expandable Sound Header -->
+            <Border x:Name="SoundHeader" CornerRadius="7" Background="#04FFFFFF"
+                    Padding="10,8,10,8" Margin="10,0,10,6" Cursor="Hand">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock Text="{x:Static ui:StatusSettingsPage.SoundLabel}"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="13"
+                               FontWeight="Medium" Foreground="#EBFFFFFF" />
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <TextBlock x:Name="SoundHeaderLabel"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11"
+                                   Foreground="#94FFFFFF" VerticalAlignment="Center" />
+                        <TextBlock x:Name="SoundChevron" Text="&#x2304;"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11"
+                                   Foreground="#6BFFFFFF" Margin="8,0,0,0" VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <!-- Sound Choices List -->
+            <StackPanel x:Name="SoundListContainer" Visibility="Collapsed" Margin="10,0,10,8">
+                <ItemsControl x:Name="SoundChoicesList">
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Height="34" Padding="12,0,12,0" Cursor="Hand"
+                                    BorderBrush="#0BFFFFFF" BorderThickness="0,0,0,0.5"
+                                    Background="{Binding BackgroundBrush}"
+                                    MouseLeftButtonUp="OnSoundRowClicked">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Grid.Column="0" Text="{Binding Label}"
+                                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11"
+                                               Foreground="{Binding ForegroundBrush}" VerticalAlignment="Center" />
+                                    <TextBlock Grid.Column="1" Text="{Binding ActionText}"
+                                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="10"
+                                               Foreground="#8CFFFFFF" VerticalAlignment="Center" Margin="0,0,8,0"
+                                               Visibility="{Binding ActionVisibility}" />
+                                    <TextBlock Grid.Column="2" Text="✓"
+                                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                               FontWeight="SemiBold" Foreground="#0047AB"
+                                               VerticalAlignment="Center" Visibility="{Binding CheckVisibility}" />
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </StackPanel>
+
+            <!-- Volume Slider -->
+            <ui:SettingsRowControl Title="Volume">
+                <Slider x:Name="VolumeSlider" Width="120" Minimum="0" Maximum="1"
+                        VerticalAlignment="Center" />
+            </ui:SettingsRowControl>
+        </StackPanel>
+
+        <!-- Demo Section -->
+        <StackPanel x:Name="DemoSection" Visibility="Collapsed">
+            <TextBlock Text="{x:Static ui:StatusSettingsPage.DemoSectionLabel}"
+                       Style="{StaticResource SettingsSectionHeaderStyle}" />
+            <StackPanel Orientation="Horizontal" Margin="10,0,10,8">
+                <ui:PillButtonControl x:Name="DemoWorkingBtn" Label="{x:Static ui:StatusSettingsPage.DemoWorkingLabel}" Margin="0,0,8,0" />
+                <ui:PillButtonControl x:Name="DemoYourTurnBtn" Label="{x:Static ui:StatusSettingsPage.DemoYourTurnLabel}" Margin="0,0,8,0" />
+                <ui:PillButtonControl x:Name="DemoAuthBtn" Label="{x:Static ui:StatusSettingsPage.DemoAuthLabel}" Margin="0,0,8,0" />
+                <ui:PillButtonControl x:Name="DemoRateBtn" Label="{x:Static ui:StatusSettingsPage.DemoRateLabel}" Margin="0,0,8,0" />
+                <ui:PillButtonControl x:Name="DemoLiveBtn" Label="{x:Static ui:StatusSettingsPage.DemoLiveLabel}" />
+            </StackPanel>
+        </StackPanel>
+    </StackPanel>
+</UserControl>

@@ -123,12 +123,14 @@ public sealed class OverviewPage : Border
             });
         CostStore.Shared.PropertyChanged += onData;
         TokenCountModeStore.Shared.PropertyChanged += onData;
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += onData;
         SizeChanged += (_, _) => ScheduleRender();
         Unloaded += (_, _) =>
         {
             _renderDebounce.Stop();
             CostStore.Shared.PropertyChanged -= onData;
             TokenCountModeStore.Shared.PropertyChanged -= onData;
+            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= onData;
         };
         RebuildData();
     }
@@ -168,11 +170,13 @@ public sealed class OverviewPage : Border
         _heroValue.Text = Core.Formatting.CompactTokens(total);
         _activeDays.Text = AgentIsland.UI.Localization.L10n.TrFormat("{0} active days", activeDays);
 
-        // One chip per provider that ran, in canonical slot order — a
-        // Grok-only year reads as Grok, not a blank Claude/Codex split.
+        // One chip per provider that ran, in enabled slot order
         _legend.Inlines.Clear();
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
+
         var first = true;
-        foreach (var provider in DisplayProviders.All)
+        foreach (var provider in active)
         {
             var value = perProvider.GetValueOrDefault(provider);
             if (value <= 0) continue;
@@ -339,9 +343,12 @@ public sealed class OverviewPage : Border
         _days.TryGetValue(day, out var providers);
         var date = day.ToString(AgentIsland.UI.Localization.L10n.IsChinese ? "M月d日" : "MMM d");
         var parts = new List<string>();
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
+
         if (providers is not null)
         {
-            foreach (var provider in DisplayProviders.All)
+            foreach (var provider in active)
             {
                 if (!providers.TryGetValue(provider, out var totals) || totals.Tokens <= 0) continue;
                 var line = $"{ProviderIdentity.DisplayName(provider)} {Core.Formatting.CompactTokens(totals.Tokens)}";
@@ -359,8 +366,11 @@ public sealed class OverviewPage : Border
 
     private static Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>> MergeHistory(CostStore cost)
     {
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
+
         var merged = new Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>>();
-        foreach (var provider in DisplayProviders.All)
+        foreach (var provider in active)
         {
             foreach (var bucket in cost.Summary(provider).DailyHistory)
             {

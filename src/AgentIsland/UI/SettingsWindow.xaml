@@ -1,0 +1,235 @@
+<Window x:Class="AgentIsland.UI.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:AgentIsland.UI"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+        Title="Agent Island"
+        Width="680" Height="560"
+        MinWidth="640" MinHeight="460"
+        Background="#FF050507"
+        WindowStartupLocation="CenterScreen"
+        Topmost="False"
+        WindowStyle="None"
+        TextOptions.TextFormattingMode="Display">
+    <shell:WindowChrome.WindowChrome>
+        <shell:WindowChrome CaptionHeight="58"
+                            ResizeBorderThickness="6"
+                            GlassFrameThickness="0"
+                            CornerRadius="0"
+                            UseAeroCaptionButtons="False" />
+    </shell:WindowChrome.WindowChrome>
+
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </Window.Resources>
+
+    <Grid>
+        <!-- Main 3-column shell: sidebar, divider, content column -->
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="158" />
+                <ColumnDefinition Width="1" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Sidebar -->
+            <DockPanel Grid.Column="0" Background="#04FFFFFF">
+                <!-- Top Brand + 7 Nav Items -->
+                <StackPanel DockPanel.Dock="Top">
+                    <Border Height="30" />
+                    <!-- Brand -->
+                    <StackPanel Orientation="Horizontal" Margin="14,0,14,14">
+                        <Image Width="24" Height="24" Margin="0,0,8,0" VerticalAlignment="Center"
+                               Source="pack://application:,,,/Assets/agentisland_logo_small.png"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock Text="Agent Island"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="#EBFFFFFF"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Nav Items Container -->
+                    <StackPanel x:Name="NavPanel">
+                        <!-- 1. Providers -->
+                        <Border x:Name="NavProviders" Tag="Providers" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8A9;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Providers" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 2. Display -->
+                        <Border x:Name="NavDisplay" Tag="Display" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE7F4;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Display" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 3. Alerts -->
+                        <Border x:Name="NavAlerts" Tag="Alerts" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xEA8F;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Alerts" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 4. General -->
+                        <Border x:Name="NavGeneral" Tag="General" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="General" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 5. Status -->
+                        <Border x:Name="NavStatus" Tag="Status" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE890;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Status" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 6. Notes -->
+                        <Border x:Name="NavNotes" Tag="Notes" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE70B;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="Notes" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+
+                        <!-- 7. About -->
+                        <Border x:Name="NavAbout" Tag="About" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
+                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE946;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
+                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
+                                <TextBlock Text="About" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                           FontWeight="Medium" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+
+                <!-- Bottom Version + Quit -->
+                <Grid DockPanel.Dock="Bottom" Margin="14,8,14,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Border x:Name="VersionPill" Grid.Column="0"
+                            CornerRadius="10" Background="#0DFFFFFF"
+                            Padding="9,4,9,4" Cursor="Hand"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock x:Name="VersionText"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="#73FFFFFF" />
+                    </Border>
+                    <Border x:Name="QuitPill" Grid.Column="2"
+                            CornerRadius="10" Background="#0DFFFFFF"
+                            Padding="9,4,9,4" Cursor="Hand"
+                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                        <TextBlock x:Name="QuitText"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="10.5" FontWeight="SemiBold"
+                                   Foreground="#73FFFFFF" />
+                    </Border>
+                </Grid>
+
+                <Border />
+            </DockPanel>
+
+            <!-- Divider -->
+            <Border Grid.Column="1" Background="#0DFFFFFF" />
+
+            <!-- Content Column -->
+            <DockPanel Grid.Column="2">
+                <Border DockPanel.Dock="Top" Height="24" />
+
+                <!-- Footer -->
+                <Grid DockPanel.Dock="Bottom" Margin="24,12,24,14">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <ui:DottedLink x:Name="GithubLink" Grid.Column="0"
+                                   Title="GitHub" Url="https://github.com/tristan666666/agent-island"
+                                   VerticalAlignment="Center"
+                                   shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <TextBlock x:Name="GuideButton" Grid.Column="1"
+                               Margin="14,0,0,0" VerticalAlignment="Center"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="11.5" Foreground="#8CFFFFFF"
+                               Cursor="Hand"
+                               shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                        <ui:PillButtonControl x:Name="WeeklyButton" Margin="0,0,8,0"
+                                              shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+                        <ui:PillButtonControl x:Name="MonthlyButton"
+                                              shell:WindowChrome.IsHitTestVisibleInChrome="True" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Bottom Hairline -->
+                <Border DockPanel.Dock="Bottom" Height="1">
+                    <Border.Background>
+                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,0">
+                            <GradientStop Color="Transparent" Offset="0" />
+                            <GradientStop Color="#0EFFFFFF" Offset="0.25" />
+                            <GradientStop Color="#0EFFFFFF" Offset="0.75" />
+                            <GradientStop Color="Transparent" Offset="1" />
+                        </LinearGradientBrush>
+                    </Border.Background>
+                </Border>
+
+                <!-- Scroll Viewer -->
+                <ScrollViewer x:Name="_scroll"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel x:Name="PageContainer">
+                        <TextBlock x:Name="PageTitle"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="19"
+                                   FontWeight="Bold"
+                                   Foreground="#F0FFFFFF"
+                                   Margin="24,6,24,2" />
+                        <ContentPresenter x:Name="PageContent" />
+                    </StackPanel>
+                </ScrollViewer>
+            </DockPanel>
+        </Grid>
+
+        <!-- Overlaid Caption Buttons in Top-Right -->
+        <ui:CaptionButtons x:Name="CaptionButtonsControl"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Top" />
+    </Grid>
+</Window>

@@ -1,0 +1,19 @@
+<UserControl x:Class="AgentIsland.UI.CobaltToggle"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             Width="34" Height="19" Cursor="Hand">
+    <Border x:Name="TrackBorder" Width="34" Height="19"
+            CornerRadius="9.5" BorderThickness="1">
+        <Ellipse x:Name="Dot" Width="15" Height="15"
+                 HorizontalAlignment="Left" VerticalAlignment="Center"
+                 Margin="2,0,2,0">
+            <Ellipse.RenderTransform>
+                <TranslateTransform x:Name="SlideTransform" />
+            </Ellipse.RenderTransform>
+        </Ellipse>
+    </Border>
+</UserControl>

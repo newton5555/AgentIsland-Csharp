@@ -1,0 +1,168 @@
+<Window x:Class="AgentIsland.UI.Report.ReportWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+        Title="Agent Island Report"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        SizeToContent="WidthAndHeight"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen"
+        ShowInTaskbar="False"
+        Topmost="False"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <SolidColorBrush x:Key="CapsuleBgBrush" Color="#13161C" />
+        <SolidColorBrush x:Key="CapsuleBorderBrush" Color="#26FFFFFF" />
+        <SolidColorBrush x:Key="DividerBrush" Color="#1FFFFFFF" />
+        <SolidColorBrush x:Key="CoachTextBrush" Color="#8CD99E" />
+
+        <Style x:Key="ActionButtonStyle" TargetType="Button">
+            <Setter Property="Height" Value="30" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FontFamily" Value="{x:Static charts:IslandFonts.Ui}" />
+            <Setter Property="FontSize" Value="12.5" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                CornerRadius="15"
+                                Background="{TemplateBinding Background}"
+                                Padding="16,0,16,0">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.9" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Opacity" Value="0.8" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="26,22,26,12">
+        <!-- Floating Period Pager Bar -->
+        <StackPanel x:Name="PagerRow"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,0,0,14"
+                    Background="Transparent"
+                    MouseEnter="OnPagerMouseEnter"
+                    MouseLeave="OnPagerMouseLeave">
+            <Border Background="{StaticResource CapsuleBgBrush}"
+                    BorderBrush="{StaticResource CapsuleBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="17"
+                    Height="34"
+                    Padding="4,0,4,0"
+                    VerticalAlignment="Center">
+                <Border.Effect>
+                    <DropShadowEffect ShadowDepth="3"
+                                      Direction="270"
+                                      BlurRadius="16"
+                                      Color="Black"
+                                      Opacity="0.35" />
+                </Border.Effect>
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <!-- Back Button -->
+                    <Border x:Name="BackSlot" VerticalAlignment="Center" />
+
+                    <!-- Period Badge (Clickable to return to current) -->
+                    <Border x:Name="PeriodBadge"
+                            CornerRadius="6"
+                            Padding="8,4,8,4"
+                            VerticalAlignment="Center"
+                            Background="Transparent"
+                            MouseEnter="OnPeriodBadgeMouseEnter"
+                            MouseLeave="OnPeriodBadgeMouseLeave"
+                            MouseLeftButtonUp="OnPeriodBadgeClick">
+                        <TextBlock x:Name="PeriodLabel"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="12"
+                                   FontWeight="Bold"
+                                   Foreground="#F2FFFFFF"
+                                   MinWidth="128"
+                                   TextAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Typography.NumeralAlignment="Tabular" />
+                    </Border>
+
+                    <!-- Forward Button -->
+                    <Border x:Name="ForwardSlot" VerticalAlignment="Center" />
+
+                    <!-- Divider -->
+                    <Border Width="1"
+                            Height="14"
+                            Background="{StaticResource DividerBrush}"
+                            Margin="4,0,4,0"
+                            VerticalAlignment="Center" />
+
+                    <!-- Calendar Button -->
+                    <Border x:Name="CalendarSlot" VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+
+        <!-- Card Host Container -->
+        <Grid x:Name="CardHost">
+            <!-- Header Hotspot for showing/hiding floating pager -->
+            <Border x:Name="CardHeaderHotspot"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Stretch"
+                    Height="72"
+                    Background="Transparent"
+                    MouseEnter="OnHotspotMouseEnter"
+                    MouseLeave="OnHotspotMouseLeave" />
+        </Grid>
+
+        <!-- Action Buttons (Copy Image / Save PNG) -->
+        <StackPanel x:Name="ActionsPanel"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    Margin="0,14,0,0">
+            <Button x:Name="CopyButton"
+                    Style="{StaticResource ActionButtonStyle}"
+                    Background="White"
+                    Foreground="#111318"
+                    FontWeight="Bold"
+                    Click="OnCopyClicked">
+                <TextBlock x:Name="CopyText"
+                           FontFamily="{x:Static charts:IslandFonts.Ui}"
+                           FontSize="12.5"
+                           FontWeight="Bold"
+                           Foreground="#111318" />
+            </Button>
+            <Button x:Name="SaveButton"
+                    Style="{StaticResource ActionButtonStyle}"
+                    Margin="10,0,0,0"
+                    Background="#EEF0F2"
+                    Foreground="#111318"
+                    FontWeight="Medium"
+                    Click="OnSaveClicked">
+                <TextBlock x:Name="SaveText"
+                           FontFamily="{x:Static charts:IslandFonts.Ui}"
+                           FontSize="12.5"
+                           FontWeight="Medium"
+                           Foreground="#111318" />
+            </Button>
+        </StackPanel>
+
+        <!-- Coach / Toast Notification Slot -->
+        <TextBlock x:Name="CoachBlock"
+                   Text=" "
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="11"
+                   FontWeight="Bold"
+                   Foreground="{StaticResource CoachTextBrush}"
+                   HorizontalAlignment="Center"
+                   Margin="0,10,0,0"
+                   Opacity="0" />
+    </StackPanel>
+</Window>

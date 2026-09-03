@@ -1,0 +1,190 @@
+<Window x:Class="AgentIsland.UI.WhatsNewWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+        Title="Agent Island"
+        Width="470"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterScreen"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <SolidColorBrush x:Key="CardBackgroundBrush" Color="#0E0F13" />
+        <SolidColorBrush x:Key="BorderSubtleBrush" Color="#10FFFFFF" />
+        <SolidColorBrush x:Key="BrandTextBrush" Color="#E0FFFFFF" />
+        <SolidColorBrush x:Key="BodyTextBrush" Color="#9EFFFFFF" />
+
+        <!-- Pill Button Styles -->
+        <Style x:Key="SecondaryPillButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#0DFFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,7,16,7" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                CornerRadius="10"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#1AFFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#26FFFFFF" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="PrimaryPillButtonStyle" TargetType="Button">
+            <Setter Property="Background" Value="#FFFFFF" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="16,7,16,7" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Border"
+                                CornerRadius="10"
+                                Background="{TemplateBinding Background}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#E6FFFFFF" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#CCCCCC" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Border Padding="16">
+        <Border.Effect>
+            <DropShadowEffect BlurRadius="24"
+                              ShadowDepth="8"
+                              Opacity="0.35"
+                              Color="Black" />
+        </Border.Effect>
+        <Border CornerRadius="26"
+                Background="{StaticResource CardBackgroundBrush}"
+                BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="1"
+                Padding="24">
+            <StackPanel Width="422">
+                <!-- Header: Brand mark + Wordmark + Version Chip -->
+                <DockPanel LastChildFill="False" Margin="0,0,0,14">
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Left" VerticalAlignment="Center">
+                        <Image Source="pack://application:,,,/Assets/agentisland_logo_small.png"
+                               Width="20"
+                               Height="20"
+                               Margin="0,0,8,0"
+                               RenderOptions.BitmapScalingMode="HighQuality" />
+                        <TextBlock Text="A G E N T   I S L A N D"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="11"
+                                   FontWeight="ExtraBold"
+                                   Foreground="{StaticResource BrandTextBrush}"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <!-- Version Chip -->
+                    <Border x:Name="VersionChip"
+                            DockPanel.Dock="Right"
+                            CornerRadius="9"
+                            Background="#1AFFFFFF"
+                            Padding="8,2,8,2"
+                            VerticalAlignment="Center">
+                        <TextBlock x:Name="VersionText"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="10.5"
+                                   FontWeight="Bold"
+                                   Foreground="#FFFFFF" />
+                    </Border>
+                </DockPanel>
+
+                <!-- Page Host Container -->
+                <Grid x:Name="PageHost">
+                    <StackPanel>
+                        <!-- Hero / Poster Slot -->
+                        <Border x:Name="PosterFrame"
+                                Height="226"
+                                CornerRadius="14"
+                                Background="#08FFFFFF"
+                                BorderBrush="#12FFFFFF"
+                                BorderThickness="1"
+                                ClipToBounds="True">
+                            <Grid x:Name="PosterContent" />
+                        </Border>
+
+                        <!-- Title -->
+                        <TextBlock x:Name="PageTitle"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="20"
+                                   FontWeight="Black"
+                                   Foreground="#FFFFFF"
+                                   Margin="0,16,0,8" />
+
+                        <!-- Body -->
+                        <TextBlock x:Name="PageBody"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="12.5"
+                                   FontWeight="Medium"
+                                   Foreground="{StaticResource BodyTextBrush}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="19"
+                                   MinHeight="76" />
+                    </StackPanel>
+                </Grid>
+
+                <!-- Footer: Indicator Dots + Navigation Buttons -->
+                <DockPanel LastChildFill="False" Margin="0,16,0,0">
+                    <!-- Page Indicator Dots -->
+                    <StackPanel x:Name="DotsPanel"
+                                Orientation="Horizontal"
+                                DockPanel.Dock="Left"
+                                VerticalAlignment="Center" />
+
+                    <!-- Action Buttons -->
+                    <StackPanel Orientation="Horizontal" DockPanel.Dock="Right">
+                        <Button x:Name="BackButton"
+                                Style="{StaticResource SecondaryPillButtonStyle}"
+                                Margin="0,0,8,0"
+                                Visibility="Collapsed"
+                                Click="OnBackClicked">
+                            <TextBlock x:Name="BackText"
+                                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                       FontSize="12.5"
+                                       FontWeight="Bold"
+                                       Foreground="#8CFFFFFF" />
+                        </Button>
+                        <Button x:Name="NextButton"
+                                Style="{StaticResource PrimaryPillButtonStyle}"
+                                Click="OnNextClicked">
+                            <TextBlock x:Name="NextText"
+                                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                       FontSize="12.5"
+                                       FontWeight="ExtraBold"
+                                       Foreground="#171717" />
+                        </Button>
+                    </StackPanel>
+                </DockPanel>
+            </StackPanel>
+        </Border>
+    </Border>
+</Window>

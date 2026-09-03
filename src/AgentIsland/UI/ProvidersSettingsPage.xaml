@@ -1,0 +1,105 @@
+<UserControl x:Class="AgentIsland.UI.ProvidersSettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:ui="clr-namespace:AgentIsland.UI"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+             xmlns:theme="clr-namespace:AgentIsland.UI.Theme">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="AlertAmberBrush" Color="{x:Static theme:IslandColors.AlertAmber}" />
+            <SolidColorBrush x:Key="White92Brush" Color="#EAFFFFFF" />
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <StackPanel Margin="14,18,14,6">
+        <!-- Slot Header -->
+        <Grid Margin="10,0,10,4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <!-- Slot Refusal Notice -->
+            <TextBlock x:Name="SlotNotice"
+                       Grid.Column="0"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="11"
+                       Foreground="{StaticResource AlertAmberBrush}"
+                       VerticalAlignment="Center"
+                       TextWrapping="Wrap"
+                       Margin="0,0,10,0"
+                       Visibility="Collapsed" />
+
+            <!-- Capsule: Brand Marks + "N / 2" -->
+            <Border Grid.Column="1"
+                    CornerRadius="11"
+                    Background="#1AFFFFFF"
+                    Padding="10,5,10,5"
+                    HorizontalAlignment="Right">
+                <StackPanel Orientation="Horizontal">
+                    <StackPanel x:Name="MarksHost"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center" />
+                    <TextBlock x:Name="CountText"
+                               FontFamily="{x:Static charts:IslandFonts.Mono}"
+                               FontSize="11"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource White92Brush}"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <!-- Sortable Provider Stack -->
+        <ui:SortableProviderStack x:Name="SortableHost" />
+
+        <!-- Refresh Interval Row -->
+        <ui:SettingsRowControl Title="Refresh interval">
+            <ui:Segmented x:Name="RefreshSegmented" />
+        </ui:SettingsRowControl>
+
+        <!-- Tokens Section Header -->
+        <TextBlock Text="{x:Static ui:ProvidersSettingsPage.TokensSectionLabel}"
+                   Style="{StaticResource SettingsSectionHeaderStyle}" />
+
+        <!-- Token Counting Row -->
+        <ui:SettingsRowControl x:Name="TokenCountingRow"
+                               Title="Token counting">
+            <ui:Segmented x:Name="TokenCountSegmented" />
+        </ui:SettingsRowControl>
+
+        <!-- Cost Freshness Strip -->
+        <Grid Margin="10,14,10,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+
+            <TextBlock Grid.Column="0"
+                       Text="{x:Static ui:ProvidersSettingsPage.CostSectionLabel}"
+                       Style="{StaticResource SettingsSectionHeaderStyle}"
+                       Margin="0"
+                       VerticalAlignment="Center" />
+
+            <TextBlock x:Name="CostCaption"
+                       Grid.Column="1"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="11"
+                       Foreground="#6BFFFFFF"
+                       VerticalAlignment="Center"
+                       Margin="10,0,8,0"
+                       TextTrimming="CharacterEllipsis" />
+
+            <ui:PillButtonControl x:Name="CostRefreshButton"
+                                  Grid.Column="2" />
+        </Grid>
+    </StackPanel>
+</UserControl>

@@ -1,0 +1,124 @@
+<UserControl x:Class="AgentIsland.UI.ProviderRowControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:ui="clr-namespace:AgentIsland.UI"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+             mc:Ignorable="d"
+             d:Background="Black"
+             >
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Grid x:Name="RowRoot" Background="Transparent">
+        <!-- Layer 1: Brand wash (fade in on hover) -->
+        <Border x:Name="WashBorder"
+                Opacity="0"
+                IsHitTestVisible="False" />
+
+        <!-- Layer 2: Main Content -->
+        <Border Padding="14,13,4,13" Background="Transparent">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- Col 0: Drag handle -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Col 1: Provider mark/icon slot -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Col 2: Name, Chip, Status text -->
+                    <ColumnDefinition Width="*" />
+                    <!-- Col 3: Actions + Toggle -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- 0: Drag Handle -->
+                <TextBlock x:Name="DragHandle"
+                           Grid.Column="0"
+                           Text="&#xE76F;"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="14"
+                           Foreground="#4DFFFFFF"
+                           VerticalAlignment="Center"
+                           Margin="0,0,10,0"
+                           Cursor="SizeAll" />
+
+                <!-- 1: Icon Slot -->
+                <Grid x:Name="MarkHost"
+                      Grid.Column="1"
+                      Width="24" Height="24"
+                      Margin="0,0,12,0"
+                      VerticalAlignment="Center" />
+
+                <!-- 2: Title, Chip, Status -->
+                <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock x:Name="ProviderName"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                   FontSize="13"
+                                   FontWeight="SemiBold"
+                                   Foreground="#F2FFFFFF"
+                                   VerticalAlignment="Center" />
+                        <Border x:Name="PlanChip"
+                                CornerRadius="3"
+                                Background="#12FFFFFF"
+                                Padding="5,2,5,2"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="PlanChipText"
+                                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                                       FontSize="9"
+                                       FontWeight="Bold"
+                                       Foreground="#9EFFFFFF" />
+                        </Border>
+                    </StackPanel>
+
+                    <TextBlock x:Name="StatusText"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="11"
+                               Foreground="#A8FFFFFF"
+                               Margin="0,3,0,0"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+
+                <!-- 3: Action Buttons & Toggle -->
+                <StackPanel x:Name="TrailingStack"
+                            Grid.Column="3"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center"
+                            Margin="10,0,0,0">
+                    <ui:CodexAccountMenuControl x:Name="CodexAccountMenu"
+                                                Visibility="Collapsed" />
+                    <ui:PillButtonControl x:Name="PasteLoginButton"
+                                          Margin="0,0,8,0"
+                                          Visibility="Collapsed" />
+                    <ui:PillButtonControl x:Name="ReauthButton"
+                                          Margin="0,0,8,0"
+                                          Visibility="Collapsed" />
+                    <ui:CobaltToggle x:Name="SlotToggle"
+                                     VerticalAlignment="Center" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Layer 3: Brand Rule on left -->
+        <Border x:Name="RuleBorder"
+                Width="2"
+                CornerRadius="1"
+                Margin="0,6,0,6"
+                HorizontalAlignment="Left"
+                IsHitTestVisible="False" />
+
+        <!-- Layer 4: Bottom Hairline -->
+        <Border x:Name="HairlineBorder"
+                Height="1"
+                Background="#0DFFFFFF"
+                VerticalAlignment="Bottom"
+                IsHitTestVisible="False" />
+    </Grid>
+</UserControl>

@@ -274,40 +274,71 @@ public static class ReportCards
         var canvas = new Canvas { Width = contentWidth, Height = DuelArtHeight + 20 };
         stack.Children.Add(canvas);
 
-        var ran = providers.Where(p => p.Tokens > 0).OrderByDescending(p => p.Tokens).ToList();
-        if (ran.Count == 0)
+        // Bind directly to the user's enabled provider slots from Settings (max 2)
+        var enabled = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        ProviderPeriodSlice? leftSlice = null;
+        ProviderPeriodSlice? rightSlice = null;
+
+        if (enabled.Count >= 2)
         {
-            // No activity in the period: the stage keeps its reserved height,
-            // with nothing to duel.
-            return stack;
+            var p0 = enabled[0];
+            var p1 = enabled[1];
+            var s0 = providers.FirstOrDefault(p => p.Provider == p0) ?? new ProviderPeriodSlice(p0, 0);
+            var s1 = providers.FirstOrDefault(p => p.Provider == p1) ?? new ProviderPeriodSlice(p1, 0);
+
+            if (s0.Tokens > 0 && s1.Tokens > 0)
+            {
+                leftSlice = s0;
+                rightSlice = s1;
+            }
+            else if (s0.Tokens > 0)
+            {
+                SoloStage(stack, canvas, s0, contentWidth, beamX0, beamWidth, beamY);
+                return stack;
+            }
+            else if (s1.Tokens > 0)
+            {
+                SoloStage(stack, canvas, s1, contentWidth, beamX0, beamWidth, beamY);
+                return stack;
+            }
+            else
+            {
+                // 两个启用的模型均无 Token（如只开了 AGY 或尚无数据）：体面留白，绝不偷梁换柱显示未启用的模型
+                return stack;
+            }
         }
-        if (ran.Count == 1)
+        else if (enabled.Count == 1)
         {
-            SoloStage(stack, canvas, ran[0], contentWidth, beamX0, beamWidth, beamY);
+            var p0 = enabled[0];
+            var s0 = providers.FirstOrDefault(p => p.Provider == p0) ?? new ProviderPeriodSlice(p0, 0);
+            if (s0.Tokens > 0)
+            {
+                SoloStage(stack, canvas, s0, contentWidth, beamX0, beamWidth, beamY);
+                return stack;
+            }
+            else
+            {
+                // 唯一启用的模型无 Token（如只开 AGY）：体面留白，绝不抓取未启用的历史模型
+                return stack;
+            }
+        }
+        else
+        {
+            // 未开启任何模型：体面留白
             return stack;
         }
 
-        // Left is the lower slot-order of the top-2 (Claude before Codex,
-        // etc.); the pose art assumes Claude-left / Codex-right, and the
-        // spark/beam split reads the same regardless of which side is larger.
-        var left = ran[0].Provider.SlotOrder() <= ran[1].Provider.SlotOrder() ? ran[0] : ran[1];
-        var right = left.Provider == ran[0].Provider ? ran[1] : ran[0];
+        var left = leftSlice;
+        var right = rightSlice!;
         var pairTotal = (double)(left.Tokens + right.Tokens);
         var leftShare = pairTotal > 0 ? left.Tokens / pairTotal : 0.5;
 
-        // The spark rides the TRUE split; only the artwork clamps inward so
-        // a 90/10 blowout doesn't shove it off the card.
+        // The spark rides the TRUE split; only the artwork clamps inward
         var sparkX = beamX0 + beamWidth * Math.Min(0.97, Math.Max(0.03, leftShare));
         var artX = beamX0 + beamWidth * Math.Min(0.74, Math.Max(0.26, leftShare));
 
-        // The chibi poses exist only for the Claude/Codex pair; every other
-        // pairing shows the beam + marks alone.
-        if (left.Provider == DisplayProvider.Claude && right.Provider == DisplayProvider.Codex)
-        {
-            var pose = leftShare >= 0.52 ? "duel-claude-wins"
-                : leftShare <= 0.48 ? "duel-codex-wins" : "duel-draw";
-            TryAddDuelArt(canvas, pose, artX);
-        }
+        // Load duel chibi artwork between the two providers
+        TryAddDuelArt(canvas, left.Provider, right.Provider, leftShare, artX);
 
         var leftAccent = ProviderIdentity.Accent(left.Provider);
         var rightAccent = ProviderIdentity.Accent(right.Provider);
@@ -322,8 +353,7 @@ public static class ReportCards
         Canvas.SetTop(rightMark, beamY - DuelMarkSide / 2);
         canvas.Children.Add(rightMark);
 
-        // Two capsule beams meeting at the split, each brightening toward
-        // its provider's end. No glow — the spark carries the light.
+        // Two capsule beams meeting at the split
         var leftBeamWidth = Math.Max(3, beamWidth * leftShare - 0.75);
         var leftBeam = new Border
         {
@@ -349,7 +379,7 @@ public static class ReportCards
 
         canvas.Children.Add(ClashSpark(sparkX, beamY, leftAccent, rightAccent));
 
-        // Share legend under the bar's ends: ● Claude 67% … ● Codex 33%.
+        // Share legend under the bar's ends
         var legend = new DockPanel { LastChildFill = false, Margin = new Thickness(0, 8, 0, 0) };
         var leftSide = ShareTag(ProviderIdentity.DisplayName(left.Provider), leftShare, leftAccent);
         DockPanel.SetDock(leftSide, Dock.Left);
@@ -361,19 +391,24 @@ public static class ReportCards
         return stack;
     }
 
-    /// One provider ran: a single centered mark over a full beam, no spark,
-    /// no phantom opponent — the card must not imply a duel that didn't
-    /// happen.
+    /// Single provider solo stage: renders the agent's character standing portrait
+    /// over a full beam with 100% share label. Falls back to mark if portrait is absent.
     private static void SoloStage(
         StackPanel stack, Canvas canvas, ProviderPeriodSlice solo,
         double contentWidth, double beamX0, double beamWidth, double beamY)
     {
         var accent = ProviderIdentity.Accent(solo.Provider);
 
-        var mark = ProviderMark(solo.Provider, DuelSoloMarkSide);
-        Canvas.SetLeft(mark, contentWidth / 2 - DuelSoloMarkSide / 2);
-        Canvas.SetTop(mark, DuelArtHeight / 2 - DuelSoloMarkSide / 2 + 1);
-        canvas.Children.Add(mark);
+        // Try load single agent character standing portrait!
+        bool characterLoaded = TryAddSoloCharacterArt(canvas, solo.Provider, contentWidth / 2);
+
+        if (!characterLoaded)
+        {
+            var mark = ProviderMark(solo.Provider, DuelSoloMarkSide);
+            Canvas.SetLeft(mark, contentWidth / 2 - DuelSoloMarkSide / 2);
+            Canvas.SetTop(mark, DuelArtHeight / 2 - DuelSoloMarkSide / 2 + 1);
+            canvas.Children.Add(mark);
+        }
 
         var beam = new Border
         {
@@ -396,27 +431,133 @@ public static class ReportCards
         stack.Children.Add(legend);
     }
 
-    private static void TryAddDuelArt(Canvas canvas, string pose, double artX)
+    private static bool TryAddSoloCharacterArt(Canvas canvas, DisplayProvider provider, double centerX)
     {
-        try
+        var filename = CharacterFileName(provider);
+        if (filename is null) return false;
+
+        var candidates = new[]
         {
-            var bitmap = new BitmapImage(new Uri($"pack://application:,,,/Assets/Report/{pose}.png"));
-            var artWidth = DuelArtHeight * bitmap.PixelWidth / Math.Max(1, bitmap.PixelHeight);
-            var art = new Image
+            $"pack://application:,,,/Assets/Report/人物/{filename}",
+            $"pack://application:,,,/Assets/Report/{filename}",
+        };
+
+        foreach (var uriString in candidates)
+        {
+            try
             {
-                Source = bitmap,
-                Height = DuelArtHeight,
-                Width = artWidth,
-                Stretch = Stretch.Uniform,
-            };
-            RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.HighQuality);
-            Canvas.SetLeft(art, artX - artWidth / 2);
-            Canvas.SetTop(art, 1);
-            canvas.Children.Add(art);
+                var uri = new Uri(uriString);
+                var streamResource = Application.GetResourceStream(uri);
+                if (streamResource is not null)
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.StreamSource = streamResource.Stream;
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    var artHeight = DuelArtHeight + 8; // 90px standing portrait
+                    var artWidth = artHeight * bitmap.PixelWidth / Math.Max(1, bitmap.PixelHeight);
+                    var art = new Image
+                    {
+                        Source = bitmap,
+                        Height = artHeight,
+                        Width = artWidth,
+                        Stretch = Stretch.Uniform,
+                    };
+                    RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.HighQuality);
+                    Canvas.SetLeft(art, centerX - artWidth / 2);
+                    Canvas.SetTop(art, 0);
+                    canvas.Children.Add(art);
+                    return true;
+                }
+            }
+            catch
+            {
+                // Try next
+            }
         }
-        catch
+        return false;
+    }
+
+    private static string? CharacterFileName(DisplayProvider provider) => provider switch
+    {
+        DisplayProvider.Claude => "claude-amodei.png",
+        DisplayProvider.Codex => "codex-altman.png",
+        DisplayProvider.Antigravity => "antigravity-demis.png",
+        DisplayProvider.Grok => "grok-musk.png",
+        DisplayProvider.Cursor => "cursor-robot.png",
+        _ => null,
+    };
+
+    private static string Slug(DisplayProvider provider) => provider switch
+    {
+        DisplayProvider.Claude => "claude",
+        DisplayProvider.Codex => "codex",
+        DisplayProvider.Antigravity => "antigravity",
+        DisplayProvider.Grok => "grok",
+        DisplayProvider.Cursor => "cursor",
+        _ => provider.ToString().ToLowerInvariant(),
+    };
+
+    private static void TryAddDuelArt(Canvas canvas, DisplayProvider left, DisplayProvider right, double leftShare, double artX)
+    {
+        var result = leftShare >= 0.52 ? "win" : (leftShare <= 0.48 ? "lose" : "draw");
+        var leftSlug = Slug(left);
+        var rightSlug = Slug(right);
+
+        var candidates = new List<string>
         {
-            // Art missing from the bundle: the stage keeps its height.
+            $"pack://application:,,,/Assets/Report/对决/duel-{leftSlug}-{result}-{rightSlug}.png",
+            $"pack://application:,,,/Assets/Report/duel-{leftSlug}-{result}-{rightSlug}.png",
+        };
+
+        if (left == DisplayProvider.Claude && right == DisplayProvider.Codex)
+        {
+            var legacyPose = result == "win" ? "duel-claude-wins" : (result == "lose" ? "duel-codex-wins" : "duel-draw");
+            candidates.Add($"pack://application:,,,/Assets/Report/{legacyPose}.png");
+        }
+        else if (left == DisplayProvider.Codex && right == DisplayProvider.Claude)
+        {
+            var legacyPose = result == "win" ? "duel-codex-wins" : (result == "lose" ? "duel-claude-wins" : "duel-draw");
+            candidates.Add($"pack://application:,,,/Assets/Report/{legacyPose}.png");
+        }
+
+        foreach (var uriString in candidates)
+        {
+            try
+            {
+                var uri = new Uri(uriString);
+                var streamResource = Application.GetResourceStream(uri);
+                if (streamResource is not null)
+                {
+                    var bitmap = new BitmapImage();
+                    bitmap.BeginInit();
+                    bitmap.StreamSource = streamResource.Stream;
+                    bitmap.CacheOption = BitmapCacheOption.OnLoad;
+                    bitmap.EndInit();
+                    bitmap.Freeze();
+
+                    var artWidth = DuelArtHeight * bitmap.PixelWidth / Math.Max(1, bitmap.PixelHeight);
+                    var art = new Image
+                    {
+                        Source = bitmap,
+                        Height = DuelArtHeight,
+                        Width = artWidth,
+                        Stretch = Stretch.Uniform,
+                    };
+                    RenderOptions.SetBitmapScalingMode(art, BitmapScalingMode.HighQuality);
+                    Canvas.SetLeft(art, artX - artWidth / 2);
+                    Canvas.SetTop(art, 1);
+                    canvas.Children.Add(art);
+                    return;
+                }
+            }
+            catch
+            {
+                // Try next
+            }
         }
     }
 

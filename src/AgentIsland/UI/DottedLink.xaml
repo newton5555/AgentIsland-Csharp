@@ -1,0 +1,22 @@
+<UserControl x:Class="AgentIsland.UI.DottedLink"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+             Cursor="Hand">
+    <StackPanel Orientation="Horizontal" x:Name="Container">
+        <TextBlock x:Name="TitleBlock"
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="11"
+                   Foreground="#8CFFFFFF"
+                   TextDecorations="{x:Null}" />
+        <TextBlock x:Name="ArrowBlock"
+                   Text=" ↗"
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="10"
+                   Foreground="#4DFFFFFF" />
+    </StackPanel>
+</UserControl>

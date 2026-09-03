@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Island - 对决图素材全景与生产计划</title>
+  <style>
+    :root {
+      --bg: #090D16;
+      --card-bg: rgba(18, 24, 38, 0.85);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent-cyan: #00F0FF;
+      --accent-purple: #A78BFA;
+      --accent-green: #10B981;
+      --accent-red: #EF4444;
+      --accent-orange: #F59E0B;
+      --text-main: #F0F6FC;
+      --text-muted: #8B949E;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: radial-gradient(circle at 50% -10%, #1c2842 0%, var(--bg) 65%);
+      color: var(--text-main);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      min-height: 100vh;
+      padding: 48px 24px 80px;
+    }
+    .container {
+      max-width: 1320px;
+      margin: 0 auto;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 48px;
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 16px;
+      border-radius: 999px;
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--accent-cyan);
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      border: 1px solid rgba(0, 240, 255, 0.25);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 40px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #FFFFFF 30%, #94A3B8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 16px;
+      max-width: 720px;
+      margin: 0 auto;
+      line-height: 1.6;
+    }
+    .stats-bar {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      max-width: 860px;
+      margin: 32px auto 0;
+    }
+    .stat-pill {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    }
+    .stat-val { font-size: 28px; font-weight: 800; }
+    .stat-lbl { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+
+    .section {
+      margin-bottom: 56px;
+    }
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-bottom: 24px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      padding-bottom: 14px;
+    }
+    .section-title {
+      font-size: 24px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .section-title::before {
+      content: "";
+      display: inline-block;
+      width: 5px;
+      height: 24px;
+      background: var(--accent-cyan);
+      border-radius: 3px;
+    }
+    .section-note {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Characters Grid */
+    .char-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 18px;
+    }
+    .char-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 20px 16px;
+      text-align: center;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      backdrop-filter: blur(12px);
+      position: relative;
+    }
+    .char-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(0, 240, 255, 0.4);
+      box-shadow: 0 16px 32px rgba(0, 240, 255, 0.12);
+    }
+    .char-img-wrap {
+      width: 110px;
+      height: 110px;
+      margin: 0 auto 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .char-img {
+      max-width: 100%;
+      max-height: 100%;
+      object-fit: contain;
+      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
+      transition: transform 0.3s ease;
+    }
+    .char-card:hover .char-img { transform: scale(1.08); }
+    .char-name { font-size: 16px; font-weight: 700; color: #FFF; }
+    .char-role { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+
+    /* Duel Grid */
+    .duel-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      gap: 24px;
+    }
+    .duel-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      backdrop-filter: blur(12px);
+      transition: all 0.3s ease;
+    }
+    .duel-card:hover {
+      border-color: rgba(255, 255, 255, 0.25);
+      transform: translateY(-4px);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+    }
+    .duel-card.done { border-top: 3px solid var(--accent-green); }
+    .duel-card.planned { border-top: 3px solid #6366F1; opacity: 0.9; }
+
+    .duel-preview {
+      width: 100%;
+      height: 260px;
+      background: radial-gradient(circle, #1E2638 0%, #10141D 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+      overflow: hidden;
+    }
+    .duel-preview img {
+      max-width: 88%;
+      max-height: 88%;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.6));
+      transition: transform 0.3s ease;
+      cursor: pointer;
+    }
+    .duel-preview img:hover { transform: scale(1.06); }
+    .zoom-hint {
+      position: absolute;
+      bottom: 10px;
+      right: 12px;
+      background: rgba(0,0,0,0.6);
+      color: rgba(255,255,255,0.7);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      pointer-events: none;
+    }
+
+    .duel-body { padding: 22px; flex: 1; display: flex; flex-direction: column; }
+    .duel-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .duel-tag {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 6px;
+      letter-spacing: 0.5px;
+    }
+    .tag-win { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .tag-lose { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
+    .tag-draw { background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
+    .tag-plan { background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); }
+
+    .duel-title { font-size: 17px; font-weight: 700; color: #FFF; margin-bottom: 6px; }
+    .duel-desc { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
+    .duel-file {
+      font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+      font-size: 12px;
+      color: var(--accent-cyan);
+      background: rgba(0, 240, 255, 0.08);
+      border: 1px solid rgba(0, 240, 255, 0.15);
+      padding: 6px 10px;
+      border-radius: 8px;
+      word-break: break-all;
+      margin-top: auto;
+    }
+
+    /* Modal */
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(5, 8, 15, 0.9);
+      backdrop-filter: blur(16px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      cursor: zoom-out;
+    }
+    .modal img {
+      max-width: 86vw;
+      max-height: 86vh;
+      object-fit: contain;
+      filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <div class="badge">AGENT ISLAND REPORT SYSTEM</div>
+      <h1>对决图素材全景与生产看板</h1>
+      <p class="subtitle">统一遵循“名称前后顺序代表左 / 右站位”规范体系，整合 7 大 Agent 角色立绘与全套对决姿态库。</p>
+      
+      <div class="stats-bar">
+        <div class="stat-pill">
+          <div class="stat-val" style="color: var(--accent-cyan);">7</div>
+          <div class="stat-lbl">已就绪人物角色</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-val" style="color: var(--accent-green);">12</div>
+          <div class="stat-lbl">已完成对决立绘</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-val" style="color: var(--accent-purple);">21:31</div>
+          <div class="stat-lbl">AI 配额重置排产</div>
+        </div>
+        <div class="stat-pill">
+          <div class="stat-val" style="color: var(--accent-orange);">4 组规划</div>
+          <div class="stat-lbl">待续生产批次</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 1. 人物立绘全家福 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">入库人物角色 (7款)</div>
+        <div class="section-note">所有角色立绘统一收敛于 assets/Report/人物/ 目录</div>
+      </div>
+      <div class="char-grid">
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/claude-amodei.png" alt="Claude"></div>
+          <div class="char-name">Claude</div>
+          <div class="char-role">Dario Amodei</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/codex-altman.png" alt="Codex"></div>
+          <div class="char-name">Codex</div>
+          <div class="char-role">Sam Altman</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/antigravity-demis.png" alt="Antigravity"></div>
+          <div class="char-name">Antigravity</div>
+          <div class="char-role">Demis Hassabis</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/grok-musk.png" alt="Grok"></div>
+          <div class="char-name">Grok</div>
+          <div class="char-role">Elon Musk</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/cursor-robot.png" alt="Cursor"></div>
+          <div class="char-name">Cursor</div>
+          <div class="char-role">Robot</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/deepseek-liang.png" alt="DeepSeek"></div>
+          <div class="char-name">DeepSeek</div>
+          <div class="char-role">梁文锋</div>
+        </div>
+        <div class="char-card">
+          <div class="char-img-wrap"><img class="char-img" src="人物/doubao-doujie.png" alt="豆包"></div>
+          <div class="char-name">豆包</div>
+          <div class="char-role">豆姐</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. 已完成对决图 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">已完成对决图库 (22款，点击图片可全屏预览)</div>
+        <div class="section-note">1024×1024 纯净透明通道 PNG，均存储于 assets/Report/对决/</div>
+      </div>
+      <div class="duel-grid">
+        <!-- Claude vs Codex -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-win-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Claude 胜</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Codex (右)</div>
+            <div class="duel-desc">Claude 左侧踏背金冠胜利比耶，Codex 右侧趴倒晕眩冒汗。</div>
+            <div class="duel-file">duel-claude-win-codex.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-lose-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Claude 败</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Codex (右)</div>
+            <div class="duel-desc">Claude 左侧趴倒败北，Codex 右侧踏背金冠胜利比耶。</div>
+            <div class="duel-file">duel-claude-lose-codex.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-draw-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Codex (右)</div>
+            <div class="duel-desc">Claude 在左、Codex 在右，双手抱胸背靠背智斗，中央迸发对决星光。</div>
+            <div class="duel-file">duel-claude-draw-codex.png</div>
+          </div>
+        </div>
+
+        <!-- Codex vs Claude -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-win-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Codex 胜</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Claude (右)</div>
+            <div class="duel-desc">Codex 左侧踩踏胜利，Claude 右侧趴倒晕眩（正向 Logo 原生绘制）。</div>
+            <div class="duel-file">duel-codex-win-claude.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-lose-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Codex 败</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Claude (右)</div>
+            <div class="duel-desc">Codex 左侧趴倒，Claude 右侧踩踏胜利（正向 Logo 原生绘制）。</div>
+            <div class="duel-file">duel-codex-lose-claude.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-draw-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Claude (右)</div>
+            <div class="duel-desc">Codex 在左、Claude 在右，背靠背对峙平局。</div>
+            <div class="duel-file">duel-codex-draw-claude.png</div>
+          </div>
+        </div>
+
+        <!-- Claude vs Antigravity -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-win-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Claude 胜</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Claude 左侧踩踏胜利，Demis 趴倒晕眩冒汗，身旁散落围棋子彩蛋。</div>
+            <div class="duel-file">duel-claude-win-antigravity.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-lose-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Claude 败</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Claude 趴倒，Demis 右侧头戴金冠、深蓝夹克踩踏优雅比耶胜利。</div>
+            <div class="duel-file">duel-claude-lose-antigravity.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-draw-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Claude 与 Demis 双手抱胸智斗背靠背，中间对决星芒。</div>
+            <div class="duel-file">duel-claude-draw-antigravity.png</div>
+          </div>
+        </div>
+
+        <!-- Claude vs Grok -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-win-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Claude 胜</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Grok (右)</div>
+            <div class="duel-desc">Claude 左侧踩踏胜利，马斯克趴倒冒汗，黑色平板掉落身旁。</div>
+            <div class="duel-file">duel-claude-win-grok.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-lose-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Claude 败</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Grok (右)</div>
+            <div class="duel-desc">Claude 趴倒，马斯克头戴金冠、身穿 Grok 夹克霸气踩踏胜利。</div>
+            <div class="duel-file">duel-claude-lose-grok.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-draw-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Grok (右)</div>
+            <div class="duel-desc">Claude 与马斯克双手抱胸背靠背对决，神采飞扬。</div>
+            <div class="duel-file">duel-claude-draw-grok.png</div>
+          </div>
+        <!-- Claude vs Cursor -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-win-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Claude 胜</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Cursor (右)</div>
+            <div class="duel-desc">Claude 戴金冠比耶踩趴 Cursor 机器人，面罩螺旋眼晕眩冒烟。</div>
+            <div class="duel-file">duel-claude-win-cursor.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-lose-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Claude 败</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Cursor (右)</div>
+            <div class="duel-desc">Cursor 机器人头戴金冠反杀踩人比耶，Claude 蚊香眼趴倒。</div>
+            <div class="duel-file">duel-claude-lose-cursor.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-claude-draw-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Claude (左) VS Cursor (右)</div>
+            <div class="duel-desc">Claude 与纯白机甲双手抱胸背靠背，橙青火花交织。</div>
+            <div class="duel-file">duel-claude-draw-cursor.png</div>
+          </div>
+        </div>
+
+        <!-- Codex vs Antigravity -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-win-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Codex 胜</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Sam Altman 戴金冠比耶踩黑围棋子，Demis 掀翻棋盘倒地。</div>
+            <div class="duel-file">duel-codex-win-antigravity.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-lose-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Codex 败</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Demis 手捏黑棋比耶戴大金冠反杀，Altman 冒星星倒地。</div>
+            <div class="duel-file">duel-codex-lose-antigravity.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-draw-antigravity.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Antigravity (右)</div>
+            <div class="duel-desc">Altman 与 Demis 双手抱胸背靠背，青蓝与四色彩虹星芒碰撞。</div>
+            <div class="duel-file">duel-codex-draw-antigravity.png</div>
+          </div>
+        </div>
+
+        <!-- Codex vs Grok -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-win-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Codex 胜</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Grok (右)</div>
+            <div class="duel-desc">Altman 戴金冠比耶踩平板，马斯克黑皮衣趴地冒冷汗。</div>
+            <div class="duel-file">duel-codex-win-grok.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-lose-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Codex 败</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Grok (右)</div>
+            <div class="duel-desc">马斯克手夹平板戴大金冠霸气反杀踩人，Altman 委屈趴地。</div>
+            <div class="duel-file">duel-codex-lose-grok.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-draw-grok.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Grok (右)</div>
+            <div class="duel-desc">Altman 与马斯克双手抱胸背靠背，硅谷传奇宿敌对峙。</div>
+            <div class="duel-file">duel-codex-draw-grok.png</div>
+          </div>
+        </div>
+
+        <!-- DeepSeek vs Codex -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-win-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">DeepSeek 胜</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
+            <div class="duel-desc">梁文锋身穿极简黑夹克头戴金冠比耶，喷水小蓝鲸护体，Altman 趴地。</div>
+            <div class="duel-file">duel-deepseek-win-codex.png</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 下一批次生产计划 -->
+    <div class="section">
+      <div class="section-header">
+        <div class="section-title">排产计划矩阵（待凌晨 02:31 额度重置后生成）</div>
+        <div class="section-note">按国产 Agent 与主流对决热度推进</div>
+      </div>
+      <div class="duel-grid">
+        <!-- DeepSeek vs Codex 续 -->
+        <div class="duel-card planned">
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-plan">优先级 1 (余下2张)</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
+            <div class="duel-desc">梁文锋败北（小蓝鲸翻肚皮）、双雄背靠背对峙平局。</div>
+            <div class="duel-file">duel-deepseek-[lose|draw]-codex.png</div>
+          </div>
+        </div>
+
+        <!-- DeepSeek vs Claude -->
+        <div class="duel-card planned">
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-plan">优先级 2 (3张)</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
+            <div class="duel-desc">梁文锋（蓝鲸）对决 Dario Amodei（陶橙卫衣星芒）。</div>
+            <div class="duel-file">duel-deepseek-[win|lose|draw]-claude.png</div>
+          </div>
+        </div>
+
+        <!-- Codex vs Cursor -->
+        <div class="duel-card planned">
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-plan">优先级 3 (3张)</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Cursor (右)</div>
+            <div class="duel-desc">Sam Altman 对决纯白机甲 Cursor 机器人。</div>
+            <div class="duel-file">duel-codex-[win|lose|draw]-cursor.png</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal" class="modal" onclick="this.style.display='none'">
+    <img id="modal-img" src="">
+  </div>
+
+  <script>
+    function showModal(src) {
+      document.getElementById('modal-img').src = src;
+      document.getElementById('modal').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>

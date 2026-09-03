@@ -1,0 +1,72 @@
+<UserControl x:Class="AgentIsland.UI.CodexAccountMenuControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+
+            <Style x:Key="CodexAccountItemStyle" TargetType="{x:Type MenuItem}">
+                <Setter Property="FontFamily" Value="{x:Static charts:IslandFonts.Ui}" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="Foreground" Value="#E6FFFFFF" />
+            </Style>
+        </ResourceDictionary>
+    </UserControl.Resources>
+
+    <Border x:Name="AccountButton"
+            CornerRadius="6"
+            Background="#17FFFFFF"
+            Padding="10,5,10,5"
+            Margin="0,0,8,0"
+            Cursor="Hand"
+            VerticalAlignment="Center">
+        <Border.ContextMenu>
+            <ContextMenu x:Name="AccountContextMenu"
+                         Background="#121216"
+                         BorderBrush="#1AFFFFFF"
+                         BorderThickness="1"
+                         Foreground="#E6FFFFFF"
+                         FontFamily="{x:Static charts:IslandFonts.Ui}"
+                         FontSize="12">
+                <!-- 1. Placeholder when empty -->
+                <MenuItem x:Name="NoSavedAccountsItem"
+                          IsEnabled="False"
+                          Visibility="Collapsed" />
+
+                <!-- Dynamic account items are inserted here before AccountsSeparator -->
+                <Separator x:Name="AccountsSeparator"
+                           Visibility="Collapsed" />
+
+                <!-- 2. Remove saved accounts submenu -->
+                <MenuItem x:Name="RemoveAccountMenuItem"
+                          Visibility="Collapsed" />
+
+                <Separator x:Name="RemoveSeparator"
+                           Visibility="Collapsed" />
+
+                <!-- 3. Fixed Save Item -->
+                <MenuItem x:Name="SaveAccountMenuItem" />
+
+                <Separator />
+
+                <!-- 4. Fixed Auto-switch Item -->
+                <MenuItem x:Name="AutoSwitchMenuItem"
+                          IsCheckable="True" />
+            </ContextMenu>
+        </Border.ContextMenu>
+
+        <TextBlock x:Name="AccountLabel"
+                   Text="Accounts"
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="11"
+                   FontWeight="SemiBold"
+                   Foreground="#D9FFFFFF" />
+    </Border>
+</UserControl>

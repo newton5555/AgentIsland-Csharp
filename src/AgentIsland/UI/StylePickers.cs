@@ -13,10 +13,13 @@ namespace AgentIsland.UI;
 /// chrome of every accent color (macOS IslandColor.chrome == white).
 public sealed class ChartStylePickerControl : Grid
 {
-    private readonly List<Border> _tiles = new();
-    private readonly List<TextBlock> _labels = new();
+    private readonly List<StylePickerTile> _tiles = new();
 
     public event Action<ChartStyle>? StyleSelected;
+
+    public ChartStylePickerControl() : this(ChartStyle.Stepped)
+    {
+    }
 
     public ChartStylePickerControl(ChartStyle selected)
     {
@@ -28,7 +31,17 @@ public sealed class ChartStylePickerControl : Grid
         for (var i = 0; i < styles.Length; i++)
         {
             var style = styles[i];
-            var tile = MakeTile(style);
+            var tile = new StylePickerTile
+            {
+                Text = StyleLabel(style),
+                Preview = MakePreview(style),
+            };
+            tile.PreviewContainer.Width = 72;
+            tile.Clicked += () =>
+            {
+                Select(style);
+                StyleSelected?.Invoke(style);
+            };
             SetColumn(tile, i);
             _tiles.Add(tile);
             Children.Add(tile);
@@ -36,55 +49,12 @@ public sealed class ChartStylePickerControl : Grid
         Select(selected);
     }
 
-    private Border MakeTile(ChartStyle style)
-    {
-        var stack = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var preview = new Grid { Height = 40, Width = 72, Margin = new Thickness(0, 0, 0, 10) };
-        preview.Children.Add(MakePreview(style));
-        stack.Children.Add(preview);
-        var label = new TextBlock
-        {
-            Text = StyleLabel(style),
-            FontFamily = IslandFonts.Ui,
-            FontSize = 12,
-            FontWeight = FontWeights.Medium,
-            Foreground = IslandColors.Brush(IslandColors.White(0.8)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        _labels.Add(label);
-        stack.Children.Add(label);
-
-        var tile = new Border
-        {
-            Child = stack,
-            Height = 100,
-            CornerRadius = new CornerRadius(9),
-            Background = IslandColors.Brush(IslandColors.White(0.025)),
-            BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.Transparent,
-            Margin = new Thickness(0, 0, 6, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
-        };
-        tile.MouseLeftButtonUp += (_, args) =>
-        {
-            Select(style);
-            StyleSelected?.Invoke(style);
-            args.Handled = true;
-        };
-        StyleTileChrome.AttachHover(tile);
-        return tile;
-    }
-
     public void Select(ChartStyle selected)
     {
         var styles = Enum.GetValues<ChartStyle>();
         for (var i = 0; i < _tiles.Count; i++)
         {
-            StyleTileChrome.Paint(_tiles[i], _labels[i], styles[i] == selected);
+            _tiles[i].SetSelected(styles[i] == selected);
         }
     }
 
@@ -378,9 +348,13 @@ internal static class StyleTileChrome
 /// same white-only voice as the usage picker.
 public sealed class CostStylePickerControl : Grid
 {
-    private readonly List<Border> _tiles = new();
+    private readonly List<StylePickerTile> _tiles = new();
 
     public event Action<CostStyle>? StyleSelected;
+
+    public CostStylePickerControl() : this(CostStyle.Dollar)
+    {
+    }
 
     public CostStylePickerControl(CostStyle selected)
     {
@@ -392,7 +366,16 @@ public sealed class CostStylePickerControl : Grid
         for (var i = 0; i < styles.Length; i++)
         {
             var style = styles[i];
-            var tile = MakeTile(style);
+            var tile = new StylePickerTile
+            {
+                Text = ChipLabel(style),
+                Preview = MakePreview(style),
+            };
+            tile.Clicked += () =>
+            {
+                Select(style);
+                StyleSelected?.Invoke(style);
+            };
             SetColumn(tile, i);
             _tiles.Add(tile);
             Children.Add(tile);
@@ -400,56 +383,12 @@ public sealed class CostStylePickerControl : Grid
         Select(selected);
     }
 
-    private readonly List<TextBlock> _labels = new();
-
-    private Border MakeTile(CostStyle style)
-    {
-        var stack = new StackPanel
-        {
-            HorizontalAlignment = HorizontalAlignment.Center,
-            VerticalAlignment = VerticalAlignment.Center,
-        };
-        var preview = new Grid { Height = 40, Margin = new Thickness(0, 0, 0, 10) };
-        preview.Children.Add(MakePreview(style));
-        stack.Children.Add(preview);
-        var label = new TextBlock
-        {
-            Text = ChipLabel(style),
-            FontFamily = IslandFonts.Ui,
-            FontSize = 12,
-            FontWeight = FontWeights.Medium,
-            Foreground = IslandColors.Brush(IslandColors.White(0.55)),
-            HorizontalAlignment = HorizontalAlignment.Center,
-        };
-        _labels.Add(label);
-        stack.Children.Add(label);
-        var tile = new Border
-        {
-            Child = stack,
-            Height = 100,
-            CornerRadius = new CornerRadius(9),
-            Background = IslandColors.Brush(IslandColors.White(0.025)),
-            BorderThickness = new Thickness(1),
-            BorderBrush = Brushes.Transparent,
-            Margin = new Thickness(0, 0, 6, 0),
-            Cursor = System.Windows.Input.Cursors.Hand,
-        };
-        tile.MouseLeftButtonUp += (_, args) =>
-        {
-            Select(style);
-            StyleSelected?.Invoke(style);
-            args.Handled = true;
-        };
-        StyleTileChrome.AttachHover(tile);
-        return tile;
-    }
-
     public void Select(CostStyle selected)
     {
         var styles = Enum.GetValues<CostStyle>();
         for (var i = 0; i < _tiles.Count; i++)
         {
-            StyleTileChrome.Paint(_tiles[i], _labels[i], styles[i] == selected);
+            _tiles[i].SetSelected(styles[i] == selected);
         }
     }
 

@@ -1,0 +1,87 @@
+<Window x:Class="AgentIsland.UI.NamePromptWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:ui="clr-namespace:AgentIsland.UI"
+        xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+        xmlns:theme="clr-namespace:AgentIsland.UI.Theme"
+        Width="400"
+        SizeToContent="Height"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        TextOptions.TextFormattingMode="Display">
+    <Window.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+            <SolidColorBrush x:Key="AlarmBackgroundBrush" Color="{x:Static theme:IslandColors.AlarmBackground}" />
+        </ResourceDictionary>
+    </Window.Resources>
+    <Border CornerRadius="18"
+            Background="{StaticResource AlarmBackgroundBrush}"
+            BorderBrush="#12FFFFFF"
+            BorderThickness="1"
+            Margin="12">
+        <Border.Effect>
+            <DropShadowEffect ShadowDepth="4"
+                              Direction="270"
+                              BlurRadius="18"
+                              Color="Black"
+                              Opacity="0.55" />
+        </Border.Effect>
+        <StackPanel Margin="28,24,28,22">
+            <!-- Title -->
+            <TextBlock x:Name="PromptTitle"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="15"
+                       FontWeight="SemiBold"
+                       Foreground="#F2FFFFFF" />
+
+            <!-- Message -->
+            <TextBlock x:Name="PromptMessage"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="12"
+                       Foreground="#99FFFFFF"
+                       Margin="0,6,0,14"
+                       TextWrapping="Wrap" />
+
+            <!-- Input Box Layer -->
+            <Border CornerRadius="8"
+                    Background="#0FFFFFFF"
+                    BorderBrush="#1AFFFFFF"
+                    BorderThickness="1"
+                    Padding="10,8,10,8">
+                <Grid>
+                    <TextBlock x:Name="PromptPlaceholder"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="13"
+                               Foreground="#47FFFFFF"
+                               IsHitTestVisible="False" />
+                    <TextBox x:Name="PromptField"
+                             FontFamily="{x:Static charts:IslandFonts.Ui}"
+                             FontSize="13"
+                             Foreground="#F2FFFFFF"
+                             CaretBrush="#CCFFFFFF"
+                             Background="Transparent"
+                             BorderThickness="0" />
+                </Grid>
+            </Border>
+
+            <!-- Buttons Row -->
+            <StackPanel Orientation="Horizontal"
+                        HorizontalAlignment="Right"
+                        Margin="0,16,0,0">
+                <ui:PillButtonControl x:Name="ExtraButton"
+                                      Margin="0,0,8,0"
+                                      Visibility="Collapsed" />
+                <ui:PillButtonControl x:Name="CancelButton"
+                                      Margin="0,0,8,0" />
+                <ui:PillButtonControl x:Name="ConfirmButton" />
+            </StackPanel>
+        </StackPanel>
+    </Border>
+</Window>

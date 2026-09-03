@@ -1,0 +1,141 @@
+<Grid x:Class="AgentIsland.UI.PanelFooter"
+      xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+      xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
+      xmlns:ui="clr-namespace:AgentIsland.UI"
+      Height="40">
+    <Grid.Resources>
+        <LinearGradientBrush x:Key="HairlineBrush" StartPoint="0,0" EndPoint="1,0">
+            <GradientStop Color="Transparent" Offset="0" />
+            <GradientStop Color="#0FFFFFFF" Offset="0.5" />
+            <GradientStop Color="Transparent" Offset="1" />
+        </LinearGradientBrush>
+
+        <Style x:Key="ReportPillStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="9" />
+            <Setter Property="Background" Value="#EBF0F6" />
+            <Setter Property="Padding" Value="8,2.5,8,2.5" />
+            <Setter Property="Margin" Value="0,0,8,0" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Cursor" Value="Hand" />
+        </Style>
+    </Grid.Resources>
+
+    <Grid.RowDefinitions>
+        <RowDefinition Height="1" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Top Hairline Divider -->
+    <Border Grid.Row="0"
+            Height="1"
+            Background="{StaticResource HairlineBrush}"
+            Margin="22,0,22,0" />
+
+    <!-- Main Footer Row -->
+    <Grid Grid.Row="1" Margin="22,6,22,10">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="Auto" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <!-- Left: Style / Year Chip -->
+        <Border x:Name="ChipHost"
+                Grid.Column="0"
+                CornerRadius="4"
+                Background="#14FFFFFF"
+                BorderBrush="#1AFFFFFF"
+                BorderThickness="0.5"
+                Padding="5,2,5,2"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Left"
+                Margin="18,0,0,0">
+            <TextBlock x:Name="ChipLabel"
+                       FontFamily="{x:Static charts:IslandFonts.Mono}"
+                       FontSize="9"
+                       FontWeight="Bold"
+                       Foreground="#C7FFFFFF"
+                       VerticalAlignment="Center" />
+        </Border>
+
+        <!-- Center: Swipe Page Indicator Dots -->
+        <StackPanel x:Name="DotsPanel"
+                    Grid.Column="1"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center" />
+
+        <!-- Right Cluster: Report Pills + Sync Button -->
+        <StackPanel Grid.Column="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    VerticalAlignment="Center">
+            <!-- Weekly Report Pill -->
+            <Border x:Name="WeeklyPill"
+                    Style="{StaticResource ReportPillStyle}"
+                    MouseEnter="OnPillMouseEnter"
+                    MouseLeave="OnPillMouseLeave"
+                    MouseLeftButtonUp="OnWeeklyPillClick">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text=""
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="9"
+                               Foreground="Black"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0" />
+                    <TextBlock x:Name="WeeklyLabel"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="Black"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Monthly Report Pill -->
+            <Border x:Name="MonthlyPill"
+                    Style="{StaticResource ReportPillStyle}"
+                    MouseEnter="OnPillMouseEnter"
+                    MouseLeave="OnPillMouseLeave"
+                    MouseLeftButtonUp="OnMonthlyPillClick">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text=""
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="9"
+                               Foreground="Black"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0" />
+                    <TextBlock x:Name="MonthlyLabel"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="Black"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Sync Status Button -->
+            <Border x:Name="SyncButton"
+                    CornerRadius="6"
+                    Background="Transparent"
+                    Padding="7,3,7,3"
+                    VerticalAlignment="Center"
+                    Cursor="Hand"
+                    MouseEnter="OnSyncMouseEnter"
+                    MouseLeave="OnSyncMouseLeave"
+                    MouseLeftButtonUp="OnSyncClick">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <ui:LiveDot x:Name="DotIndicator" VerticalAlignment="Center" />
+                    <TextBlock x:Name="SyncLabel"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="11"
+                               FontWeight="Medium"
+                               Foreground="#8CFFFFFF"
+                               Margin="6,0,0,0"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </Grid>
+</Grid>

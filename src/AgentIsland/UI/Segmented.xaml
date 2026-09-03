@@ -1,0 +1,47 @@
+<UserControl x:Class="AgentIsland.UI.Segmented"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts">
+    <UserControl.Resources>
+        <DataTemplate x:Key="SegmentItemTemplate">
+            <Border x:Name="Cell"
+                    CornerRadius="11"
+                    Padding="11,5,11,5"
+                    Cursor="Hand"
+                    Background="Transparent"
+                    MouseLeftButtonUp="OnCellMouseLeftButtonUp">
+                <TextBlock x:Name="CellText"
+                           Text="{Binding Label}"
+                           FontFamily="{x:Static charts:IslandFonts.Mono}"
+                           FontSize="11"
+                           FontWeight="Medium"
+                           Foreground="#8CFFFFFF" />
+            </Border>
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                    <Setter TargetName="Cell" Property="Background" Value="#EBFFFFFF" />
+                    <Setter TargetName="CellText" Property="Foreground" Value="#D9000000" />
+                    <Setter TargetName="CellText" Property="FontWeight" Value="SemiBold" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <Border CornerRadius="14"
+            Background="#0DFFFFFF"
+            BorderBrush="#0DFFFFFF"
+            BorderThickness="1"
+            Padding="3">
+        <ItemsControl x:Name="ItemsHost" ItemTemplate="{StaticResource SegmentItemTemplate}">
+            <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                    <StackPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+        </ItemsControl>
+    </Border>
+</UserControl>

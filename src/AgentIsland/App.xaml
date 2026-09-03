@@ -74,5 +74,10 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Global window background: black -->
+        <Style TargetType="{x:Type Window}">
+            <Setter Property="Background" Value="Black"/>
+        </Style>
     </Application.Resources>
 </Application>

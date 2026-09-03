@@ -49,22 +49,23 @@ public sealed record WeeklyReportData(
         long WeekTokens(AgentIsland.UI.Providers.DisplayProvider provider) =>
             days.Sum(d => BucketTotal(cost.Summary(provider).DailyHistory, d));
 
-        // Every provider that ran, ranked by tokens — the top-2 face off, the
-        // rest still contribute to the totals and the model ring.
-        var providers = AgentIsland.UI.Providers.DisplayProviders.All
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+
+        // Every provider that ran from user's enabled targets
+        var providers = targets
             .Select(provider => new ProviderPeriodSlice(provider, WeekTokens(provider)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
 
         var daily = days
-            .Select(d => AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => BucketTotal(cost.Summary(p).DailyHistory, d)))
+            .Select(d => targets.Sum(p => BucketTotal(cost.Summary(p).DailyHistory, d)))
             .ToArray();
         var total = providers.Sum(slice => slice.Tokens);
         // Tokens-but-no-dollars providers (Cursor) carry $0 rows, so they add
         // nothing to the dollar total on their own; the "≈" hero copy keeps it
         // an estimate.
-        var dollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => cost.Summary(p).WeeklyModels.Sum(m => m.Dollars));
+        var dollars = targets.Sum(p => cost.Summary(p).WeeklyModels.Sum(m => m.Dollars));
 
         // The card follows the app language — a card destined for WeChat
         // groups must read Chinese when the UI is Chinese.
@@ -77,9 +78,8 @@ public sealed record WeeklyReportData(
             providers,
             daily,
             LettersFor(days),
-            // TOP 3 across every provider that ran (owner call,
-            // 2026-08-09: 只要写前三的模型就够了).
-            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, s => s.WeeklyModels), top: 3));
+            // TOP 3 across user's enabled targets
+            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, targets, s => s.WeeklyModels), top: 3));
     }
 
     /// Assembles a PAST page of the report pager from interval slices
@@ -98,25 +98,26 @@ public sealed record WeeklyReportData(
         long BucketValue(DailyTokenBucket bucket) =>
             mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
 
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
         ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
         var daily = Enumerable.Range(0, days.Length)
-            .Select(i => AgentIsland.UI.Providers.DisplayProviders.All.Sum(p =>
+            .Select(i => targets.Sum(p =>
             {
                 var buckets = SliceOf(p).DailyTokens;
                 return i < buckets.Count ? BucketValue(buckets[i]) : 0;
             }))
             .ToArray();
 
-        var providers = AgentIsland.UI.Providers.DisplayProviders.All
+        var providers = targets
             .Select(provider => new ProviderPeriodSlice(
                 provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var total = providers.Sum(slice => slice.Tokens);
-        var dollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
+        var dollars = targets.Sum(p => SliceOf(p).Dollars);
 
         var lastDay = days[^1];
         return new WeeklyReportData(
@@ -127,7 +128,7 @@ public sealed record WeeklyReportData(
             daily,
             LettersFor(days),
             ReportFormat.BuildTopModels(
-                AgentIsland.UI.Providers.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+                targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
                 top: 3));
     }
 
@@ -163,7 +164,8 @@ public sealed record MonthlyReportData(
         var zh = ReportFormat.IsChinese;
 
         var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
-        var providers = AgentIsland.UI.Providers.DisplayProviders.All
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var providers = targets
             .Select(provider => new ProviderPeriodSlice(provider, mode == AgentIsland.Backend.Settings.TokenCountMode.All
                 ? cost.Summary(provider).MonthTokens
                 : cost.Summary(provider).MonthBillableTokens))
@@ -171,16 +173,14 @@ public sealed record MonthlyReportData(
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var totalTokens = providers.Sum(slice => slice.Tokens);
-        // Cursor's MonthDollars is 0 (no model → no price), so it contributes
-        // tokens above but nothing to the dollar total.
-        var totalDollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => cost.Summary(p).MonthDollars);
+        var totalDollars = targets.Sum(p => cost.Summary(p).MonthDollars);
 
         return new MonthlyReportData(
             zh ? $"{today:yyyy年M月}" : today.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
             totalTokens,
             totalDollars,
             providers,
-            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, s => s.MonthModels), top: 3));
+            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, targets, s => s.MonthModels), top: 3));
     }
 
     /// A PAST calendar month (or an anchored 30-day window) from interval
@@ -199,14 +199,15 @@ public sealed record MonthlyReportData(
         ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
-        var providers = AgentIsland.UI.Providers.DisplayProviders.All
+        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var providers = targets
             .Select(provider => new ProviderPeriodSlice(
                 provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var totalTokens = providers.Sum(slice => slice.Tokens);
-        var totalDollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
+        var totalDollars = targets.Sum(p => SliceOf(p).Dollars);
 
         return new MonthlyReportData(
             zh ? $"{start:yyyy年M月}" : start.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
@@ -214,7 +215,7 @@ public sealed record MonthlyReportData(
             totalDollars,
             providers,
             ReportFormat.BuildTopModels(
-                AgentIsland.UI.Providers.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+                targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
                 top: 3));
     }
 }
@@ -224,14 +225,11 @@ public static class ReportFormat
 {
     public static bool IsChinese => AgentIsland.UI.Localization.L10n.IsChinese;
 
-    /// Every model that ran in the period, tagged with the provider it came
-    /// from, across ALL five providers. Providers with no local ledger
-    /// (Gemini) yield nothing; tokens-only Cursor yields rows the token-ranked
-    /// BuildTopModels keeps and the card prices as "—".
+    /// Model list filtered by specified active providers.
     public static IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
-        CostStore cost, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select)
+        CostStore cost, IEnumerable<AgentIsland.UI.Providers.DisplayProvider> providers, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select)
     {
-        foreach (var provider in AgentIsland.UI.Providers.DisplayProviders.All)
+        foreach (var provider in providers)
         {
             foreach (var spend in select(cost.Summary(provider)))
             {
@@ -239,6 +237,10 @@ public static class ReportFormat
             }
         }
     }
+
+    public static IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
+        CostStore cost, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select) =>
+        ProviderModels(cost, AgentIsland.UI.Providers.DisplayProviders.All, select);
 
     /// Rank models by TOKEN share — the one metric every provider defines
     /// (macOS 2026-08-08 owner call). Dollar-ranking (the old two-provider

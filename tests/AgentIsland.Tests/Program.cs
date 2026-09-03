@@ -96,6 +96,7 @@ public static class Program
             SteppedMeterTests.RunAll();
             ProviderLogoAnimationTests.RunAll();
             BrandGeometryTests.RunAll();
+            SettingsXamlTests.RunAll();
             Console.WriteLine("ALL GREEN");
             return 0;
         }

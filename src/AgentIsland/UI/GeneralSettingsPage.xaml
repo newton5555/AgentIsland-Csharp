@@ -1,0 +1,53 @@
+<UserControl x:Class="AgentIsland.UI.GeneralSettingsPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d"
+             d:Background="Black"
+             xmlns:ui="clr-namespace:AgentIsland.UI"
+             xmlns:charts="clr-namespace:AgentIsland.UI.Charts">
+    <UserControl.Resources>
+        <ResourceDictionary>
+            <ResourceDictionary.MergedDictionaries>
+                <ResourceDictionary Source="SettingsStyles.xaml" />
+            </ResourceDictionary.MergedDictionaries>
+        </ResourceDictionary>
+    </UserControl.Resources>
+    <StackPanel Margin="14,18,14,6">
+        <!-- Launch at Login -->
+        <ui:SettingsRowControl Title="Launch at Login">
+            <ui:CobaltToggle x:Name="LaunchToggle" />
+        </ui:SettingsRowControl>
+
+        <!-- Language -->
+        <ui:SettingsRowControl Title="Language">
+            <ComboBox x:Name="LanguageCombo"
+                      Width="130"
+                      VerticalAlignment="Center"
+                      Style="{StaticResource DarkComboBoxStyle}">
+                <ComboBoxItem Content="Auto (system)" />
+                <ComboBoxItem Content="English" />
+                <ComboBoxItem Content="简体中文" />
+            </ComboBox>
+        </ui:SettingsRowControl>
+
+        <!-- Section: Updates -->
+        <TextBlock x:Name="UpdatesSectionLabel"
+                   FontFamily="{x:Static charts:IslandFonts.Ui}"
+                   FontSize="10"
+                   FontWeight="SemiBold"
+                   Foreground="#57FFFFFF"
+                   Margin="10,14,10,6" />
+
+        <!-- Check for updates automatically -->
+        <ui:SettingsRowControl Title="Check for updates automatically">
+            <ui:CobaltToggle x:Name="AutoCheckUpdatesToggle" />
+        </ui:SettingsRowControl>
+
+        <!-- Check now -->
+        <ui:SettingsRowControl Title="Check now">
+            <ui:PillButtonControl x:Name="CheckNowButton" />
+        </ui:SettingsRowControl>
+    </StackPanel>
+</UserControl>
