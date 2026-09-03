@@ -25,6 +25,8 @@ tests/
 
 ## 开发
 
+Visual Studio 可打开 `AgentIsland.sln` 或 `AgentIsland.slnx`；两者包含相同的项目、素材和文档项。
+
 ```powershell
 dotnet build .\AgentIsland.sln
 dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj

@@ -5,6 +5,60 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
 EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{54902E02-83BC-4FA9-86BD-E8D8F46C2E74}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\windows.yml = .github\workflows\windows.yml
+		.gitignore = .gitignore
+		build.ps1 = build.ps1
+		LICENSE = LICENSE
+		README.md = README.md
+		VERSION = VERSION
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{042B673C-62A0-4512-AB17-805B03C7A47C}"
+	ProjectSection(SolutionItems) = preProject
+		assets\AgentIsland.ico = assets\AgentIsland.ico
+		assets\agentisland_logo.png = assets\agentisland_logo.png
+		assets\agentisland_logo_small.png = assets\agentisland_logo_small.png
+		assets\guide-brand.png = assets\guide-brand.png
+		assets\guide-cards-en.png = assets\guide-cards-en.png
+		assets\guide-cards.png = assets\guide-cards.png
+		assets\guide-cost-en.png = assets\guide-cost-en.png
+		assets\guide-cost.png = assets\guide-cost.png
+		assets\guide-personalize-en.png = assets\guide-personalize-en.png
+		assets\guide-personalize.png = assets\guide-personalize.png
+		assets\guide-status-en.png = assets\guide-status-en.png
+		assets\guide-status.png = assets\guide-status.png
+		assets\guide-usage-en.png = assets\guide-usage-en.png
+		assets\guide-usage.png = assets\guide-usage.png
+		assets\mark-antigravity.png = assets\mark-antigravity.png
+		assets\mark-claude.png = assets\mark-claude.png
+		assets\mark-cursor.png = assets\mark-cursor.png
+		assets\mark-grok.png = assets\mark-grok.png
+		assets\mark-openai.png = assets\mark-openai.png
+		assets\whatsnew-antigravity.png = assets\whatsnew-antigravity.png
+		assets\whatsnew-cost.png = assets\whatsnew-cost.png
+		assets\whatsnew-overview.png = assets\whatsnew-overview.png
+		assets\whatsnew-start.png = assets\whatsnew-start.png
+		assets\whatsnew-terminal.png = assets\whatsnew-terminal.png
+		assets\whatsnew-tones.png = assets\whatsnew-tones.png
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Report", "Report", "{DCA9B481-8B40-4608-B516-F24FA0836595}"
+	ProjectSection(SolutionItems) = preProject
+		assets\Report\deepseek-liang.png = assets\Report\deepseek-liang.png
+		assets\Report\doubao-doujie.png = assets\Report\doubao-doujie.png
+		assets\Report\duel-claude-wins.png = assets\Report\duel-claude-wins.png
+		assets\Report\duel-codex-wins.png = assets\Report\duel-codex-wins.png
+		assets\Report\duel-draw.png = assets\Report\duel-draw.png
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{05057336-D7D4-440C-B70B-32F3D5507500}"
+	ProjectSection(SolutionItems) = preProject
+		docs\architecture.md = docs\architecture.md
+		docs\migration.md = docs\migration.md
+	EndProjectSection
+EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentIsland.Core", "src\AgentIsland.Core\AgentIsland.Core.csproj", "{97FD873B-C623-407D-B1E6-4851D2C8FF58}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentIsland.Providers", "src\AgentIsland.Providers\AgentIsland.Providers.csproj", "{60ACAB57-7E97-4123-A0D5-DC25F8E3CA30}"
@@ -97,5 +151,6 @@ Global
 		{B52EE04C-5FB2-461D-9DC2-6F2D3068A4C5} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{E653B307-BCE9-418D-8F02-BB67D982F4A2} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
 		{91E7F02F-3B6E-4D78-ABF8-9F24A8C35CED} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
+		{DCA9B481-8B40-4608-B516-F24FA0836595} = {042B673C-62A0-4512-AB17-805B03C7A47C}
 	EndGlobalSection
 EndGlobal

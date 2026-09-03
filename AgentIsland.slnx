@@ -1,0 +1,57 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AgentIsland.Core/AgentIsland.Core.csproj" />
+    <Project Path="src/AgentIsland.Providers/AgentIsland.Providers.csproj" />
+    <Project Path="src/AgentIsland.Windows/AgentIsland.Windows.csproj" />
+    <Project Path="src/AgentIsland/AgentIsland.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AgentIsland.Tests/AgentIsland.Tests.csproj" />
+  </Folder>
+  <Folder Name="/assets/">
+    <File Path="assets/AgentIsland.ico" />
+    <File Path="assets/agentisland_logo.png" />
+    <File Path="assets/agentisland_logo_small.png" />
+    <File Path="assets/guide-brand.png" />
+    <File Path="assets/guide-cards-en.png" />
+    <File Path="assets/guide-cards.png" />
+    <File Path="assets/guide-cost-en.png" />
+    <File Path="assets/guide-cost.png" />
+    <File Path="assets/guide-personalize-en.png" />
+    <File Path="assets/guide-personalize.png" />
+    <File Path="assets/guide-status-en.png" />
+    <File Path="assets/guide-status.png" />
+    <File Path="assets/guide-usage-en.png" />
+    <File Path="assets/guide-usage.png" />
+    <File Path="assets/mark-antigravity.png" />
+    <File Path="assets/mark-claude.png" />
+    <File Path="assets/mark-cursor.png" />
+    <File Path="assets/mark-grok.png" />
+    <File Path="assets/mark-openai.png" />
+    <File Path="assets/whatsnew-antigravity.png" />
+    <File Path="assets/whatsnew-cost.png" />
+    <File Path="assets/whatsnew-overview.png" />
+    <File Path="assets/whatsnew-start.png" />
+    <File Path="assets/whatsnew-terminal.png" />
+    <File Path="assets/whatsnew-tones.png" />
+  </Folder>
+  <Folder Name="/assets/Report/">
+    <File Path="assets/Report/deepseek-liang.png" />
+    <File Path="assets/Report/doubao-doujie.png" />
+    <File Path="assets/Report/duel-claude-wins.png" />
+    <File Path="assets/Report/duel-codex-wins.png" />
+    <File Path="assets/Report/duel-draw.png" />
+  </Folder>
+  <Folder Name="/docs/">
+    <File Path="docs/architecture.md" />
+    <File Path="docs/migration.md" />
+  </Folder>
+  <Folder Name="/Solution Items/">
+    <File Path=".github/workflows/windows.yml" />
+    <File Path=".gitignore" />
+    <File Path="build.ps1" />
+    <File Path="LICENSE" />
+    <File Path="README.md" />
+    <File Path="VERSION" />
+  </Folder>
+</Solution>
