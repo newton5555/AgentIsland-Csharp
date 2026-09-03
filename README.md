@@ -12,9 +12,12 @@ src/
 └─ AgentIsland             # WPF 程序：组合根
    ├─ UI                   # 窗口、页面、控件、动画、主题
    └─ Backend              # WPF 宿主后台：Monitoring/Usage/Cost/Alarms/Updates/Settings
+assets/                    # 产品 Logo、Agent 图标、引导图、报告图和更新说明图
 tests/
 └─ AgentIsland.Tests      # 当前保留一个测试入口，按目录区分测试类型
 ```
+
+根目录 `assets/` 保留一份与 WPF 运行时资源同名的素材目录，便于设计和产品维护；应用当前继续从 `src/AgentIsland/Assets/` 打包，避免改变既有 pack URI。
 
 `AgentIsland.Application` 没有单独建项目：这是一个小工具，组合根就在 WPF 可执行项目中；后台功能仍然按 Service/Store/Provider 归类，不为了 IoC 这个词额外增加一层空壳。
 
