@@ -12,4 +12,8 @@
     <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="ZstdSharp.Port" Version="0.8.5" />
+  </ItemGroup>
+
 </Project>

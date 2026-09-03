@@ -336,7 +336,7 @@
     <!-- 2. 已完成对决图 -->
     <div class="section">
       <div class="section-header">
-        <div class="section-title">已完成对决图库 (22款，点击图片可全屏预览)</div>
+        <div class="section-title">已完成对决图库 (30款，点击图片可全屏预览)</div>
         <div class="section-note">1024×1024 纯净透明通道 PNG，均存储于 assets/Report/对决/</div>
       </div>
       <div class="duel-grid">
@@ -675,49 +675,169 @@
             <div class="duel-file">duel-deepseek-win-codex.png</div>
           </div>
         </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-lose-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">DeepSeek 败</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
+            <div class="duel-desc">Altman 戴大金冠比耶，梁文锋与圆滚滚小蓝鲸翻肚皮蚊香眼。</div>
+            <div class="duel-file">duel-deepseek-lose-codex.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-draw-codex.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
+            <div class="duel-desc">梁文锋与 Altman 双雄背靠背，深海蓝鲸水波与科技亮蓝星芒激荡。</div>
+            <div class="duel-file">duel-deepseek-draw-codex.png</div>
+          </div>
+        </div>
+
+        <!-- DeepSeek vs Claude -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-win-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">DeepSeek 胜</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
+            <div class="duel-desc">梁文锋头戴金冠比耶、小蓝鲸喷水助威，Claude 卷发蓬乱蚊香眼倒地。</div>
+            <div class="duel-file">duel-deepseek-win-claude.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-lose-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">DeepSeek 败</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
+            <div class="duel-desc">Claude 戴大金冠开朗眨眼比耶，梁文锋与小蓝鲸翻肚皮冒冷汗。</div>
+            <div class="duel-file">duel-deepseek-lose-claude.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-deepseek-draw-claude.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
+            <div class="duel-desc">梁文锋与 Dario Amodei 宗师背靠背，深海蓝与陶橙星芒巅峰交融。</div>
+            <div class="duel-file">duel-deepseek-draw-claude.png</div>
+          </div>
+        </div>
+
+        <!-- Codex vs Cursor -->
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-win-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-win">Codex 胜</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Cursor (右)</div>
+            <div class="duel-desc">Altman 戴金冠比耶踩趴机甲，Cursor 机器人青色面罩螺旋眼冒烟。</div>
+            <div class="duel-file">duel-codex-win-cursor.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-lose-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-lose">Codex 败</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Cursor (右)</div>
+            <div class="duel-desc">Cursor 纯白机器人头戴大金冠眨眼反杀踩人，Altman 委屈趴地。</div>
+            <div class="duel-file">duel-codex-lose-cursor.png</div>
+          </div>
+        </div>
+
+        <div class="duel-card done">
+          <div class="duel-preview">
+            <img src="对决/duel-codex-draw-cursor.png" onclick="showModal(this.src)">
+            <span class="zoom-hint">点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-header-row">
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">Codex (左) VS Cursor (右)</div>
+            <div class="duel-desc">Altman 与 Cursor 机器人双手抱胸背靠背，模型与编辑器神级结对。</div>
+            <div class="duel-file">duel-codex-draw-cursor.png</div>
+          </div>
+        </div>
       </div>
     </div>
 
     <!-- 3. 下一批次生产计划 -->
     <div class="section">
       <div class="section-header">
-        <div class="section-title">排产计划矩阵（待凌晨 02:31 额度重置后生成）</div>
-        <div class="section-note">按国产 Agent 与主流对决热度推进</div>
+        <div class="section-title">排产计划矩阵（待下批次推进）</div>
+        <div class="section-note">按国产 Agent 豆包及拓展组合推进</div>
       </div>
       <div class="duel-grid">
-        <!-- DeepSeek vs Codex 续 -->
+        <!-- 豆包系列 -->
         <div class="duel-card planned">
           <div class="duel-body">
             <div class="duel-header-row">
-              <span class="duel-tag tag-plan">优先级 1 (余下2张)</span>
+              <span class="duel-tag tag-plan">优先级 1 (3张)</span>
             </div>
-            <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
-            <div class="duel-desc">梁文锋败北（小蓝鲸翻肚皮）、双雄背靠背对峙平局。</div>
-            <div class="duel-file">duel-deepseek-[lose|draw]-codex.png</div>
+            <div class="duel-title">豆包 (左) VS Codex (右)</div>
+            <div class="duel-desc">豆姐（元气双丸子头 + 豆包绿）对战 Sam Altman。</div>
+            <div class="duel-file">duel-doubao-[win|lose|draw]-codex.png</div>
           </div>
         </div>
 
-        <!-- DeepSeek vs Claude -->
         <div class="duel-card planned">
           <div class="duel-body">
             <div class="duel-header-row">
               <span class="duel-tag tag-plan">优先级 2 (3张)</span>
             </div>
-            <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
-            <div class="duel-desc">梁文锋（蓝鲸）对决 Dario Amodei（陶橙卫衣星芒）。</div>
-            <div class="duel-file">duel-deepseek-[win|lose|draw]-claude.png</div>
+            <div class="duel-title">豆包 (左) VS DeepSeek (右)</div>
+            <div class="duel-desc">豆姐元气对阵梁文锋（豆包绿与蓝鲸）。</div>
+            <div class="duel-file">duel-doubao-[win|lose|draw]-deepseek.png</div>
           </div>
         </div>
 
-        <!-- Codex vs Cursor -->
         <div class="duel-card planned">
           <div class="duel-body">
             <div class="duel-header-row">
               <span class="duel-tag tag-plan">优先级 3 (3张)</span>
             </div>
-            <div class="duel-title">Codex (左) VS Cursor (右)</div>
-            <div class="duel-desc">Sam Altman 对决纯白机甲 Cursor 机器人。</div>
-            <div class="duel-file">duel-codex-[win|lose|draw]-cursor.png</div>
+            <div class="duel-title">DeepSeek (左) VS Antigravity (右)</div>
+            <div class="duel-desc">梁文锋对战 Demis Hassabis（蓝鲸与围棋智斗）。</div>
+            <div class="duel-file">duel-deepseek-[win|lose|draw]-antigravity.png</div>
           </div>
         </div>
       </div>
