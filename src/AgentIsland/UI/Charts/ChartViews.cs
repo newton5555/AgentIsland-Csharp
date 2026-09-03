@@ -5,7 +5,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI.Charts;
 
@@ -914,7 +914,7 @@ public sealed class ChartTile : StackPanel
     public void Update(WindowUsage window, ChartStyle style)
     {
         // 0-100; flips to "percent left" when the user prefers remaining.
-        var value = Model.QuotaDisplayModeStore.Shared.DisplayValue(window.UsedPercent);
+        var value = AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.DisplayValue(window.UsedPercent);
         var label = PeriodLabel(window, _labelKey);
 
         // Ring and Numeric render their own heads; the shared head serves
@@ -954,13 +954,13 @@ public sealed class ChartTile : StackPanel
     {
         if (window.PeriodSeconds is not { } period || period <= 0)
         {
-            return Localization.L10n.Tr(fallbackKey);
+            return AgentIsland.UI.Localization.L10n.Tr(fallbackKey);
         }
         // A billing cycle is not a week. Cursor's included-usage pool runs ~30
         // days, and without this branch IsLongPeriod would print "week" over a
         // month's worth of quota.
-        if (period >= 20 * 86400) return Localization.L10n.Tr("30d");
-        if (window.IsLongPeriod) return Localization.L10n.Tr("week");
+        if (period >= 20 * 86400) return AgentIsland.UI.Localization.L10n.Tr("30d");
+        if (window.IsLongPeriod) return AgentIsland.UI.Localization.L10n.Tr("week");
         var hours = Math.Max(1, (int)Math.Round(period / 3600));
         return $"{hours}h";
     }
@@ -979,7 +979,7 @@ public sealed class ChartTile : StackPanel
             {
                 return "";
             }
-            return Localization.ErrorDisplay.Localize(error);
+            return AgentIsland.UI.Localization.ErrorDisplay.Localize(error);
         }
         if (window.ResetAt is { } resetAt)
         {
@@ -988,7 +988,7 @@ public sealed class ChartTile : StackPanel
             var compact = Core.Formatting.CompactDuration(delta);
             return style == ChartStyle.Numeric
                 ? "↻ " + compact
-                : Localization.L10n.TrFormat("resets in {0}", compact);
+                : AgentIsland.UI.Localization.L10n.TrFormat("resets in {0}", compact);
         }
         return "";
     }

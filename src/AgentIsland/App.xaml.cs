@@ -3,7 +3,7 @@ using AgentIsland.Core;
 using AgentIsland.Core.Agents;
 using AgentIsland.Providers.BuiltIn;
 using AgentIsland.UI;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland;
 
@@ -60,10 +60,11 @@ public partial class App : System.Windows.Application
             return;
         }
         InstallCrashLogger();
+        ActivityMonitor.Shared.Configure(AgentCatalog);
         // Before any store singleton reads a key: settings written by pre-1.7
         // builds carry the MacIsland.* prefix and must land on AgentIsland.*.
-        Core.Preferences.MigrateLegacyPrefix();
-        Model.AppLanguageStore.ApplyAtStartup();
+        AgentIsland.Windows.Preferences.MigrateLegacyPrefix();
+        AgentIsland.Backend.Settings.AppLanguageStore.ApplyAtStartup();
 
         if (AppEnvironment.IsDemo)
         {
@@ -99,11 +100,11 @@ public partial class App : System.Windows.Application
 
         ActivityMonitor.Shared.Start();
         UsageStore.Shared.StartAutoRefresh();
-        Alarm.UsageExhaustionAlarm.Shared.Start();
-        Update.UpdateInstaller.CleanupAtStartup();
-        Update.UpdateChecker.Shared.Start();
-        Cost.CostStore.Shared.StartAutoRefresh();
-        Model.AlertEngine.Shared.Start();
+        AgentIsland.Backend.Alarms.UsageExhaustionAlarm.Shared.Start();
+        AgentIsland.Backend.Updates.UpdateInstaller.CleanupAtStartup();
+        AgentIsland.Backend.Updates.UpdateChecker.Shared.Start();
+        AgentIsland.Backend.Cost.CostStore.Shared.StartAutoRefresh();
+        AgentIsland.Backend.Settings.AlertEngine.Shared.Start();
 
         // Release card: once per version, shortly after the island lands
         // (macOS 2.1.2 parity — WhatsNewGate is its own suppressor for
@@ -148,15 +149,15 @@ public partial class App : System.Windows.Application
                     UI.Report.ReportWindow.WritePng(UI.Report.ReportWindow.Kind.Monthly, monthlySnapshot!);
                 Shutdown();
             }
-            if (Cost.CostStore.Shared.LastUpdated is not null)
+            if (AgentIsland.Backend.Cost.CostStore.Shared.LastUpdated is not null)
             {
                 RenderAndQuit();
             }
             else
             {
-                Cost.CostStore.Shared.PropertyChanged += (_, args) =>
+                AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += (_, args) =>
                 {
-                    if (args.PropertyName == nameof(Cost.CostStore.LastUpdated))
+                    if (args.PropertyName == nameof(AgentIsland.Backend.Cost.CostStore.LastUpdated))
                     {
                         Dispatcher.BeginInvoke(RenderAndQuit);
                     }
@@ -209,12 +210,12 @@ public partial class App : System.Windows.Application
         if (!string.IsNullOrEmpty(updateDialogPreview))
         {
             var dialog = IslandDialog.ShowUpdate(
-                Localization.L10n.Tr("You're up to date!"),
-                Localization.L10n.TrFormat(
+                AgentIsland.UI.Localization.L10n.Tr("You're up to date!"),
+                AgentIsland.UI.Localization.L10n.TrFormat(
                     "AgentIsland {0} is currently the newest version available.",
-                    Update.UpdateChecker.CurrentVersionDisplay),
-                primaryLabel: Localization.L10n.Tr("OK"),
-                secondaryLabel: Localization.L10n.Tr("Version History"));
+                    AgentIsland.Backend.Updates.UpdateChecker.CurrentVersionDisplay),
+                primaryLabel: AgentIsland.UI.Localization.L10n.Tr("OK"),
+                secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("Version History"));
             if (updateDialogPreview != "1") dialog.SaveSnapshot(updateDialogPreview);
         }
         // Full-surface CI sweep: renders reports + island + every settings
@@ -228,16 +229,16 @@ public partial class App : System.Windows.Application
         {
             IslandDialog.Show(
                 TriggerTool.Claude,
-                Localization.L10n.Tr("Re-authenticate"),
-                Localization.L10n.Tr("Claude Code CLI not found. Log in from a terminal with: claude /login"),
+                AgentIsland.UI.Localization.L10n.Tr("Re-authenticate"),
+                AgentIsland.UI.Localization.L10n.Tr("Claude Code CLI not found. Log in from a terminal with: claude /login"),
                 meta: new[]
                 {
-                    (Localization.L10n.Tr("Alarm provider"), "Claude"),
-                    (Localization.L10n.Tr("Alarm thread"), "Agent Island Windows"),
-                    (Localization.L10n.Tr("Alarm project"), "Agent Island"),
+                    (AgentIsland.UI.Localization.L10n.Tr("Alarm provider"), "Claude"),
+                    (AgentIsland.UI.Localization.L10n.Tr("Alarm thread"), "Agent Island Windows"),
+                    (AgentIsland.UI.Localization.L10n.Tr("Alarm project"), "Agent Island"),
                 },
-                primaryLabel: Localization.L10n.Tr("Retry"),
-                secondaryLabel: Localization.L10n.Tr("I know"));
+                primaryLabel: AgentIsland.UI.Localization.L10n.Tr("Retry"),
+                secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("I know"));
         }
     }
 

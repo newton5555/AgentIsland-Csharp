@@ -4,7 +4,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 
@@ -39,7 +39,7 @@ public static class ReportCards
         var zh = ReportFormat.IsChinese;
         var body = FlexColumn(
             (Header("WEEKLY", data.RangeText), 0),
-            (Hero(Localization.L10n.Tr("tokens this week"), data.TotalTokens, data.TotalDollars, zh), 14),
+            (Hero(AgentIsland.UI.Localization.L10n.Tr("tokens this week"), data.TotalTokens, data.TotalDollars, zh), 14),
             (FaceoffStage(data.Providers, zh), 12),
             (WeekBars(data, zh), 14),
             (ModelTable(data.TopModels, zh), 14));
@@ -51,7 +51,7 @@ public static class ReportCards
         var zh = ReportFormat.IsChinese;
         var body = FlexColumn(
             (Header("MONTHLY", data.MonthText), 0),
-            (Hero(Localization.L10n.Tr("tokens this month"), data.TotalTokens, data.TotalDollars, zh), 14),
+            (Hero(AgentIsland.UI.Localization.L10n.Tr("tokens this month"), data.TotalTokens, data.TotalDollars, zh), 14),
             (FaceoffStage(data.Providers, zh), 16),
             (ModelTable(data.TopModels, zh), 18));
         return Card(body, rounded);
@@ -225,7 +225,7 @@ public static class ReportCards
         {
             line.Children.Add(Numeric(new TextBlock
             {
-                Text = Localization.L10n.TrFormat("≈ ${0} API value", ReportFormat.Money(totalDollars)),
+                Text = AgentIsland.UI.Localization.L10n.TrFormat("≈ ${0} API value", ReportFormat.Money(totalDollars)),
                 FontFamily = IslandFonts.Ui,
                 FontSize = 12.5,
                 FontWeight = FontWeights.ExtraBold,
@@ -624,7 +624,7 @@ public static class ReportCards
         {
             // macOS v4: the hole says MODELS — a "TOP N" recount went stale
             // the moment a period had fewer than N models.
-            Text = Localization.L10n.Tr("MODELS"),
+            Text = AgentIsland.UI.Localization.L10n.Tr("MODELS"),
             FontFamily = IslandFonts.Ui,
             FontSize = 10.5,
             FontWeight = FontWeights.ExtraBold,

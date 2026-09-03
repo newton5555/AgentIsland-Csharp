@@ -1,6 +1,6 @@
 using System.Windows;
 using System.Windows.Media;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI.Theme;
 

@@ -3,8 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using AgentIsland.Cost;
-using AgentIsland.Model;
+using AgentIsland.Core.Cost;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 
@@ -98,7 +98,7 @@ public sealed class OverviewPage : Border
             FontWeight = FontWeights.Medium,
             Foreground = IslandColors.Brush(IslandColors.White(0.55)),
             Margin = new Thickness(2, 6, 0, 0),
-            Text = Localization.L10n.Tr("Click a day for details"),
+            Text = AgentIsland.UI.Localization.L10n.Tr("Click a day for details"),
         };
         Grid.SetRow(_detail, 3);
         grid.Children.Add(_detail);
@@ -166,7 +166,7 @@ public sealed class OverviewPage : Border
         }
         _heroLabel.Text = $"{DateTime.Now.Year} TOKEN";
         _heroValue.Text = Core.Formatting.CompactTokens(total);
-        _activeDays.Text = Localization.L10n.TrFormat("{0} active days", activeDays);
+        _activeDays.Text = AgentIsland.UI.Localization.L10n.TrFormat("{0} active days", activeDays);
 
         // One chip per provider that ran, in canonical slot order — a
         // Grok-only year reads as Grok, not a blank Claude/Codex split.
@@ -225,7 +225,7 @@ public sealed class OverviewPage : Border
             var column = (first - start).Days / Rows;
             var label = new TextBlock
             {
-                Text = Localization.L10n.IsChinese ? $"{month}月" : first.ToString("MMM"),
+                Text = AgentIsland.UI.Localization.L10n.IsChinese ? $"{month}月" : first.ToString("MMM"),
                 FontFamily = IslandFonts.Ui,
                 FontSize = 10,
                 Foreground = IslandColors.Brush(IslandColors.White(0.45)),
@@ -337,7 +337,7 @@ public sealed class OverviewPage : Border
     private void ShowDetail(DateTime day)
     {
         _days.TryGetValue(day, out var providers);
-        var date = day.ToString(Localization.L10n.IsChinese ? "M月d日" : "MMM d");
+        var date = day.ToString(AgentIsland.UI.Localization.L10n.IsChinese ? "M月d日" : "MMM d");
         var parts = new List<string>();
         if (providers is not null)
         {

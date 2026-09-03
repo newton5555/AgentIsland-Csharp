@@ -3,7 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 
@@ -265,7 +265,7 @@ public sealed class IslandDialog : Window
         Present(new IslandDialog(
             title, message, IslandColors.For(tool),
             ProviderMarks.Mark(tool.ToDisplayProvider(), 40, tintOpacity: 1), meta,
-            primaryLabel ?? Localization.L10n.Tr("I know"), primaryAction, secondaryLabel));
+            primaryLabel ?? AgentIsland.UI.Localization.L10n.Tr("I know"), primaryAction, secondaryLabel));
     }
 
     /// The five-blade app mark for provider-neutral dialogs (brand era —
@@ -309,7 +309,7 @@ public sealed class IslandDialog : Window
         Present(new IslandDialog(
             title, message, IslandColors.Cobalt,
             AppMark(), null,
-            primaryLabel ?? Localization.L10n.Tr("I know"), primaryAction, secondaryLabel));
+            primaryLabel ?? AgentIsland.UI.Localization.L10n.Tr("I know"), primaryAction, secondaryLabel));
     }
 
     /// Sparkle-style update dialog: the real app icon, headline, message,

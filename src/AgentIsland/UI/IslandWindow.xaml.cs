@@ -5,8 +5,8 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AgentIsland.Core;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
-using AgentIsland.Model;
+using AgentIsland.Core.Usage;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI;
 
@@ -243,13 +243,13 @@ public partial class IslandWindow : Window
         };
         System.ComponentModel.PropertyChangedEventHandler onLowPower =
             (_, _) => Dispatcher.BeginInvoke(UpdateHalo);
-        Model.LowPowerModeStore.Shared.PropertyChanged += onLowPower;
-        _teardown.Add(() => Model.LowPowerModeStore.Shared.PropertyChanged -= onLowPower);
+        AgentIsland.Backend.Settings.LowPowerModeStore.Shared.PropertyChanged += onLowPower;
+        _teardown.Add(() => AgentIsland.Backend.Settings.LowPowerModeStore.Shared.PropertyChanged -= onLowPower);
 
         System.ComponentModel.PropertyChangedEventHandler onGlowColor =
             (_, _) => Dispatcher.BeginInvoke(UpdateHalo);
-        Model.GlowColorStore.Shared.PropertyChanged += onGlowColor;
-        _teardown.Add(() => Model.GlowColorStore.Shared.PropertyChanged -= onGlowColor);
+        AgentIsland.Backend.Settings.GlowColorStore.Shared.PropertyChanged += onGlowColor;
+        _teardown.Add(() => AgentIsland.Backend.Settings.GlowColorStore.Shared.PropertyChanged -= onGlowColor);
 
         ApplyInterfaceScale();
         System.ComponentModel.PropertyChangedEventHandler onScale =
@@ -258,8 +258,8 @@ public partial class IslandWindow : Window
                 ApplyInterfaceScale();
                 PositionOnScreen();
             });
-        Model.IslandScaleStore.Shared.PropertyChanged += onScale;
-        _teardown.Add(() => Model.IslandScaleStore.Shared.PropertyChanged -= onScale);
+        AgentIsland.Backend.Settings.IslandScaleStore.Shared.PropertyChanged += onScale;
+        _teardown.Add(() => AgentIsland.Backend.Settings.IslandScaleStore.Shared.PropertyChanged -= onScale);
 
         System.ComponentModel.PropertyChangedEventHandler onSysParams = (_, args) =>
         {
@@ -283,16 +283,16 @@ public partial class IslandWindow : Window
 
         System.ComponentModel.PropertyChangedEventHandler onTargetDisplay =
             (_, _) => Dispatcher.BeginInvoke(PositionOnScreen);
-        Model.IslandTargetDisplayStore.Shared.PropertyChanged += onTargetDisplay;
-        _teardown.Add(() => Model.IslandTargetDisplayStore.Shared.PropertyChanged -= onTargetDisplay);
+        AgentIsland.Backend.Settings.IslandTargetDisplayStore.Shared.PropertyChanged += onTargetDisplay;
+        _teardown.Add(() => AgentIsland.Backend.Settings.IslandTargetDisplayStore.Shared.PropertyChanged -= onTargetDisplay);
 
         System.ComponentModel.PropertyChangedEventHandler onPlacement = (_, _) => Dispatcher.BeginInvoke(() =>
         {
             ApplyEdgeLayout();
             PositionOnScreen();
         });
-        Model.IslandPositionStore.Shared.PropertyChanged += onPlacement;
-        _teardown.Add(() => Model.IslandPositionStore.Shared.PropertyChanged -= onPlacement);
+        AgentIsland.Backend.Settings.IslandPositionStore.Shared.PropertyChanged += onPlacement;
+        _teardown.Add(() => AgentIsland.Backend.Settings.IslandPositionStore.Shared.PropertyChanged -= onPlacement);
         Closed += (_, _) => { foreach (var teardown in _teardown) teardown(); };
 
         ApplySizeInstant();
@@ -318,17 +318,17 @@ public partial class IslandWindow : Window
         _teardown.Add(() => GrokUsageStore.Shared.PropertyChanged -= onUsage);
         CursorUsageStore.Shared.PropertyChanged += onUsage;
         _teardown.Add(() => CursorUsageStore.Shared.PropertyChanged -= onUsage);
-        Model.QuotaDisplayModeStore.Shared.PropertyChanged += onUsage;
-        _teardown.Add(() => Model.QuotaDisplayModeStore.Shared.PropertyChanged -= onUsage);
+        AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.PropertyChanged += onUsage;
+        _teardown.Add(() => AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.PropertyChanged -= onUsage);
 
         System.ComponentModel.PropertyChangedEventHandler onAlert = (_, args) => Dispatcher.BeginInvoke(() =>
         {
-            if (args.PropertyName == nameof(Model.AlertEngine.Pulse)) HandleAlertPulse();
+            if (args.PropertyName == nameof(AgentIsland.Backend.Settings.AlertEngine.Pulse)) HandleAlertPulse();
             UpdateHalo();
             UpdatePills();
         });
-        Model.AlertEngine.Shared.PropertyChanged += onAlert;
-        _teardown.Add(() => Model.AlertEngine.Shared.PropertyChanged -= onAlert);
+        AgentIsland.Backend.Settings.AlertEngine.Shared.PropertyChanged += onAlert;
+        _teardown.Add(() => AgentIsland.Backend.Settings.AlertEngine.Shared.PropertyChanged -= onAlert);
 
         // Live layout changes (Settings bar width, provider visibility, solo
         // centering, placement) reflow the collapsed bar with the open
@@ -348,8 +348,8 @@ public partial class IslandWindow : Window
 
         System.ComponentModel.PropertyChangedEventHandler onVisibility =
             (_, _) => Dispatcher.BeginInvoke(ApplyProviderVisibility);
-        Model.ProviderVisibilityStore.Shared.PropertyChanged += onVisibility;
-        _teardown.Add(() => Model.ProviderVisibilityStore.Shared.PropertyChanged -= onVisibility);
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += onVisibility;
+        _teardown.Add(() => AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= onVisibility);
 
         System.ComponentModel.PropertyChangedEventHandler onAlwaysShow = (_, _) => Dispatcher.BeginInvoke(() =>
         {
@@ -391,7 +391,7 @@ public partial class IslandWindow : Window
     /// the balanced peek width is preserved by the model's fixed slots.
     private void ApplyProviderVisibility()
     {
-        var slots = Model.ProviderVisibilityStore.Shared.Slots;
+        var slots = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Slots;
         _leftTool = slots.Count > 0 ? slots[0].ToTriggerTool() : null;
         _rightTool = slots.Count > 1 ? slots[1].ToTriggerTool() : null;
 
@@ -443,7 +443,7 @@ public partial class IslandWindow : Window
         if (tool is { } t
             && title.Children.OfType<System.Windows.Controls.TextBlock>().FirstOrDefault() is { } label)
         {
-            label.Text = Model.ProviderIdentity.DisplayName(t);
+            label.Text = AgentIsland.UI.Providers.ProviderIdentity.DisplayName(t);
         }
     }
 
@@ -632,13 +632,13 @@ public partial class IslandWindow : Window
     }
 
     private bool IsFloating =>
-        Model.IslandPositionStore.Shared.Placement == Model.IslandPlacement.Floating;
+        AgentIsland.Backend.Settings.IslandPositionStore.Shared.Placement == AgentIsland.Backend.Settings.IslandPlacement.Floating;
 
     private void PositionOnScreen()
     {
-        var area = WorkAreaDip(Model.IslandTargetDisplayStore.Shared.Resolve());
-        var store = Model.IslandPositionStore.Shared;
-        if (store.Placement == Model.IslandPlacement.Floating)
+        var area = WorkAreaDip(AgentIsland.Backend.Settings.IslandTargetDisplayStore.Shared.Resolve());
+        var store = AgentIsland.Backend.Settings.IslandPositionStore.Shared;
+        if (store.Placement == AgentIsland.Backend.Settings.IslandPlacement.Floating)
         {
             var pt = store.FloatingPoint;
             if (pt is { } p)
@@ -851,7 +851,7 @@ public partial class IslandWindow : Window
     /// let OnSilhouetteClick bail for floating.
     private void OnSilhouetteMouseDown(object sender, MouseButtonEventArgs e)
     {
-        if (Model.IslandPositionStore.Shared.Placement != Model.IslandPlacement.Floating) return;
+        if (AgentIsland.Backend.Settings.IslandPositionStore.Shared.Placement != AgentIsland.Backend.Settings.IslandPlacement.Floating) return;
         if (_model.State != IslandState.Compact && _model.State != IslandState.Peek) return;
         var startLeft = Left;
         var startTop = Top;
@@ -859,7 +859,7 @@ public partial class IslandWindow : Window
         var moved = Math.Abs(Left - startLeft) > 3 || Math.Abs(Top - startTop) > 3;
         if (moved)
         {
-            Model.IslandPositionStore.Shared.SetFloatingPoint(Left, Top);
+            AgentIsland.Backend.Settings.IslandPositionStore.Shared.SetFloatingPoint(Left, Top);
             // Settle into the clamped resting spot now, so it matches where a
             // later reposition (display change / relaunch) would place it.
             PositionOnScreen();
@@ -928,7 +928,7 @@ public partial class IslandWindow : Window
     {
         // Floating handles expand in the mouse-down path (DragMove consumes
         // the up), so ignore the click there to avoid a double expand.
-        if (Model.IslandPositionStore.Shared.Placement == Model.IslandPlacement.Floating) return;
+        if (AgentIsland.Backend.Settings.IslandPositionStore.Shared.Placement == AgentIsland.Backend.Settings.IslandPlacement.Floating) return;
         if (_model.State is IslandState.Peek or IslandState.Compact)
         {
             SetState(IslandState.Expanded);
@@ -1373,7 +1373,7 @@ public partial class IslandWindow : Window
     /// window's Width, so centering holds at any scale.
     private void ApplyInterfaceScale()
     {
-        var scale = Model.IslandScaleStore.Shared.Scale;
+        var scale = AgentIsland.Backend.Settings.IslandScaleStore.Shared.Scale;
         RootHost.LayoutTransform = Math.Abs(scale - 1.0) < 0.001
             ? null
             : new ScaleTransform(scale, scale);
@@ -1384,25 +1384,25 @@ public partial class IslandWindow : Window
     private static bool AttentionShown()
     {
         var monitor = ActivityMonitor.Shared;
-        return Model.ProviderVisibilityStore.Shared.Slots
+        return AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Slots
             .Any(provider => monitor.StateFor(provider.ToTriggerTool()).IsAttentionState());
     }
 
     private void UpdateHalo()
     {
         var monitor = ActivityMonitor.Shared;
-        var pulsing = Model.ProviderVisibilityStore.Shared.Slots
+        var pulsing = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Slots
             .Any(provider => monitor.StateFor(provider.ToTriggerTool()).PulsesAttention());
         var attention = AttentionShown();
-        var severity = Model.AlertEngine.Shared.Severity;
+        var severity = AgentIsland.Backend.Settings.AlertEngine.Shared.Severity;
         var mode = pulsing
             ? HaloMode.AttentionPulse
             : attention
                 ? HaloMode.AttentionSteady
                 : severity switch
                 {
-                    Model.AlertSeverity.Critical => HaloMode.CriticalTint,
-                    Model.AlertSeverity.Warning => HaloMode.WarningTint,
+                    AgentIsland.Backend.Settings.AlertSeverity.Critical => HaloMode.CriticalTint,
+                    AgentIsland.Backend.Settings.AlertSeverity.Warning => HaloMode.WarningTint,
                     _ => HaloMode.Rest,
                 };
         if (mode != _haloMode)
@@ -1458,15 +1458,15 @@ public partial class IslandWindow : Window
         // Calm turns it fully off. EffectiveEnabled folds in the battery saver.
         if (_haloMode == HaloMode.Rest)
         {
-            if (Model.LowPowerModeStore.Shared.Mode == Model.VisualMode.FollowModel)
+            if (AgentIsland.Backend.Settings.LowPowerModeStore.Shared.Mode == AgentIsland.Backend.Settings.VisualMode.FollowModel)
             {
                 var leftWorking = _leftTool is { } lt && monitor.StateFor(lt) == ActivityState.Working;
                 var rightWorking = _rightTool is { } rt && monitor.StateFor(rt) == ActivityState.Working;
 
                 if (leftWorking && rightWorking && _leftTool is { } l1 && _rightTool is { } r1)
                 {
-                    var c1 = Model.ProviderIdentity.StreamColor(l1);
-                    var c2 = Model.ProviderIdentity.StreamColor(r1);
+                    var c1 = AgentIsland.UI.Providers.ProviderIdentity.StreamColor(l1);
+                    var c2 = AgentIsland.UI.Providers.ProviderIdentity.StreamColor(r1);
                     Halo.Color = Color.FromRgb(
                         (byte)((c1.R + c2.R) / 2),
                         (byte)((c1.G + c2.G) / 2),
@@ -1474,26 +1474,26 @@ public partial class IslandWindow : Window
                 }
                 else if (leftWorking && _leftTool is { } l2)
                 {
-                    Halo.Color = Model.ProviderIdentity.StreamColor(l2);
+                    Halo.Color = AgentIsland.UI.Providers.ProviderIdentity.StreamColor(l2);
                 }
                 else if (rightWorking && _rightTool is { } r2)
                 {
-                    Halo.Color = Model.ProviderIdentity.StreamColor(r2);
+                    Halo.Color = AgentIsland.UI.Providers.ProviderIdentity.StreamColor(r2);
                 }
                 else
                 {
                     Halo.Color = _leftTool is { } l
-                        ? Model.ProviderIdentity.StreamColor(l)
+                        ? AgentIsland.UI.Providers.ProviderIdentity.StreamColor(l)
                         : _rightTool is { } r
-                            ? Model.ProviderIdentity.StreamColor(r)
-                            : Model.GlowColorStore.Shared.Color;
+                            ? AgentIsland.UI.Providers.ProviderIdentity.StreamColor(r)
+                            : AgentIsland.Backend.Settings.GlowColorStore.Shared.Color;
                 }
             }
             else
             {
-                Halo.Color = Model.GlowColorStore.Shared.Color;
+                Halo.Color = AgentIsland.Backend.Settings.GlowColorStore.Shared.Color;
             }
-            Halo.Opacity = Model.LowPowerModeStore.Shared.EffectiveEnabled ? 0 : 0.35;
+            Halo.Opacity = AgentIsland.Backend.Settings.LowPowerModeStore.Shared.EffectiveEnabled ? 0 : 0.35;
         }
         UpdateSweep();
     }
@@ -1506,14 +1506,14 @@ public partial class IslandWindow : Window
         var attention = AttentionShown();
         var alertTint = attention
             ? IslandColors.AlertRed
-            : Model.AlertEngine.Shared.Severity switch
+            : AgentIsland.Backend.Settings.AlertEngine.Shared.Severity switch
             {
-                Model.AlertSeverity.Critical => IslandColors.AlertRed,
-                Model.AlertSeverity.Warning => IslandColors.AlertAmber,
+                AgentIsland.Backend.Settings.AlertSeverity.Critical => IslandColors.AlertRed,
+                AgentIsland.Backend.Settings.AlertSeverity.Warning => IslandColors.AlertAmber,
                 _ => (Color?)null,
             };
 
-        var active = !Model.LowPowerModeStore.Shared.EffectiveEnabled;
+        var active = !AgentIsland.Backend.Settings.LowPowerModeStore.Shared.EffectiveEnabled;
         if (!active)
         {
             if (_sweepActive)
@@ -1532,8 +1532,8 @@ public partial class IslandWindow : Window
 
         var (isDual, palette, rightPalette) = ResolveSweepPalettes(
             alertTint,
-            Model.LowPowerModeStore.Shared.Mode,
-            Model.GlowColorStore.Shared.Color,
+            AgentIsland.Backend.Settings.LowPowerModeStore.Shared.Mode,
+            AgentIsland.Backend.Settings.GlowColorStore.Shared.Color,
             _leftTool,
             leftState,
             _rightTool,
@@ -1592,7 +1592,7 @@ public partial class IslandWindow : Window
 
     internal static (bool IsDual, IReadOnlyList<Color> LeftPalette, IReadOnlyList<Color> RightPalette) ResolveSweepPalettes(
         Color? alertTint,
-        Model.VisualMode visualMode,
+        AgentIsland.Backend.Settings.VisualMode visualMode,
         Color fallbackGlowColor,
         TriggerTool? leftTool,
         ActivityState leftState,
@@ -1609,7 +1609,7 @@ public partial class IslandWindow : Window
             palette = new[] { at };
             rightPalette = palette;
         }
-        else if (visualMode == Model.VisualMode.FollowModel)
+        else if (visualMode == AgentIsland.Backend.Settings.VisualMode.FollowModel)
         {
             var leftWorking = leftTool is not null && leftState == ActivityState.Working;
             var rightWorking = rightTool is not null && rightState == ActivityState.Working;
@@ -1617,33 +1617,33 @@ public partial class IslandWindow : Window
             if (leftWorking && rightWorking && leftTool is { } l1 && rightTool is { } r1)
             {
                 isDual = true;
-                palette = Model.ProviderIdentity.StreamPalette(l1);
-                rightPalette = Model.ProviderIdentity.StreamPalette(r1);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(l1);
+                rightPalette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(r1);
             }
             else if (leftWorking && leftTool is { } l2)
             {
-                palette = Model.ProviderIdentity.StreamPalette(l2);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(l2);
                 rightPalette = palette;
             }
             else if (rightWorking && rightTool is { } r2)
             {
-                palette = Model.ProviderIdentity.StreamPalette(r2);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(r2);
                 rightPalette = palette;
             }
             else if (leftTool is { } lt && rightTool is { } rt)
             {
                 isDual = true;
-                palette = Model.ProviderIdentity.StreamPalette(lt);
-                rightPalette = Model.ProviderIdentity.StreamPalette(rt);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(lt);
+                rightPalette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(rt);
             }
             else if (leftTool is { } l)
             {
-                palette = Model.ProviderIdentity.StreamPalette(l);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(l);
                 rightPalette = palette;
             }
             else if (rightTool is { } r)
             {
-                palette = Model.ProviderIdentity.StreamPalette(r);
+                palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(r);
                 rightPalette = palette;
             }
         }
@@ -1664,7 +1664,7 @@ public partial class IslandWindow : Window
 
     private void UpdatePills()
     {
-        var engine = Model.AlertEngine.Shared;
+        var engine = AgentIsland.Backend.Settings.AlertEngine.Shared;
         if (_leftTool is { } leftTool)
         {
             LeftPill.Update(
@@ -1718,8 +1718,8 @@ public partial class IslandWindow : Window
     /// for ~4s — the ambient nudge from the macOS design.
     private void HandleAlertPulse()
     {
-        if (Model.AlertEngine.Shared.Pulse is null) return;
-        Model.AlertEngine.Shared.ClearPulse();
+        if (AgentIsland.Backend.Settings.AlertEngine.Shared.Pulse is null) return;
+        AgentIsland.Backend.Settings.AlertEngine.Shared.ClearPulse();
         if (_model.State != IslandState.Compact) return;
         SetState(IslandState.Peek);
         var collapse = new DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };

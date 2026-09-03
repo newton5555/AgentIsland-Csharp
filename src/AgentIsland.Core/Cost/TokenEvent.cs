@@ -1,6 +1,6 @@
 using AgentIsland.Core;
 
-namespace AgentIsland.Cost;
+namespace AgentIsland.Core.Cost;
 
 /// One billable model call reconstructed from a local log line.
 public sealed record TokenEvent(

@@ -88,7 +88,7 @@ public sealed class ChartStylePickerControl : Grid
         }
     }
 
-    public static string StyleLabel(ChartStyle style) => Localization.L10n.Tr(style switch
+    public static string StyleLabel(ChartStyle style) => AgentIsland.UI.Localization.L10n.Tr(style switch
     {
         ChartStyle.Stepped => "Stepped",
         ChartStyle.Bar => "Bar",
@@ -577,7 +577,7 @@ public sealed class CostStylePickerControl : Grid
         }
     }
 
-    private static string ChipLabel(CostStyle style) => Localization.L10n.Tr(style switch
+    private static string ChipLabel(CostStyle style) => AgentIsland.UI.Localization.L10n.Tr(style switch
     {
         CostStyle.Dollar => "USD",
         CostStyle.Multi => "Value",

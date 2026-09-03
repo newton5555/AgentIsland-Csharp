@@ -3,14 +3,13 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using AgentIsland.Alarm;
+using AgentIsland.Backend.Alarms;
 using AgentIsland.Core;
-using AgentIsland.Localization;
-using AgentIsland.Model;
-using AgentIsland.Trigger;
+using AgentIsland.UI.Localization;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -714,7 +713,7 @@ public sealed class SettingsWindow : Window
             autoCheck));
 
         var check = new PillButtonControl(L10n.Tr("Check"));
-        check.Clicked += () => _ = Update.UpdateChecker.Shared.CheckAsync(userInitiated: true);
+        check.Clicked += () => _ = AgentIsland.Backend.Updates.UpdateChecker.Shared.CheckAsync(userInitiated: true);
         stack.Children.Add(new SettingsRowControl(
             "Check now", null, check));
 
@@ -1014,9 +1013,9 @@ public sealed class SettingsWindow : Window
         // 成本显示 — toggle first; the picker tiles appear only when the
         // cost page is on, matching the macOS conditional.
         // macOS SegmentedControl order: items [false, true] → 已用 then 剩余.
-        var quotaMode = Model.QuotaDisplayModeStore.Shared;
+        var quotaMode = AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared;
         var quotaSeg = new Segmented(
-            new[] { Localization.L10n.Tr("Used"), Localization.L10n.Tr("Remaining") },
+            new[] { AgentIsland.UI.Localization.L10n.Tr("Used"), AgentIsland.UI.Localization.L10n.Tr("Remaining") },
             quotaMode.ShowsRemaining ? 1 : 0);
         quotaSeg.SelectionChanged += index => quotaMode.ShowsRemaining = index == 1;
         stack.Children.Add(new SettingsRowControl(
@@ -1070,9 +1069,9 @@ public sealed class SettingsWindow : Window
         effects.Items.Add(L10n.Tr("Follow model"));
         effects.SelectedIndex = LowPowerModeStore.Shared.Mode switch
         {
-            Model.VisualMode.Calm => 0,
-            Model.VisualMode.Vivid => 1,
-            Model.VisualMode.FollowModel => 2,
+            AgentIsland.Backend.Settings.VisualMode.Calm => 0,
+            AgentIsland.Backend.Settings.VisualMode.Vivid => 1,
+            AgentIsland.Backend.Settings.VisualMode.FollowModel => 2,
             _ => 1,
         };
         stack.Children.Add(new SettingsRowControl(
@@ -1082,7 +1081,7 @@ public sealed class SettingsWindow : Window
 
         // Glow color rides under Vivid only — Calm has no ambient light, Follow model follows the active AI.
         var glowRow = new SettingsRowControl("Glow color", null, GlowSwatches());
-        glowRow.Visibility = LowPowerModeStore.Shared.Mode == Model.VisualMode.Vivid
+        glowRow.Visibility = LowPowerModeStore.Shared.Mode == AgentIsland.Backend.Settings.VisualMode.Vivid
             ? Visibility.Visible
             : Visibility.Collapsed;
         stack.Children.Add(glowRow);
@@ -1090,13 +1089,13 @@ public sealed class SettingsWindow : Window
         {
             var selectedMode = effects.SelectedIndex switch
             {
-                0 => Model.VisualMode.Calm,
-                1 => Model.VisualMode.Vivid,
-                2 => Model.VisualMode.FollowModel,
-                _ => Model.VisualMode.Vivid,
+                0 => AgentIsland.Backend.Settings.VisualMode.Calm,
+                1 => AgentIsland.Backend.Settings.VisualMode.Vivid,
+                2 => AgentIsland.Backend.Settings.VisualMode.FollowModel,
+                _ => AgentIsland.Backend.Settings.VisualMode.Vivid,
             };
             LowPowerModeStore.Shared.Mode = selectedMode;
-            glowRow.Visibility = selectedMode == Model.VisualMode.Vivid
+            glowRow.Visibility = selectedMode == AgentIsland.Backend.Settings.VisualMode.Vivid
                 ? Visibility.Visible
                 : Visibility.Collapsed;
         };
@@ -1472,13 +1471,13 @@ public sealed class SettingsWindow : Window
             Margin = new Thickness(10, 0, 8, 0),
             TextTrimming = TextTrimming.CharacterEllipsis,
         };
-        costCaption.Text = Cost.CostStore.Shared.LastUpdated is { } updated
+        costCaption.Text = AgentIsland.Backend.Cost.CostStore.Shared.LastUpdated is { } updated
             ? L10n.TrFormat("last scan {0}", Formatting.RelativeAgo(DateTimeOffset.Now - updated, L10n.IsChinese))
             : L10n.Tr("swipe panel to view");
         Grid.SetColumn(costCaption, 1);
         costRow.Children.Add(costCaption);
         var costRefresh = new PillButtonControl(L10n.Tr("Refresh"));
-        costRefresh.Clicked += () => Cost.CostStore.Shared.Refresh();
+        costRefresh.Clicked += () => AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
         Grid.SetColumn(costRefresh, 2);
         costRow.Children.Add(costRefresh);
         stack.Children.Add(costRow);
@@ -2463,8 +2462,8 @@ public sealed class SettingsWindow : Window
 
         // The exhaustion-alarm opt-out: some people only want auto-resume and
         // treat the "out of quota" popup as noise. Subtitle nil, matching mac.
-        var quotaAlarm = new CobaltToggle(Model.QuotaAlarmStore.Shared.Enabled);
-        quotaAlarm.Toggled += value => Model.QuotaAlarmStore.Shared.Enabled = value;
+        var quotaAlarm = new CobaltToggle(AgentIsland.Backend.Settings.QuotaAlarmStore.Shared.Enabled);
+        quotaAlarm.Toggled += value => AgentIsland.Backend.Settings.QuotaAlarmStore.Shared.Enabled = value;
         stack.Children.Add(new SettingsRowControl(
             "Out-of-quota alarm",
             null,

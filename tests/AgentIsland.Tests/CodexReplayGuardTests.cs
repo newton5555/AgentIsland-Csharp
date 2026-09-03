@@ -1,5 +1,5 @@
 using System.IO;
-using AgentIsland.Cost;
+using AgentIsland.Core.Cost;
 
 namespace AgentIsland.Tests;
 

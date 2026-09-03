@@ -226,7 +226,7 @@ public sealed class PlaceholderPage : Grid
         };
         stack.Children.Add(new TextBlock
         {
-            Text = Localization.L10n.Tr(screen.ToString()),
+            Text = AgentIsland.UI.Localization.L10n.Tr(screen.ToString()),
             FontFamily = IslandFonts.Ui,
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
@@ -235,7 +235,7 @@ public sealed class PlaceholderPage : Grid
         });
         stack.Children.Add(new TextBlock
         {
-            Text = Localization.L10n.Tr("coming soon"),
+            Text = AgentIsland.UI.Localization.L10n.Tr("coming soon"),
             FontFamily = IslandFonts.Ui,
             FontSize = 11,
             Foreground = IslandColors.Brush(IslandColors.White(0.35)),

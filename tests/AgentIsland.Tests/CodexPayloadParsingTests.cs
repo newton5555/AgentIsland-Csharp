@@ -1,5 +1,5 @@
 using AgentIsland.Core;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 using AgentIsland.UI.Charts;
 using System.Text.Json;
 using System;
@@ -69,7 +69,7 @@ public static class CodexPayloadParsingTests
         
         var primaryLabel = ChartTile.PeriodLabel(appUsage.FiveHour, "5h");
         var secondaryLabel = ChartTile.PeriodLabel(appUsage.Weekly, "week");
-        var weekTag = AgentIsland.Localization.L10n.Tr("week");
+        var weekTag = AgentIsland.UI.Localization.L10n.Tr("week");
         Expect(primaryLabel == "5h", $"Primary label should be 5h, was {primaryLabel}");
         Expect(secondaryLabel == weekTag, $"Secondary label should be {weekTag}, was {secondaryLabel}");
     }
@@ -99,7 +99,7 @@ public static class CodexPayloadParsingTests
         Expect(appUsage.Weekly.Error == "no data", "Secondary error should be 'no data'");
         
         var primaryLabel = ChartTile.PeriodLabel(appUsage.FiveHour, "5h");
-        var weekTag = AgentIsland.Localization.L10n.Tr("week");
+        var weekTag = AgentIsland.UI.Localization.L10n.Tr("week");
         Expect(primaryLabel == weekTag, $"Primary label should be {weekTag}, was {primaryLabel}");
     }
 }

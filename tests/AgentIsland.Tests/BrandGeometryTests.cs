@@ -2,7 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI;
 using AgentIsland.UI.Theme;
 

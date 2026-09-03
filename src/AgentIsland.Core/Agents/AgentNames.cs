@@ -14,4 +14,14 @@ public static class AgentNames
         TriggerTool.Cursor => "Cursor",
         _ => tool.ToString(),
     };
+
+    public static string? CliName(TriggerTool tool) => tool switch
+    {
+        TriggerTool.Claude => "claude",
+        TriggerTool.Codex => "codex",
+        TriggerTool.Antigravity => "agy",
+        TriggerTool.Grok => "grok",
+        TriggerTool.Cursor => null,
+        _ => null,
+    };
 }

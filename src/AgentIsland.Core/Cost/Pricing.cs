@@ -1,4 +1,4 @@
-namespace AgentIsland.Cost;
+namespace AgentIsland.Core.Cost;
 
 /// Hardcoded price table (USD per million tokens), snapshot 2026-06-10,
 /// mirroring LiteLLM's model_prices_and_context_window.json — identical to

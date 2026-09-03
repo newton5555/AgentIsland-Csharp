@@ -88,7 +88,7 @@ public sealed class ReportCalendarPopup : Popup
 
         void Refresh()
         {
-            title.Text = Localization.L10n.IsChinese
+            title.Text = AgentIsland.UI.Localization.L10n.IsChinese
                 ? _visibleMonth.ToString("yyyy年M月")
                 : _visibleMonth.ToString("MMMM yyyy", CultureInfo.InvariantCulture);
 
@@ -128,7 +128,7 @@ public sealed class ReportCalendarPopup : Popup
         header.Children.Add(forwardArrow);
         body.Children.Add(header);
 
-        var zh = Localization.L10n.IsChinese;
+        var zh = AgentIsland.UI.Localization.L10n.IsChinese;
         var weekdayLetters = zh
             ? new[] { "日", "一", "二", "三", "四", "五", "六" }
             : new[] { "S", "M", "T", "W", "T", "F", "S" };
@@ -168,7 +168,7 @@ public sealed class ReportCalendarPopup : Popup
             HorizontalAlignment = HorizontalAlignment.Center,
             Child = new TextBlock
             {
-                Text = Localization.L10n.IsChinese ? "回到今天" : "Jump to Today",
+                Text = AgentIsland.UI.Localization.L10n.IsChinese ? "回到今天" : "Jump to Today",
                 FontFamily = IslandFonts.Ui,
                 FontSize = 11,
                 FontWeight = FontWeights.Medium,

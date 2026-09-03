@@ -1,4 +1,4 @@
-using AgentIsland.Alarm;
+using AgentIsland.Backend.Alarms;
 
 namespace AgentIsland.Tests;
 

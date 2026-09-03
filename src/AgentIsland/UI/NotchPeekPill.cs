@@ -4,7 +4,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using AgentIsland.Core;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -32,13 +32,13 @@ public sealed class NotchPeekPill : TextBlock
 
     public bool Mirrored { get; set; }
 
-    public void Update(WindowUsage usage, bool loading, Model.AlertSeverity severity = Model.AlertSeverity.None)
+    public void Update(WindowUsage usage, bool loading, AgentIsland.Backend.Settings.AlertSeverity severity = AgentIsland.Backend.Settings.AlertSeverity.None)
     {
         Inlines.Clear();
         var tint = severity switch
         {
-            Model.AlertSeverity.Critical => IslandColors.AlertRed,
-            Model.AlertSeverity.Warning => IslandColors.AlertAmber,
+            AgentIsland.Backend.Settings.AlertSeverity.Critical => IslandColors.AlertRed,
+            AgentIsland.Backend.Settings.AlertSeverity.Warning => IslandColors.AlertAmber,
             _ => IslandColors.For(_tool),
         };
 
@@ -55,7 +55,7 @@ public sealed class NotchPeekPill : TextBlock
 
         // The right-hand pill mirrors: countdown first, percent hugging the
         // logo — exactly like the macOS bar.
-        var percentText = $"{Math.Round(Model.QuotaDisplayModeStore.Shared.DisplayValue(usage.UsedPercent))}%";
+        var percentText = $"{Math.Round(AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.DisplayValue(usage.UsedPercent))}%";
         var now = DateTimeOffset.Now;
         var countdown = usage.ResetAt is { } resetAt && resetAt > now
             ? CompactCountdown(resetAt - now)
@@ -69,14 +69,14 @@ public sealed class NotchPeekPill : TextBlock
             if (countdown is not null) Inlines.Add(Dim(countdown + " · ", 0.70));
             else Inlines.Add(Dim(periodTag + " · ", 0.40));
             Inlines.Add(new Run(percentText) { Foreground = IslandColors.Brush(tint) });
-            if (severity != Model.AlertSeverity.None)
+            if (severity != AgentIsland.Backend.Settings.AlertSeverity.None)
             {
                 Inlines.Add(new Run(" ⚠") { Foreground = IslandColors.Brush(tint) });
             }
         }
         else
         {
-            if (severity != Model.AlertSeverity.None)
+            if (severity != AgentIsland.Backend.Settings.AlertSeverity.None)
             {
                 Inlines.Add(new Run("⚠ ") { Foreground = IslandColors.Brush(tint) });
             }

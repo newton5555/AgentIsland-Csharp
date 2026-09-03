@@ -57,7 +57,7 @@ public static class SnapshotSweep
                 ScreenPref.Shared.ForceForVerification(IslandScreen.Cost);
                 After(0.9, () =>
                 {
-                    island.SaveVisualSnapshot(At("island-cost.png"));
+                    island.SaveVisualSnapshot(At("island-Cost.png"));
                     After(1.0, () =>
                     {
                     ScreenPref.Shared.ForceForVerification(IslandScreen.Overview);
@@ -102,15 +102,15 @@ public static class SnapshotSweep
                                         toolIndex++;
                                         Try(() => IslandDialog.Show(
                                             tool,
-                                            Localization.L10n.Tr("Your turn"),
-                                            Localization.L10n.Tr("A thread finished — Agent Island opens an alarm window so you can reply."),
+                                            AgentIsland.UI.Localization.L10n.Tr("Your turn"),
+                                            AgentIsland.UI.Localization.L10n.Tr("A thread finished — Agent Island opens an alarm window so you can reply."),
                                             meta: new[]
                                             {
-                                                (Localization.L10n.Tr("Alarm thread"), "Agent Island Windows"),
-                                                (Localization.L10n.Tr("Alarm project"), "Agent Island"),
+                                                (AgentIsland.UI.Localization.L10n.Tr("Alarm thread"), "Agent Island Windows"),
+                                                (AgentIsland.UI.Localization.L10n.Tr("Alarm project"), "Agent Island"),
                                             },
-                                            primaryLabel: Localization.L10n.Tr("Open"),
-                                            secondaryLabel: Localization.L10n.Tr("I know")));
+                                            primaryLabel: AgentIsland.UI.Localization.L10n.Tr("Open"),
+                                            secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("I know")));
                                         After(1.1, () =>
                                         {
                                             RenderOpenWindow<IslandDialog>(At($"dialog-{tool}".ToLowerInvariant() + ".png"));

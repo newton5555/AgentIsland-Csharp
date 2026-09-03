@@ -75,8 +75,8 @@ public sealed class ReportWindow : Window
         _kind = kind;
         _display = CurrentData();
         Title = kind == Kind.Weekly
-            ? Localization.L10n.Tr("Weekly report")
-            : Localization.L10n.Tr("Share monthly report");
+            ? AgentIsland.UI.Localization.L10n.Tr("Weekly report")
+            : AgentIsland.UI.Localization.L10n.Tr("Share monthly report");
         WindowStyle = WindowStyle.None;
         AllowsTransparency = true;
         Background = Brushes.Transparent;
@@ -87,7 +87,7 @@ public sealed class ReportWindow : Window
         Topmost = false;
         System.Windows.Media.TextOptions.SetTextFormattingMode(this, TextFormattingMode.Display);
 
-        var zh = Localization.L10n.IsChinese;
+        var zh = AgentIsland.UI.Localization.L10n.IsChinese;
 
         // ← period label → row above the card (macOS pager): the right edge
         // is the current period, the left edge the earliest scanned day, and
@@ -221,21 +221,21 @@ public sealed class ReportWindow : Window
         };
         SetPagerVisible(false, animate: false);
 
-        _copy = ActionButton(Localization.L10n.Tr("Copy image"), prominent: true);
+        _copy = ActionButton(AgentIsland.UI.Localization.L10n.Tr("Copy image"), prominent: true);
         _copy.Click += (_, _) =>
         {
             if (!CopyImage()) return;
-            _copy.Content = Localization.L10n.Tr("Copied");
-            ShowCoach(Localization.L10n.Tr("Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
+            _copy.Content = AgentIsland.UI.Localization.L10n.Tr("Copied");
+            ShowCoach(AgentIsland.UI.Localization.L10n.Tr("Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
             var reset = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.6) };
             reset.Tick += (_, _) =>
             {
                 reset.Stop();
-                _copy.Content = Localization.L10n.Tr("Copy image");
+                _copy.Content = AgentIsland.UI.Localization.L10n.Tr("Copy image");
             };
             reset.Start();
         };
-        var save = ActionButton(Localization.L10n.Tr("Save PNG"), prominent: false);
+        var save = ActionButton(AgentIsland.UI.Localization.L10n.Tr("Save PNG"), prominent: false);
         save.Click += (_, _) => SavePng();
 
         _actions = new StackPanel
@@ -288,15 +288,15 @@ public sealed class ReportWindow : Window
         // store commit rebuilds the live page when it lands (macOS onAppear).
         _costChanged = (_, args) =>
         {
-            if (args.PropertyName != nameof(Cost.CostStore.LastUpdated)) return;
+            if (args.PropertyName != nameof(AgentIsland.Backend.Cost.CostStore.LastUpdated)) return;
             if (_pageOffset != 0 || _anchorDate is not null || _loading) return;
             _display = CurrentData();
             RebuildCard();
             AlignCurrentWeek();
         };
-        Cost.CostStore.Shared.PropertyChanged += _costChanged;
-        Closed += (_, _) => Cost.CostStore.Shared.PropertyChanged -= _costChanged;
-        if (!Core.AppEnvironment.IsDemo) Cost.CostStore.Shared.Refresh();
+        AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += _costChanged;
+        Closed += (_, _) => AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged -= _costChanged;
+        if (!Core.AppEnvironment.IsDemo) AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
         AlignCurrentWeek();
 
         // Warm the 3x export render off the click path — it costs a beat,
@@ -324,8 +324,8 @@ public sealed class ReportWindow : Window
         _anchorDate = null;
         _loading = false;
         Title = _kind == Kind.Weekly
-            ? Localization.L10n.Tr("Weekly report")
-            : Localization.L10n.Tr("Share monthly report");
+            ? AgentIsland.UI.Localization.L10n.Tr("Weekly report")
+            : AgentIsland.UI.Localization.L10n.Tr("Share monthly report");
         _display = CurrentData();
         RebuildCard();
         if (_kind == Kind.Weekly)
@@ -386,7 +386,7 @@ public sealed class ReportWindow : Window
 
         var isHistorical = _pageOffset > 0 || _anchorDate is not null;
         _periodBadge.ToolTip = isHistorical
-            ? (Localization.L10n.IsChinese ? "点击回到最新周期" : "Click to return to current period")
+            ? (AgentIsland.UI.Localization.L10n.IsChinese ? "点击回到最新周期" : "Click to return to current period")
             : null;
         _periodBadge.Cursor = isHistorical ? Cursors.Hand : Cursors.Arrow;
 
@@ -691,7 +691,7 @@ public sealed class ReportWindow : Window
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(ExportRender()));
             encoder.Save(stream);
-            ShowCoach(Localization.L10n.Tr("Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
+            ShowCoach(AgentIsland.UI.Localization.L10n.Tr("Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
         }
         catch
         {
@@ -726,8 +726,8 @@ public sealed class ReportWindow : Window
             var now = DateTime.Now;
             var weekKey = $"{ISOWeek.GetYear(now)}-W{ISOWeek.GetWeekOfYear(now)}";
             const string shownKey = "AgentIsland.weeklyReportShownForWeek";
-            if (Core.Preferences.Get<string?>(shownKey) == weekKey) return;
-            Core.Preferences.Set(shownKey, weekKey);
+            if (AgentIsland.Windows.Preferences.Get<string?>(shownKey) == weekKey) return;
+            AgentIsland.Windows.Preferences.Set(shownKey, weekKey);
             Show(Kind.Weekly);
         };
         delay.Start();

@@ -1,4 +1,4 @@
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.Tests;
 

@@ -1,5 +1,5 @@
 using AgentIsland.Core;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI;
 
 namespace AgentIsland.Tests;

@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using AgentIsland.Alarm;
+using AgentIsland.Backend.Alarms;
 using AgentIsland.Core;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI;
 using AgentIsland.UI.Theme;
 

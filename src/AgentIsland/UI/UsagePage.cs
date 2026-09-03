@@ -1,10 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -92,9 +92,9 @@ public sealed class UsagePage : Border
             TextAlignment = TextAlignment.Center,
             MaxWidth = 360,
             Visibility = Visibility.Collapsed,
-            Text = Localization.L10n.Tr("Both providers hidden")
+            Text = AgentIsland.UI.Localization.L10n.Tr("Both providers hidden")
                 + "\n"
-                + Localization.L10n.Tr("Re-enable in Settings → Providers"),
+                + AgentIsland.UI.Localization.L10n.Tr("Re-enable in Settings → Providers"),
         };
         Grid.SetColumnSpan(_bothHidden, 3);
         grid.Children.Add(_bothHidden);
@@ -128,7 +128,7 @@ public sealed class UsagePage : Border
     {
         var button = new Button
         {
-            Content = Localization.L10n.Tr("Re-authenticate"),
+            Content = AgentIsland.UI.Localization.L10n.Tr("Re-authenticate"),
             FontFamily = IslandFonts.Ui,
             FontSize = 11,
             FontWeight = FontWeights.Medium,
@@ -217,8 +217,8 @@ public sealed class UsagePage : Border
             || store.Claude.Weekly.Error is not null;
         _reauth.Visibility = claudeUnhealthy ? Visibility.Visible : Visibility.Collapsed;
         _reauth.Content = store.ClaudeReauthInProgress
-            ? Localization.L10n.Tr("waiting for login…")
-            : Localization.L10n.Tr("Re-authenticate");
+            ? AgentIsland.UI.Localization.L10n.Tr("waiting for login…")
+            : AgentIsland.UI.Localization.L10n.Tr("Re-authenticate");
         _reauth.IsEnabled = !store.ClaudeReauthInProgress;
     }
 

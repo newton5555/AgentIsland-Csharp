@@ -1,4 +1,4 @@
-namespace AgentIsland.Usage;
+namespace AgentIsland.Core.Usage;
 
 /// One rate-limit window as rendered in the UI. UsedPercent is normalized to
 /// [0, 1]; Error carries the caption shown in place of a value.

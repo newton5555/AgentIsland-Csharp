@@ -183,7 +183,7 @@ public static class SessionTurnStateTests
     private static void TestDesktopBookkeepingWriteDoesNotSuppressFreshEndTurn()
     {
         // Desktop stamps lastActivityAt ~2-4s after the final assistant event
-        // as turn-completion bookkeeping. That write must not eat the alarm.
+        // as turn-completion bookkeeping. That write must not eat the AgentIsland.Backend.Alarms.
         var turnDone = Date("2026-07-02T01:15:41.000Z");
         var bookkeeping = turnDone.AddSeconds(3);
         var now = Date("2026-07-02T01:15:48.000Z");

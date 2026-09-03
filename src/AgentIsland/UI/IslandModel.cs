@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using AgentIsland.Core;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI;
 
@@ -55,9 +55,9 @@ public sealed class IslandModel : INotifyPropertyChanged
         _spacingMode = IslandSpacingMode.NotchStyle;
         // The center gap depends on placement (see NotchWidth); re-emit Size
         // so the silhouette re-measures the moment the mode flips.
-        Model.IslandPositionStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
+        AgentIsland.Backend.Settings.IslandPositionStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
         // A provider flip can change the solo split, so the bar reflows live.
-        Model.ProviderVisibilityStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -81,7 +81,7 @@ public sealed class IslandModel : INotifyPropertyChanged
         {
             if (_spacingMode == value) return;
             _spacingMode = value;
-            Core.Preferences.Set("AgentIsland.spacingMode", value.ToString());
+            AgentIsland.Windows.Preferences.Set("AgentIsland.spacingMode", value.ToString());
             Raise(nameof(SpacingMode));
             Raise(nameof(Size));
         }
@@ -109,7 +109,7 @@ public sealed class IslandModel : INotifyPropertyChanged
     {
         get
         {
-            var slots = Model.ProviderVisibilityStore.Shared.Slots;
+            var slots = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Slots;
             return slots.Count == 1 ? slots[0].ToTriggerTool() : null;
         }
     }
@@ -119,7 +119,7 @@ public sealed class IslandModel : INotifyPropertyChanged
     /// Mac menu bar; a floating island has no camera housing to mimic, so it
     /// tightens to a compact spacer.
     public double NotchWidth =>
-        Model.IslandPositionStore.Shared.Placement == Model.IslandPlacement.Floating
+        AgentIsland.Backend.Settings.IslandPositionStore.Shared.Placement == AgentIsland.Backend.Settings.IslandPlacement.Floating
             ? 64
             : (_spacingMode == IslandSpacingMode.NotchStyle ? 200 : 100);
 

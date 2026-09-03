@@ -4,7 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Media.Effects;
 using AgentIsland.Core;
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Theme;
 
 namespace AgentIsland.UI;

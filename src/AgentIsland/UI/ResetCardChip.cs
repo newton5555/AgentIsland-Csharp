@@ -6,7 +6,7 @@ using System.Windows.Media;
 using System.Windows.Media.Effects;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -167,7 +167,7 @@ public sealed class ResetCardChip : StackPanel
             Color.FromRgb(0x08, 0x1A, 0x33), live ? 0.9 : 0.5);
         _count.Text = $"×{_cards}";
         _count.Foreground = IslandColors.Brush(IslandColors.White(live ? 0.78 : 0.42));
-        ToolTip = Localization.L10n.TrFormat("{0} banked resets available", _cards);
+        ToolTip = AgentIsland.UI.Localization.L10n.TrFormat("{0} banked resets available", _cards);
     }
 
     private void BuildPopupBody()
@@ -175,7 +175,7 @@ public sealed class ResetCardChip : StackPanel
         _popupBody.Children.Clear();
         _popupBody.Children.Add(new TextBlock
         {
-            Text = Localization.L10n.TrFormat("{0} banked resets available", _cards),
+            Text = AgentIsland.UI.Localization.L10n.TrFormat("{0} banked resets available", _cards),
             FontFamily = IslandFonts.Ui,
             FontSize = 12,
             FontWeight = FontWeights.Bold,
@@ -186,8 +186,8 @@ public sealed class ResetCardChip : StackPanel
             _popupBody.Children.Add(new TextBlock
             {
                 Text = _cards > 0
-                    ? Localization.L10n.Tr("Details unavailable right now.")
-                    : Localization.L10n.Tr("Earned resets appear here with their expiry."),
+                    ? AgentIsland.UI.Localization.L10n.Tr("Details unavailable right now.")
+                    : AgentIsland.UI.Localization.L10n.Tr("Earned resets appear here with their expiry."),
                 FontFamily = IslandFonts.Ui,
                 FontSize = 11,
                 Foreground = IslandColors.Brush(IslandColors.White(0.45)),
@@ -240,8 +240,8 @@ public sealed class ResetCardChip : StackPanel
     {
         if (card.ExpiresAt is not { } expires) return "—";
         var remaining = expires - DateTimeOffset.Now;
-        if (remaining <= TimeSpan.Zero) return Localization.L10n.Tr("expired");
-        return Localization.L10n.TrFormat(
+        if (remaining <= TimeSpan.Zero) return AgentIsland.UI.Localization.L10n.Tr("expired");
+        return AgentIsland.UI.Localization.L10n.TrFormat(
             "valid {0} · {1}", CompactRemaining(remaining), expires.ToLocalTime().ToString("M/d"));
     }
 

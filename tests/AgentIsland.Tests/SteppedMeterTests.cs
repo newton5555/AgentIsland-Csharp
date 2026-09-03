@@ -7,7 +7,7 @@ using System.Windows.Shapes;
 using System.Windows.Threading;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.Tests;
 

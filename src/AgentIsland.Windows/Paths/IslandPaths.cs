@@ -45,6 +45,9 @@ public static class IslandPaths
     public static string CodexSessionIndexFile => Path.Combine(CodexHome, "session_index.jsonl");
     public static string CodexAuthFile => Path.Combine(CodexHome, "auth.json");
 
+    public static string CursorGlobalStorageDatabase => Path.Combine(
+        RoamingAppData, "Cursor", "User", "globalStorage", "state.vscdb");
+
     public static string AppSupportDir => Path.Combine(RoamingAppData, "AgentIsland");
     public static string SettingsFile => Path.Combine(AppSupportDir, "settings.json");
     public static string TriggerRunsDir => Path.Combine(AppSupportDir, "trigger-runs");

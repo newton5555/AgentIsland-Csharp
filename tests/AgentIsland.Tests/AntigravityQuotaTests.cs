@@ -1,6 +1,7 @@
 using System;
 using System.Text;
-using AgentIsland.Usage;
+using AgentIsland.Providers.Usage.Antigravity;
+using AgentIsland.Core.Usage;
 using AgentIsland.UI.Charts;
 
 namespace AgentIsland.Tests;

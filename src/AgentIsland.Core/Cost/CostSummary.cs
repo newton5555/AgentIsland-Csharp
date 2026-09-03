@@ -1,4 +1,4 @@
-namespace AgentIsland.Cost;
+namespace AgentIsland.Core.Cost;
 
 public sealed record DailyTokenBucket(DateTimeOffset DayStart, long Tokens, long BillableTokens, double Dollars);
 

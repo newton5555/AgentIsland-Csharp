@@ -1,7 +1,7 @@
 using System.ComponentModel;
 using AgentIsland.Core;
-using AgentIsland.Model;
-using AgentIsland.Usage;
+using AgentIsland.UI.Providers;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -24,14 +24,14 @@ public sealed class TrayIcon : IDisposable
         _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add(Localization.L10n.Tr("Show / Hide island"), null, (_, _) => toggleIsland());
-        menu.Items.Add(Localization.L10n.Tr("Share weekly report…"), null,
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Show / Hide island"), null, (_, _) => toggleIsland());
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share weekly report…"), null,
             (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly));
-        menu.Items.Add(Localization.L10n.Tr("Share monthly report…"), null,
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share monthly report…"), null,
             (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Monthly));
-        menu.Items.Add(Localization.L10n.Tr("Settings…"), null, (_, _) => openSettings());
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Settings…"), null, (_, _) => openSettings());
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add(Localization.L10n.Tr("Quit Agent Island"), null, (_, _) => exit());
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Quit Agent Island"), null, (_, _) => exit());
 
         _icon = new System.Windows.Forms.NotifyIcon
         {
@@ -111,11 +111,11 @@ public sealed class TrayIcon : IDisposable
 
     private static string? StatusWord(ActivityState state) => state switch
     {
-        ActivityState.AuthRequired => Localization.L10n.Tr("Needs attention"),
-        ActivityState.RateLimited => Localization.L10n.Tr("Needs attention"),
-        ActivityState.Stalled => Localization.L10n.Tr("Needs attention"),
-        ActivityState.NeedsYou => Localization.L10n.Tr("Your turn"),
-        ActivityState.Working => Localization.L10n.Tr("Running"),
+        ActivityState.AuthRequired => AgentIsland.UI.Localization.L10n.Tr("Needs attention"),
+        ActivityState.RateLimited => AgentIsland.UI.Localization.L10n.Tr("Needs attention"),
+        ActivityState.Stalled => AgentIsland.UI.Localization.L10n.Tr("Needs attention"),
+        ActivityState.NeedsYou => AgentIsland.UI.Localization.L10n.Tr("Your turn"),
+        ActivityState.Working => AgentIsland.UI.Localization.L10n.Tr("Running"),
         _ => null,
     };
 

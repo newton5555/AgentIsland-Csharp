@@ -1,4 +1,4 @@
-namespace AgentIsland.Usage;
+namespace AgentIsland.Core.Usage;
 
 public sealed class UsageCacheSnapshot
 {

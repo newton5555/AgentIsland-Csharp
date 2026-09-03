@@ -1,4 +1,4 @@
-using AgentIsland.Model;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.Tests;
 

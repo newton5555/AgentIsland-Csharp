@@ -222,7 +222,7 @@ public sealed class DottedLink : StackPanel
         Cursor = System.Windows.Input.Cursors.Hand;
         var text = new TextBlock
         {
-            Text = Localization.L10n.Tr(title),
+            Text = AgentIsland.UI.Localization.L10n.Tr(title),
             FontFamily = IslandFonts.Ui,
             FontSize = 11,
             Foreground = IslandColors.Brush(IslandColors.White(0.55)),
@@ -304,7 +304,7 @@ public sealed class SettingsRowControl : Border
         }
         titleRow.Children.Add(new TextBlock
         {
-            Text = monospaceTitle ? title : Localization.L10n.Tr(title),
+            Text = monospaceTitle ? title : AgentIsland.UI.Localization.L10n.Tr(title),
             FontFamily = monospaceTitle ? IslandFonts.Mono : IslandFonts.Ui,
             FontSize = monospaceTitle ? 10 : 13,
             FontWeight = FontWeights.Medium,
@@ -337,7 +337,7 @@ public sealed class SettingsRowControl : Border
         {
             text.Children.Add(new TextBlock
             {
-                Text = Localization.L10n.Tr(subtitle!),
+                Text = AgentIsland.UI.Localization.L10n.Tr(subtitle!),
                 FontFamily = IslandFonts.Ui,
                 FontSize = 11,
                 Foreground = IslandColors.Brush(IslandColors.White(0.55)),

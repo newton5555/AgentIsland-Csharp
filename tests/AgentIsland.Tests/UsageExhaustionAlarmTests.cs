@@ -1,6 +1,6 @@
-using AgentIsland.Alarm;
+using AgentIsland.Backend.Alarms;
 using AgentIsland.Core;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.Tests;
 
@@ -113,7 +113,7 @@ public static class UsageExhaustionAlarmTests
         alarm.Recompute(Usage(1.0, ResetA), AppUsage.Empty, remindersEnabled: true);
         Expect(fired.Count == 0, "exhaustion that predates launch must not alarm");
 
-        // The next genuine cycle does alarm.
+        // The next genuine cycle does AgentIsland.Backend.Alarms.
         alarm.Recompute(Usage(1.0, ResetB), AppUsage.Empty, remindersEnabled: true);
         Expect(fired.Count == 1, "the next reset cycle must alarm normally");
     }
@@ -155,7 +155,7 @@ public static class UsageExhaustionAlarmTests
         // Quota alarm opted out (but turn alarms still on): no exhaustion popup.
         alarm.Recompute(Usage(1.0, ResetA), AppUsage.Empty, remindersEnabled: true, quotaAlarmEnabled: false);
         Expect(fired.Count == 0, "quota alarm off must suppress the exhaustion popup");
-        // Turning it back on within the cycle delivers the pending alarm.
+        // Turning it back on within the cycle delivers the pending AgentIsland.Backend.Alarms.
         alarm.Recompute(Usage(1.0, ResetA), AppUsage.Empty, remindersEnabled: true, quotaAlarmEnabled: true);
         Expect(fired.Count == 1, "re-enabling the quota alarm within the cycle must deliver it");
     }
@@ -205,7 +205,7 @@ public static class UsageExhaustionAlarmTests
         var (alarm, fired) = Make();
         // Warmup healthy on both providers.
         alarm.Recompute(Usage(0.2, ResetA), Usage(0.2, ResetA), remindersEnabled: true);
-        // Codex exhausts its quota and should raise an alarm.
+        // Codex exhausts its quota and should raise an AgentIsland.Backend.Alarms.
         alarm.Recompute(Usage(0.2, ResetA), Usage(1.0, ResetA), remindersEnabled: true);
         Expect(fired.Count == 1 && fired[0].StartsWith("exhausted-codex-", StringComparison.Ordinal), "codex exhaustion must raise the quota alarm");
         alarm.Recompute(Usage(0.2, ResetA), UsageBoth(1.0, ResetA, 1.0, ResetWeekly), remindersEnabled: true);

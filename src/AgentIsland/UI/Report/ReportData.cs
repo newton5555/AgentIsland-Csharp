@@ -1,6 +1,6 @@
 using System.Globalization;
 using System.Windows.Media;
-using AgentIsland.Cost;
+using AgentIsland.Core.Cost;
 
 namespace AgentIsland.UI.Report;
 
@@ -9,13 +9,13 @@ namespace AgentIsland.UI.Report;
 /// same per-row honesty split macOS ModelShare keeps.
 public sealed record ModelShare(
     string Name, long Tokens, double Dollars, double Percent, Color Color,
-    Model.DisplayProvider Provider, bool IsOthers = false);
+    AgentIsland.UI.Providers.DisplayProvider Provider, bool IsOthers = false);
 
 /// One provider's token roll-up for a report period — the atom the top-2
 /// duel and the cross-provider totals are built from. Replaces the hardcoded
 /// Claude/Codex share so a Grok-only or Cursor+Gemini period still renders a
 /// meaningful card.
-public sealed record ProviderPeriodSlice(Model.DisplayProvider Provider, long Tokens);
+public sealed record ProviderPeriodSlice(AgentIsland.UI.Providers.DisplayProvider Provider, long Tokens);
 
 /// The shareable weekly report — assembled from LOCAL data only (CostStore's
 /// log scan). Users copy or save it as a PNG and post it themselves; nothing
@@ -39,32 +39,32 @@ public sealed record WeeklyReportData(
         // scan-anchored model rows.
         var anchor = ReportPeriods.ScanAnchor();
         var days = Enumerable.Range(0, 7).Reverse().Select(offset => anchor.AddDays(-offset)).ToArray();
-        var mode = Model.TokenCountModeStore.Shared.Mode;
+        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
 
         long BucketTotal(IReadOnlyList<DailyTokenBucket> buckets, DateTime day) =>
             buckets.FirstOrDefault(b => b.DayStart.Date == day) is { } bucket
-                ? (mode == Model.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens)
+                ? (mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens)
                 : 0;
 
-        long WeekTokens(Model.DisplayProvider provider) =>
+        long WeekTokens(AgentIsland.UI.Providers.DisplayProvider provider) =>
             days.Sum(d => BucketTotal(cost.Summary(provider).DailyHistory, d));
 
         // Every provider that ran, ranked by tokens — the top-2 face off, the
         // rest still contribute to the totals and the model ring.
-        var providers = Model.DisplayProviders.All
+        var providers = AgentIsland.UI.Providers.DisplayProviders.All
             .Select(provider => new ProviderPeriodSlice(provider, WeekTokens(provider)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
 
         var daily = days
-            .Select(d => Model.DisplayProviders.All.Sum(p => BucketTotal(cost.Summary(p).DailyHistory, d)))
+            .Select(d => AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => BucketTotal(cost.Summary(p).DailyHistory, d)))
             .ToArray();
         var total = providers.Sum(slice => slice.Tokens);
         // Tokens-but-no-dollars providers (Cursor) carry $0 rows, so they add
         // nothing to the dollar total on their own; the "≈" hero copy keeps it
         // an estimate.
-        var dollars = Model.DisplayProviders.All.Sum(p => cost.Summary(p).WeeklyModels.Sum(m => m.Dollars));
+        var dollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => cost.Summary(p).WeeklyModels.Sum(m => m.Dollars));
 
         // The card follows the app language — a card destined for WeChat
         // groups must read Chinese when the UI is Chinese.
@@ -89,34 +89,34 @@ public sealed record WeeklyReportData(
     /// sits on a single consistent window by construction.
     public static WeeklyReportData ForInterval(
         DateTime start, DateTime endExclusive,
-        IReadOnlyDictionary<Model.DisplayProvider, ReportSlice> slices)
+        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices)
     {
-        var mode = Model.TokenCountModeStore.Shared.Mode;
+        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
         var firstDay = start.Date;
         var days = Enumerable.Range(0, 7).Select(offset => firstDay.AddDays(offset)).ToArray();
 
         long BucketValue(DailyTokenBucket bucket) =>
-            mode == Model.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
 
-        ReportSlice SliceOf(Model.DisplayProvider provider) =>
+        ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
         var daily = Enumerable.Range(0, days.Length)
-            .Select(i => Model.DisplayProviders.All.Sum(p =>
+            .Select(i => AgentIsland.UI.Providers.DisplayProviders.All.Sum(p =>
             {
                 var buckets = SliceOf(p).DailyTokens;
                 return i < buckets.Count ? BucketValue(buckets[i]) : 0;
             }))
             .ToArray();
 
-        var providers = Model.DisplayProviders.All
+        var providers = AgentIsland.UI.Providers.DisplayProviders.All
             .Select(provider => new ProviderPeriodSlice(
                 provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var total = providers.Sum(slice => slice.Tokens);
-        var dollars = Model.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
+        var dollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
 
         var lastDay = days[^1];
         return new WeeklyReportData(
@@ -127,7 +127,7 @@ public sealed record WeeklyReportData(
             daily,
             LettersFor(days),
             ReportFormat.BuildTopModels(
-                Model.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+                AgentIsland.UI.Providers.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
                 top: 3));
     }
 
@@ -162,9 +162,9 @@ public sealed record MonthlyReportData(
         var today = DateTime.Today;
         var zh = ReportFormat.IsChinese;
 
-        var mode = Model.TokenCountModeStore.Shared.Mode;
-        var providers = Model.DisplayProviders.All
-            .Select(provider => new ProviderPeriodSlice(provider, mode == Model.TokenCountMode.All
+        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        var providers = AgentIsland.UI.Providers.DisplayProviders.All
+            .Select(provider => new ProviderPeriodSlice(provider, mode == AgentIsland.Backend.Settings.TokenCountMode.All
                 ? cost.Summary(provider).MonthTokens
                 : cost.Summary(provider).MonthBillableTokens))
             .Where(slice => slice.Tokens > 0)
@@ -173,7 +173,7 @@ public sealed record MonthlyReportData(
         var totalTokens = providers.Sum(slice => slice.Tokens);
         // Cursor's MonthDollars is 0 (no model → no price), so it contributes
         // tokens above but nothing to the dollar total.
-        var totalDollars = Model.DisplayProviders.All.Sum(p => cost.Summary(p).MonthDollars);
+        var totalDollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => cost.Summary(p).MonthDollars);
 
         return new MonthlyReportData(
             zh ? $"{today:yyyy年M月}" : today.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
@@ -188,25 +188,25 @@ public sealed record MonthlyReportData(
     /// full-scan slice.
     public static MonthlyReportData ForInterval(
         DateTime start,
-        IReadOnlyDictionary<Model.DisplayProvider, ReportSlice> slices)
+        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices)
     {
         var zh = ReportFormat.IsChinese;
-        var mode = Model.TokenCountModeStore.Shared.Mode;
+        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
 
         long BucketValue(DailyTokenBucket bucket) =>
-            mode == Model.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
 
-        ReportSlice SliceOf(Model.DisplayProvider provider) =>
+        ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
-        var providers = Model.DisplayProviders.All
+        var providers = AgentIsland.UI.Providers.DisplayProviders.All
             .Select(provider => new ProviderPeriodSlice(
                 provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var totalTokens = providers.Sum(slice => slice.Tokens);
-        var totalDollars = Model.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
+        var totalDollars = AgentIsland.UI.Providers.DisplayProviders.All.Sum(p => SliceOf(p).Dollars);
 
         return new MonthlyReportData(
             zh ? $"{start:yyyy年M月}" : start.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
@@ -214,7 +214,7 @@ public sealed record MonthlyReportData(
             totalDollars,
             providers,
             ReportFormat.BuildTopModels(
-                Model.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+                AgentIsland.UI.Providers.DisplayProviders.All.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
                 top: 3));
     }
 }
@@ -222,16 +222,16 @@ public sealed record MonthlyReportData(
 /// Shared number/caption formatting for both cards.
 public static class ReportFormat
 {
-    public static bool IsChinese => Localization.L10n.IsChinese;
+    public static bool IsChinese => AgentIsland.UI.Localization.L10n.IsChinese;
 
     /// Every model that ran in the period, tagged with the provider it came
     /// from, across ALL five providers. Providers with no local ledger
     /// (Gemini) yield nothing; tokens-only Cursor yields rows the token-ranked
     /// BuildTopModels keeps and the card prices as "—".
-    public static IEnumerable<(Model.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
+    public static IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
         CostStore cost, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select)
     {
-        foreach (var provider in Model.DisplayProviders.All)
+        foreach (var provider in AgentIsland.UI.Providers.DisplayProviders.All)
         {
             foreach (var spend in select(cost.Summary(provider)))
             {
@@ -251,12 +251,12 @@ public static class ReportFormat
     /// brand accent; the dollar figure still rides each row where the provider
     /// can be priced, and reads "—" where it cannot.
     public static IReadOnlyList<ModelShare> BuildTopModels(
-        IEnumerable<(Model.DisplayProvider Provider, ModelSpend Spend)> spend, int top)
+        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top)
     {
         // Token counting follows the user's mode, same as the hero total
         // (macOS rankedModels) — one accounting for the whole card.
-        var mode = Model.TokenCountModeStore.Shared.Mode;
-        long TokenOf(ModelSpend s) => mode == Model.TokenCountMode.All ? s.Tokens : s.BillableTokens;
+        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        long TokenOf(ModelSpend s) => mode == AgentIsland.Backend.Settings.TokenCountMode.All ? s.Tokens : s.BillableTokens;
         var all = spend.ToList();
         var tokenUniverse = Math.Max(1, all.Sum(m => TokenOf(m.Spend)));
         return all
@@ -266,7 +266,7 @@ public static class ReportFormat
             .Take(top)
             .Select(m => new ModelShare(
                 m.Spend.Model, m.Tokens, m.Spend.Dollars, m.Percent,
-                Model.ProviderIdentity.Accent(m.Provider), m.Provider))
+                AgentIsland.UI.Providers.ProviderIdentity.Accent(m.Provider), m.Provider))
             .ToList();
     }
 
@@ -274,8 +274,8 @@ public static class ReportFormat
     /// table-priced and Grok self-reports; Cursor logs tokens with no model
     /// (no price) and Gemini ships no ledger. Mirrors CostPage.FaceOf so the
     /// overview shows "—" for Cursor, never a coined $0.
-    public static bool ProvidesDollars(Model.DisplayProvider provider) =>
-        provider is not (Model.DisplayProvider.Cursor or Model.DisplayProvider.Antigravity);
+    public static bool ProvidesDollars(AgentIsland.UI.Providers.DisplayProvider provider) =>
+        provider is not (AgentIsland.UI.Providers.DisplayProvider.Cursor or AgentIsland.UI.Providers.DisplayProvider.Antigravity);
 
     public static string CompactString(long n, bool zh)
     {

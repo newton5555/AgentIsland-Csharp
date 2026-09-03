@@ -19,7 +19,7 @@ public static class Program
         {
             foreach (var name in new[] { "claude", "codex", "wt" })
             {
-                Console.WriteLine($"{name} -> {Trigger.CLILocator.Locate(name) ?? "(null)"}");
+                Console.WriteLine($"{name} -> {AgentIsland.Windows.Processes.CLILocator.Locate(name) ?? "(null)"}");
             }
             return 0;
         }
@@ -46,12 +46,12 @@ public static class Program
             // Live diagnostic: the EXACT authorize URL the in-app re-auth
             // opens, with a throwaway PKCE pair — paste into a logged-in
             // browser to see what Anthropic's consent page makes of it.
-            var verifier = Usage.ClaudeWebLogin.RandomUrlSafe(32);
-            var state = Usage.ClaudeWebLogin.RandomUrlSafe(16);
-            var challenge = Usage.ClaudeWebLogin.Base64Url(
+            var verifier = AgentIsland.Backend.Usage.ClaudeWebLogin.RandomUrlSafe(32);
+            var state = AgentIsland.Backend.Usage.ClaudeWebLogin.RandomUrlSafe(16);
+            var challenge = AgentIsland.Backend.Usage.ClaudeWebLogin.Base64Url(
                 System.Security.Cryptography.SHA256.HashData(
                     System.Text.Encoding.ASCII.GetBytes(verifier)));
-            Console.WriteLine(Usage.ClaudeWebLogin.BuildAuthorizeUrl(
+            Console.WriteLine(AgentIsland.Backend.Usage.ClaudeWebLogin.BuildAuthorizeUrl(
                 challenge, state, "http://localhost:54545/callback"));
             return 0;
         }
@@ -59,9 +59,9 @@ public static class Program
         {
             // Live diagnostic: what would the updater see right now?
             // Honors AGENTISLAND_UPDATE_FEED the same way the app does.
-            var info = Update.UpdateChecker.FetchLatestAsync().GetAwaiter().GetResult();
-            Console.WriteLine($"current  {Update.UpdateChecker.CurrentVersion}");
-            Console.WriteLine($"runtime  {Update.UpdateChecker.RuntimeSuffix}");
+            var info = AgentIsland.Backend.Updates.UpdateChecker.FetchLatestAsync().GetAwaiter().GetResult();
+            Console.WriteLine($"current  {AgentIsland.Backend.Updates.UpdateChecker.CurrentVersion}");
+            Console.WriteLine($"runtime  {AgentIsland.Backend.Updates.UpdateChecker.RuntimeSuffix}");
             if (info is null)
             {
                 Console.WriteLine("feed     unreachable (or unparsable)");
@@ -71,7 +71,7 @@ public static class Program
             Console.WriteLine($"asset    {info.AssetName ?? "(none for this runtime)"}" +
                 (info.AssetSize > 0 ? $" {info.AssetSize / 1_000_000.0:F1}MB" : ""));
             Console.WriteLine(
-                $"verdict  {(info.Version > Update.UpdateChecker.CurrentVersion ? "update available" : "up to date")}");
+                $"verdict  {(info.Version > AgentIsland.Backend.Updates.UpdateChecker.CurrentVersion ? "update available" : "up to date")}");
             return 0;
         }
         try

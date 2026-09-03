@@ -3,8 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using AgentIsland.Cost;
-using AgentIsland.Model;
+using AgentIsland.Core.Cost;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 
@@ -25,7 +25,7 @@ public sealed class CostPage : Border
     private readonly Dictionary<DisplayProvider, CostBlock> _blocks = new();
     private readonly Dictionary<DisplayProvider, UIElement> _badges = new();
 
-    /// How a provider's slot presents cost. Claude/Codex are table-priced and
+    /// How a provider's slot presents AgentIsland.Backend.Cost. Claude/Codex are table-priced and
     /// Grok self-reports dollars, so all three show a full dollar tile; Cursor
     /// has token counts but no model and therefore no price, so its tile reads
     /// "—" where a dollar would go; Gemini ships no local ledger at all, so it
@@ -208,7 +208,7 @@ public sealed class CostBlock : StackPanel
             Foreground = IslandColors.Brush(IslandColors.White(0.55)),
             VerticalAlignment = VerticalAlignment.Bottom,
             Margin = new Thickness(8, 0, 0, 6),
-            Text = Localization.L10n.Tr("today"),
+            Text = AgentIsland.UI.Localization.L10n.Tr("today"),
         };
         heroRow.Children.Add(_hero);
         heroRow.Children.Add(_heroCaption);
@@ -253,10 +253,10 @@ public sealed class CostBlock : StackPanel
             _countUp.Animate(summary.TodayTokens, "tokens",
                 v => Core.Formatting.CompactTokens((long)Math.Round(v)));
             ApplyGlow(0);
-            _heroCaption.Text = Localization.L10n.Tr("tokens today");
+            _heroCaption.Text = AgentIsland.UI.Localization.L10n.Tr("tokens today");
             _sparkline.SetSeries(summary.TodayCumulativeDollars);
-            _monthLine.Text = Localization.L10n.TrFormat("{0} this month", NoDollar);
-            _tokenLine.Text = Localization.L10n.TrFormat(
+            _monthLine.Text = AgentIsland.UI.Localization.L10n.TrFormat("{0} this month", NoDollar);
+            _tokenLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                 "{0} tokens · {1} billable",
                 Core.Formatting.CompactTokens(summary.TodayTokens),
                 Core.Formatting.CompactTokens(summary.TodayBillableTokens));
@@ -268,21 +268,21 @@ public sealed class CostBlock : StackPanel
                 _countUp.Animate(summary.TodayTokens, "tokens",
                     v => Core.Formatting.CompactTokens((long)Math.Round(v)));
                 ApplyGlow(summary.TodayDollars);
-                _heroCaption.Text = Localization.L10n.Tr("tokens today");
+                _heroCaption.Text = AgentIsland.UI.Localization.L10n.Tr("tokens today");
                 _sparkline.SetSeries(summary.TodayCumulativeDollars);
-                _monthLine.Text = Localization.L10n.TrFormat(
+                _monthLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} tokens this month", Core.Formatting.CompactTokens(summary.MonthTokens));
-                _tokenLine.Text = Localization.L10n.TrFormat(
+                _tokenLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} billable", Core.Formatting.CompactTokens(summary.TodayBillableTokens));
                 break;
             case CostStyle.Trend:
                 _countUp.Animate(summary.MonthDollars, "money", Core.Formatting.Money);
                 ApplyGlow(summary.MonthDollars);
-                _heroCaption.Text = Localization.L10n.Tr("this month");
+                _heroCaption.Text = AgentIsland.UI.Localization.L10n.Tr("this month");
                 _sparkline.SetSeries(summary.MonthCumulativeDollars);
-                _monthLine.Text = Localization.L10n.TrFormat(
+                _monthLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} today", Core.Formatting.Money(summary.TodayDollars));
-                _tokenLine.Text = Localization.L10n.TrFormat(
+                _tokenLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} tokens · {1} billable",
                     Core.Formatting.CompactTokens(summary.MonthTokens),
                     Core.Formatting.CompactTokens(summary.MonthBillableTokens));
@@ -290,13 +290,13 @@ public sealed class CostBlock : StackPanel
             case CostStyle.Multi:
                 _countUp.Animate(summary.TodayDollars, "money", Core.Formatting.Money);
                 ApplyGlow(summary.TodayDollars);
-                _heroCaption.Text = Localization.L10n.Tr("today");
+                _heroCaption.Text = AgentIsland.UI.Localization.L10n.Tr("today");
                 _sparkline.SetSeries(summary.TodayCumulativeDollars);
-                _monthLine.Text = Localization.L10n.TrFormat(
+                _monthLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} this month · {1} tokens",
                     Core.Formatting.Money(summary.MonthDollars),
                     Core.Formatting.CompactTokens(summary.MonthTokens));
-                _tokenLine.Text = Localization.L10n.TrFormat(
+                _tokenLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} tokens · {1} billable",
                     Core.Formatting.CompactTokens(summary.TodayTokens),
                     Core.Formatting.CompactTokens(summary.TodayBillableTokens));
@@ -305,11 +305,11 @@ public sealed class CostBlock : StackPanel
             default:
                 _countUp.Animate(summary.TodayDollars, "money", Core.Formatting.Money);
                 ApplyGlow(summary.TodayDollars);
-                _heroCaption.Text = Localization.L10n.Tr("today");
+                _heroCaption.Text = AgentIsland.UI.Localization.L10n.Tr("today");
                 _sparkline.SetSeries(summary.TodayCumulativeDollars);
-                _monthLine.Text = Localization.L10n.TrFormat(
+                _monthLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} this month", Core.Formatting.Money(summary.MonthDollars));
-                _tokenLine.Text = Localization.L10n.TrFormat(
+                _tokenLine.Text = AgentIsland.UI.Localization.L10n.TrFormat(
                     "{0} tokens · {1} billable",
                     Core.Formatting.CompactTokens(summary.TodayTokens),
                     Core.Formatting.CompactTokens(summary.TodayBillableTokens));

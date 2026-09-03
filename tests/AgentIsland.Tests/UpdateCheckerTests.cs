@@ -1,4 +1,4 @@
-using AgentIsland.Update;
+using AgentIsland.Backend.Updates;
 
 namespace AgentIsland.Tests;
 

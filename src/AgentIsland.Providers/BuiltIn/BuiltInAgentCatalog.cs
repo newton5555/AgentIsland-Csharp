@@ -28,7 +28,7 @@ public sealed class BuiltInAgentCatalog : IAgentCatalog
         Module("codex", "Codex", AgentCapabilities.Activity | AgentCapabilities.Usage |
             AgentCapabilities.Cost | AgentCapabilities.SessionNavigation |
             AgentCapabilities.Reauthentication, "codex"),
-        Module("antigravity", "Antigravity", AgentCapabilities.Usage |
+        Module("antigravity", "Antigravity", AgentCapabilities.Activity | AgentCapabilities.Usage |
             AgentCapabilities.SessionNavigation, "agy"),
         Module("grok", "Grok", AgentCapabilities.Activity | AgentCapabilities.Usage |
             AgentCapabilities.Cost | AgentCapabilities.SessionNavigation, "grok"),

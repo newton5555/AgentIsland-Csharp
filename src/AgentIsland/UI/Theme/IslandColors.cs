@@ -64,7 +64,7 @@ public static class IslandColors
     /// a Claude/Codex ternary — that ternary painted Gemini, Grok and Cursor
     /// in Codex blue the moment TriggerTool grew past two members, which is
     /// exactly the class of bug ProviderIdentity exists to close.
-    public static Color For(Core.TriggerTool tool) => Model.ProviderIdentity.Accent(tool);
+    public static Color For(Core.TriggerTool tool) => AgentIsland.UI.Providers.ProviderIdentity.Accent(tool);
 
-    public static Color For(Model.DisplayProvider provider) => Model.ProviderIdentity.Accent(provider);
+    public static Color For(AgentIsland.UI.Providers.DisplayProvider provider) => AgentIsland.UI.Providers.ProviderIdentity.Accent(provider);
 }

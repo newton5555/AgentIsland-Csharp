@@ -84,7 +84,7 @@ public sealed class ScreenPref : INotifyPropertyChanged
     // WEEKLY boundary is a budget hazard. The page, the settings tab, and
     // the engine start are all gated; stores and views stay in the tree so
     // each is one line to restore. The ctor's VisibleScreens guard already
-    // lands anyone parked on Triggers back on Usage.
+    // lands anyone parked on Triggers back on AgentIsland.Backend.Usage.
     public IReadOnlyList<IslandScreen> VisibleScreens => _showCostPage
         ? new[] { IslandScreen.Usage, IslandScreen.Cost, IslandScreen.Overview }
         : new[] { IslandScreen.Usage, IslandScreen.Overview };

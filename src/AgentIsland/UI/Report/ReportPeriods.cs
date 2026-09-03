@@ -1,6 +1,6 @@
 using AgentIsland.Core;
-using AgentIsland.Cost;
-using AgentIsland.Model;
+using AgentIsland.Core.Cost;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI.Report;
 

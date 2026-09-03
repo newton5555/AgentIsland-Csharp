@@ -4,10 +4,10 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using AgentIsland.Localization;
+using AgentIsland.UI.Localization;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
-using AgentIsland.Usage;
+using AgentIsland.Core.Usage;
 
 namespace AgentIsland.UI;
 
@@ -134,12 +134,12 @@ public sealed class PanelFooter : Grid
             VerticalAlignment = VerticalAlignment.Center,
         };
         rightCluster.Children.Add(ReportPill(
-            Localization.L10n.Tr("Weekly"),
-            Localization.L10n.Tr("Share weekly report"),
+            AgentIsland.UI.Localization.L10n.Tr("Weekly"),
+            AgentIsland.UI.Localization.L10n.Tr("Share weekly report"),
             () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly)));
         rightCluster.Children.Add(ReportPill(
-            Localization.L10n.Tr("Monthly"),
-            Localization.L10n.Tr("Share monthly report"),
+            AgentIsland.UI.Localization.L10n.Tr("Monthly"),
+            AgentIsland.UI.Localization.L10n.Tr("Share monthly report"),
             () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Monthly)));
         rightCluster.Children.Add(syncButton);
         SetColumn(rightCluster, 2);
@@ -322,8 +322,8 @@ public sealed class LiveDot : Grid
         // and defeats PanelFooter's own teardown, keeping the dead footer alive.
         System.ComponentModel.PropertyChangedEventHandler onSync =
             (_, _) => Dispatcher.BeginInvoke(MaybeBump);
-        Usage.UsageStore.Shared.PropertyChanged += onSync;
-        Unloaded += (_, _) => Usage.UsageStore.Shared.PropertyChanged -= onSync;
+        AgentIsland.Backend.Usage.UsageStore.Shared.PropertyChanged += onSync;
+        Unloaded += (_, _) => AgentIsland.Backend.Usage.UsageStore.Shared.PropertyChanged -= onSync;
         // Pause/resume the breath as the dot enters/leaves the visual tree —
         // a compact island collapses the footer, and a forever animation on
         // the hidden dot would keep repainting the whole transparent window.
@@ -379,7 +379,7 @@ public sealed class LiveDot : Grid
 
     private void MaybeBump()
     {
-        var updated = Usage.UsageStore.Shared.LastUpdated;
+        var updated = AgentIsland.Backend.Usage.UsageStore.Shared.LastUpdated;
         if (updated == _seenUpdate) return;
         _seenUpdate = updated;
         var up = new DoubleAnimation(1.18, IslandAnimations.StrongEaseOutDuration)
