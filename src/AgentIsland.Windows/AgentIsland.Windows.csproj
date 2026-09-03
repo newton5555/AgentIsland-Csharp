@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgentIsland.Windows</RootNamespace>
+    <AssemblyName>AgentIsland.Windows</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+  </ItemGroup>
+
+</Project>

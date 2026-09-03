@@ -1,0 +1,30 @@
+name: Windows
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+
+      - name: Restore
+        run: dotnet restore .\AgentIsland.sln
+
+      - name: Build
+        run: dotnet build .\AgentIsland.sln --configuration Release --no-restore
+
+      - name: Run console test suite
+        run: dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build

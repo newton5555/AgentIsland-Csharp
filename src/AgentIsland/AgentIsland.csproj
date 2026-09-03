@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgentIsland</RootNamespace>
+    <AssemblyName>AgentIsland</AssemblyName>
+    <Version>2.1.2</Version>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <ApplicationIcon Condition="Exists('Assets\AgentIsland.ico')">Assets\AgentIsland.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\**\*.png" />
+    <Resource Include="Assets\*.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="8.0.8" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <ProjectReference Include="..\AgentIsland.Providers\AgentIsland.Providers.csproj" />
+    <ProjectReference Include="..\AgentIsland.Windows\AgentIsland.Windows.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentIsland.Tests" />
+    <Using Remove="System.Drawing" />
+    <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+</Project>

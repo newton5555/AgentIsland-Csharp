@@ -1,0 +1,15 @@
+# Build output
+**/bin/
+**/obj/
+dist/
+out_test/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# Local tooling and generated logs
+.tmp/
+*.log
