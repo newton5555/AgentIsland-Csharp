@@ -10,6 +10,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <ProjectReference Include="..\AgentIsland.Providers\AgentIsland.Providers.csproj" />
+    <ProjectReference Include="..\AgentIsland.Runtime\AgentIsland.Runtime.csproj" />
   </ItemGroup>
 
 </Project>

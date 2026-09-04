@@ -1,0 +1,164 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:vm="using:AgentIsland.Avalonia.ViewModels"
+        mc:Ignorable="d" d:DesignWidth="380" d:DesignHeight="76"
+        x:Class="AgentIsland.Avalonia.MainWindow"
+        x:DataType="vm:IslandViewModel"
+        d:DataContext="{x:Static vm:IslandViewModel.Mock}"
+        Title="Agent Island (Avalonia P0)"
+        Width="380" Height="76"
+        CanResize="False"
+        SystemDecorations="None"
+        Background="Transparent"
+        TransparencyLevelHint="Transparent"
+        TransparencyBackgroundFallback="Transparent"
+        Topmost="True"
+        ShowInTaskbar="True"
+        WindowStartupLocation="CenterScreen">
+
+    <Grid Background="Transparent" Margin="8">
+        <!-- Main Island Silhouette: dark background, rounded corners, soft shadow -->
+        <Border x:Name="IslandBody"
+                Classes="island-silhouette drag-handle"
+                Height="44"
+                VerticalAlignment="Center"
+                HorizontalAlignment="Stretch"
+                Padding="10,0,10,0"
+                PointerPressed="OnIslandPointerPressed">
+
+            <Border.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="置顶显示 (Toggle Topmost)" Click="OnToggleTopmostClick" />
+                    <MenuItem Header="居中窗口 (Center Window)" Click="OnCenterWindowClick" />
+                    <Separator />
+                    <MenuItem Header="退出 (Exit)" Click="OnCloseButtonClick" />
+                </ContextMenu>
+            </Border.ContextMenu>
+
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <!-- Drag handle dots -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Provider slots container -->
+                    <ColumnDefinition Width="Auto" />
+                    <!-- Flexible spacer -->
+                    <ColumnDefinition Width="*" />
+                    <!-- Window actions (Close) -->
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <!-- Minimal drag grip indicator -->
+                <StackPanel Grid.Column="0"
+                            Orientation="Vertical"
+                            Spacing="2.5"
+                            VerticalAlignment="Center"
+                            Margin="0,0,10,0"
+                            Opacity="0.35">
+                    <Ellipse Width="2.5" Height="2.5" Fill="{DynamicResource IslandTextSecondaryBrush}" />
+                    <Ellipse Width="2.5" Height="2.5" Fill="{DynamicResource IslandTextSecondaryBrush}" />
+                    <Ellipse Width="2.5" Height="2.5" Fill="{DynamicResource IslandTextSecondaryBrush}" />
+                </StackPanel>
+
+                <!-- Provider slots (0, 1, or 2 items via ItemsControl) -->
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+                    <!-- Empty state placeholder when 0 slots -->
+                    <TextBlock Text="No active providers"
+                               IsVisible="{Binding IsEmpty}"
+                               FontSize="11"
+                               Foreground="{DynamicResource IslandTextMutedBrush}"
+                               VerticalAlignment="Center"
+                               Margin="4,0,0,0" />
+
+                    <ItemsControl ItemsSource="{Binding Slots}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="6"
+                                            VerticalAlignment="Center" />
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate DataType="vm:ProviderSlotViewModel">
+                                <Border Classes="provider-slot"
+                                        Classes.status-idle="{Binding IsIdle}"
+                                        Classes.status-working="{Binding IsWorking}"
+                                        Classes.status-needs-you="{Binding IsNeedsYou}"
+                                        Classes.status-error="{Binding IsError}"
+                                        Classes.idle="{Binding IsIdle}"
+                                        Classes.working="{Binding IsWorking}"
+                                        Classes.needs-you="{Binding IsNeedsYou}"
+                                        Classes.error="{Binding IsError}"
+                                        VerticalAlignment="Center"
+                                        Padding="6,3,8,3">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <!-- Provider logo badge -->
+                                        <Border Width="20" Height="20"
+                                                CornerRadius="5"
+                                                Background="{Binding AccentBrush}"
+                                                VerticalAlignment="Center">
+                                            <TextBlock Text="{Binding ShortId}"
+                                                       FontSize="11"
+                                                       FontWeight="Bold"
+                                                       Foreground="White"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <!-- Provider title -->
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource IslandTextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="6,0,0,0" />
+
+                                        <!-- Status indicator dot -->
+                                        <Ellipse Classes="status-dot"
+                                                 Width="6" Height="6"
+                                                 VerticalAlignment="Center"
+                                                 Margin="6,0,0,0" />
+
+                                        <!-- Status text -->
+                                        <TextBlock Classes="status-text"
+                                                   Text="{Binding StatusText}"
+                                                   FontSize="10"
+                                                   VerticalAlignment="Center"
+                                                   Margin="4,0,0,0" />
+
+                                        <!-- Quota / Balance tag -->
+                                        <Border Classes="pill-tag slot-quota"
+                                                IsVisible="{Binding HasQuotaText}"
+                                                VerticalAlignment="Center"
+                                                Margin="6,0,0,0">
+                                            <TextBlock Text="{Binding QuotaText}"
+                                                       FontSize="11"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource IslandTextPrimaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </StackPanel>
+
+                <!-- Close button -->
+                <Button Grid.Column="3"
+                        x:Name="CloseButton"
+                        Classes="island-close-btn"
+                        ToolTip.Tip="关闭悬浮岛 (Esc)"
+                        Click="OnCloseButtonClick">
+                    <TextBlock Text="✕"
+                               FontSize="10"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center" />
+                </Button>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

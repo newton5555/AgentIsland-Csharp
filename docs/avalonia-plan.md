@@ -1,8 +1,10 @@
-# Avalonia 版本开发计划（待评审）
+# Avalonia 版本开发计划与实施状态
 
 基线：AgentIsland for Windows v1.0.0，提交 `a5458ce`。计划日期：2026-09-04。
 
-本文是开发方案，尚未实施 Avalonia 代码。当前 WPF 已实际测试的 Agent 为 Antigravity（agy）、DeepSeek Harness（dsh）和 Codex；这不代表其 Linux 适配已经验证。
+本文是 Avalonia 迁移的开发方案和阶段记录。当前 WPF 已实际测试的 Agent 为 Antigravity（agy）、DeepSeek Harness（dsh）和 Codex；这不代表其 Linux 适配已经验证。
+
+截至 2026-09-04，P0 的 Avalonia 最小窗口、P1 的共享 Runtime 骨架，以及 P3 前半段的 Provider 槽位视觉状态模型已经落地；真实 Codex/dsh 数据闭环、Linux 真机验证和完整报告页面仍按下述阶段推进。
 
 ## 1. 目标与建议范围
 
@@ -102,9 +104,9 @@ tests/
 
 | 阶段 | 预计人日 | 主要交付 | 通过条件 |
 | --- | --- | --- | --- |
-| P0 技术验证与基线 | 2–3 | 最小透明窗口、基础托盘、拖动、双系统构建；WPF 参考截图和脱敏数据 | Windows/Linux 均能启动；给出窗口定位、穿透、托盘的实际能力表 |
-| P1 共享 Runtime | 4–6 | 扫描、缓存、刷新、活动与报告计算解耦；跨平台业务测试 | 同一数据集两端输出一致；WPF 现有测试继续通过 |
-| P2 首个真实数据闭环 | 3–5 | Codex/dsh 路径、凭据读取、Token、额度/余额，最小双槽岛 | Windows/Linux 都展示真实数据；断网不影响本地统计 |
+| P0 技术验证与基线 | 2–3 | 最小透明窗口、基础托盘、拖动、双系统构建；WPF 参考截图和脱敏数据 | **部分完成**：Windows 透明窗口、圆角、拖动、置顶、关闭和 Release 启动已验证；Linux、穿透、托盘实机验证待做 |
+| P1 共享 Runtime | 4–6 | 扫描、缓存、刷新、活动与报告计算解耦；跨平台业务测试 | **骨架完成**：`AgentIsland.Runtime` 快照契约、`TokenLogScanner` 指纹缓存、并发刷新、错误保留旧值、取消和手工回归测试已完成；真实 Reader/Store 迁移待做 |
+| P2 首个真实数据闭环 | 3–5 | Codex/dsh 路径、凭据读取、Token、额度/余额，最小双槽岛 | **接入准备完成**：Avalonia 已有 `RuntimeIslandBinder`，Runtime 已有本地成本快照源；Windows/Linux 的真实路径、活动和余额组合仍待做 |
 | P3 岛体和工作动画 | 3–5 | 展开/收起、单/双槽、透明边缘、Logo、蓝鲸动画、低功耗 | 状态驱动画面；空闲停止工作动画；DPI 和多屏切换可用 |
 | P4 统计与周/月卡 | 4–6 | 热力图、日详情、报告、对决、PNG 导出 | 所有视图口径一致；日期/色彩/导出视觉验收通过 |
 | P5 设置和系统集成 | 3–5 | 设置页、托盘菜单、提醒、导航、自启动、配置迁移 | 可完整配置和退出；重启恢复；无托盘环境仍能操作 |
@@ -132,7 +134,7 @@ tests/
 - 将文件遍历、解析缓存、读取周期和取消逻辑移入 Runtime。
 - 用可取消的异步循环取代后台依赖 DispatcherTimer；保持原刷新周期、刷新合并及过期缓存规则。
 - 防止同时启动多个扫描/刷新循环；退出时取消，恢复运行后能重新扫描。
-- 把 `CostStore/UsageStore/ActivityMonitor` 的数据计算与 UI 通知分开。按功能逐个切换 WPF 适配器，避免同时重写所有 Store。
+- 把 `CostStore/UsageStore/ActivityMonitor` 的数据计算与 UI 通知分开。按功能逐个切换 WPF 适配器，避免同时重写所有 Store。当前 Runtime 已有 `TokenLogScanner` 与 `TokenCostSnapshotSource` 骨架，真实路径和 Parser 注入仍由平台/Provider 适配层负责。
 - 将 ReportData/ReportPeriods 中的纯聚合抽出，去除 WPF Color、UI DisplayProvider 与静态全局 Store 依赖。
 - 把颜色保存为语义标识或普通颜色值，WPF/Avalonia 各自转换为画刷。
 - 将解析、缓存、聚合测试迁到可在 Linux 执行的入口；保留依赖 WPF 的布局测试。
@@ -218,7 +220,7 @@ Windows/Linux 的账号保存方式也要分别验证。迁移初期优先复用
 - 每个阶段产出可运行结果与验收记录；共享逻辑一旦迁入 Runtime，两端都使用同一实现，避免复制后分别修 Bug。
 - 任务可按 Runtime、系统适配、AXAML/视觉三个方向划分，先稳定数据契约再并行。若后续交给 agy，优先安排边界明确的 AXAML 页面任务，由主维护者验收业务数据和真机行为。
 - P0 若确认目标 Linux 桌面无法提供需要的定位/穿透行为，先评审降级体验，再投入完整动画和页面迁移。
-- 本轮只提交计划供评审；不启动账号请求、真实 Agent 任务、框架迁移或版本发布。
+- 当前阶段不接入真实账号请求或发布流程；先完成 Runtime 数据源适配和 Avalonia 的 Codex/dsh 最小真实闭环，再进入动画、报告和设置迁移。每次阶段交付都必须保留可运行结果和回归记录。
 
 ## 9. 评审时建议确认的三项
 

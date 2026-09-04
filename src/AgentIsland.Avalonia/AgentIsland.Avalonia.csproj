@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgentIsland.Avalonia</RootNamespace>
+    <AssemblyName>AgentIsland.Avalonia</AssemblyName>
+    <AvaloniaVersion>11.3.0</AvaloniaVersion>
+    <BuiltInCompositor>true</BuiltInCompositor>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="$(AvaloniaVersion)" />
+    <PackageReference Include="Avalonia.Fonts.Inter" Version="$(AvaloniaVersion)" />
+    <PackageReference Condition="'$(Configuration)' == 'Debug'" Include="Avalonia.Diagnostics" Version="$(AvaloniaVersion)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <ProjectReference Include="..\AgentIsland.Runtime\AgentIsland.Runtime.csproj" />
+  </ItemGroup>
+</Project>

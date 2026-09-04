@@ -1,0 +1,48 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Dark Island Color Palette (carried over from macOS / WPF design baseline) -->
+    <Color x:Key="IslandBackground">#020203</Color>
+    <Color x:Key="IslandSurface">#141418</Color>
+    <Color x:Key="IslandSurfaceHover">#1E1E24</Color>
+    <Color x:Key="IslandBorder">#2B2B32</Color>
+    <Color x:Key="IslandBorderSubtle">#1A1A22</Color>
+
+    <!-- Accents & Brands -->
+    <Color x:Key="IslandCobalt">#0047AB</Color>
+    <Color x:Key="IslandLiveTeal">#3DD68C</Color>
+    <Color x:Key="IslandCodex">#7B61FF</Color>
+    <Color x:Key="IslandDeepSeek">#1E88E5</Color>
+    <Color x:Key="IslandAmber">#F5A524</Color>
+    <Color x:Key="IslandRed">#E5484D</Color>
+    <Color x:Key="IslandClaude">#CC785C</Color>
+    <Color x:Key="IslandAntigravity">#4285F4</Color>
+    <Color x:Key="IslandGrok">#D8DEE4</Color>
+    <Color x:Key="IslandCursor">#F5F3EE</Color>
+
+    <!-- Text hierarchy -->
+    <Color x:Key="IslandTextPrimary">#F4F4F6</Color>
+    <Color x:Key="IslandTextSecondary">#8E8E98</Color>
+    <Color x:Key="IslandTextMuted">#585864</Color>
+
+    <!-- Brushes -->
+    <SolidColorBrush x:Key="IslandBackgroundBrush" Color="{StaticResource IslandBackground}" />
+    <SolidColorBrush x:Key="IslandSurfaceBrush" Color="{StaticResource IslandSurface}" />
+    <SolidColorBrush x:Key="IslandSurfaceHoverBrush" Color="{StaticResource IslandSurfaceHover}" />
+    <SolidColorBrush x:Key="IslandBorderBrush" Color="{StaticResource IslandBorder}" />
+    <SolidColorBrush x:Key="IslandBorderSubtleBrush" Color="{StaticResource IslandBorderSubtle}" />
+
+    <SolidColorBrush x:Key="IslandCobaltBrush" Color="{StaticResource IslandCobalt}" />
+    <SolidColorBrush x:Key="IslandLiveTealBrush" Color="{StaticResource IslandLiveTeal}" />
+    <SolidColorBrush x:Key="IslandCodexBrush" Color="{StaticResource IslandCodex}" />
+    <SolidColorBrush x:Key="IslandDeepSeekBrush" Color="{StaticResource IslandDeepSeek}" />
+    <SolidColorBrush x:Key="IslandAmberBrush" Color="{StaticResource IslandAmber}" />
+    <SolidColorBrush x:Key="IslandRedBrush" Color="{StaticResource IslandRed}" />
+    <SolidColorBrush x:Key="IslandClaudeBrush" Color="{StaticResource IslandClaude}" />
+    <SolidColorBrush x:Key="IslandAntigravityBrush" Color="{StaticResource IslandAntigravity}" />
+    <SolidColorBrush x:Key="IslandGrokBrush" Color="{StaticResource IslandGrok}" />
+    <SolidColorBrush x:Key="IslandCursorBrush" Color="{StaticResource IslandCursor}" />
+
+    <SolidColorBrush x:Key="IslandTextPrimaryBrush" Color="{StaticResource IslandTextPrimary}" />
+    <SolidColorBrush x:Key="IslandTextSecondaryBrush" Color="{StaticResource IslandTextSecondary}" />
+    <SolidColorBrush x:Key="IslandTextMutedBrush" Color="{StaticResource IslandTextMuted}" />
+</ResourceDictionary>

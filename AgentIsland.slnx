@@ -4,9 +4,12 @@
     <Project Path="src/AgentIsland.Providers/AgentIsland.Providers.csproj" />
     <Project Path="src/AgentIsland.Windows/AgentIsland.Windows.csproj" />
     <Project Path="src/AgentIsland/AgentIsland.csproj" />
+    <Project Path="src/AgentIsland.Avalonia/AgentIsland.Avalonia.csproj" />
+    <Project Path="src/AgentIsland.Runtime/AgentIsland.Runtime.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AgentIsland.Tests/AgentIsland.Tests.csproj" />
+    <Project Path="tests/AgentIsland.Runtime.Tests/AgentIsland.Runtime.Tests.csproj" />
   </Folder>
   <Folder Name="/assets/">
     <File Path="assets/AgentIsland.ico" />

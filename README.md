@@ -1,6 +1,6 @@
 # AgentIsland for Windows
 
-这是从 Agent Island 2.1.2 fork 出来的独立 Windows 产品线，使用 .NET 8 + WPF。当前版本保留 Agent Island 的核心设计与 Agent 监控能力，并针对 Windows 的窗口、托盘、路径和系统集成做了独立实现；它不再依赖 macOS 上游仓库的目录、构建或发布流程。
+这是从 Agent Island 2.1.2 fork 出来的独立 Windows 产品线，使用 .NET 8 + WPF；仓库同时开始建设 Avalonia 跨平台前端。当前 Windows 版本保留 Agent Island 的核心设计与 Agent 监控能力，并针对 Windows 的窗口、托盘、路径和系统集成做了独立实现；它不再依赖 macOS 上游仓库的目录、构建或发布流程。
 
 Agent Island 是一个本地优先的 AI Agent 桌面监控工具，用悬浮岛展示 Claude、Codex、DeepSeek Harness、Antigravity、Grok 和 Cursor 的活动状态、Token 用量、账号额度及周/月统计报告。
 
@@ -30,13 +30,16 @@ Agent Island 是一个本地优先的 AI Agent 桌面监控工具，用悬浮岛
 src/
 ├─ AgentIsland.Core       # 跨平台：模型、解析规则、聚合与 Agent 能力契约
 ├─ AgentIsland.Providers  # Agent 适配器、会话/费用/Usage 解析与显式注册
+├─ AgentIsland.Runtime    # 跨平台：快照契约、刷新并发、扫描缓存与成本源骨架
 ├─ AgentIsland.Windows    # Windows：路径、进程、系统集成
 └─ AgentIsland             # WPF 程序：组合根
    ├─ UI                   # 窗口、页面、控件、动画、主题
    └─ Backend              # WPF 宿主后台：Monitoring/Usage/Cost/Alarms/Updates/Settings
+src/AgentIsland.Avalonia/  # Avalonia P0 窗口与 Provider 槽位视觉状态（迁移进行中）
 assets/                    # 产品 Logo、Agent 图标、引导图、报告图和更新说明图
 tests/
-└─ AgentIsland.Tests      # 当前保留一个测试入口，按目录区分测试类型
+├─ AgentIsland.Tests       # WPF/Windows 回归
+└─ AgentIsland.Runtime.Tests # Runtime 跨平台契约回归
 ```
 
 根目录 `assets/` 保留一份与 WPF 运行时资源同名的素材目录，便于设计和产品维护；应用当前继续从 `src/AgentIsland/Assets/` 打包，避免改变既有 pack URI。
@@ -52,7 +55,12 @@ Visual Studio 可打开 `AgentIsland.sln` 或 `AgentIsland.slnx`；两者包含�
 ```powershell
 dotnet build .\AgentIsland.sln
 dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj
+dotnet run --project .\tests\AgentIsland.Runtime.Tests\AgentIsland.Runtime.Tests.csproj
+dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj
+dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj -- --verify
 ```
+
+Avalonia 迁移的阶段计划和当前落地状态见 [`docs/avalonia-plan.md`](docs/avalonia-plan.md)。现阶段 Avalonia 仍是独立的验证前端，Runtime 已完成无 UI 的快照/刷新骨架，真实 Codex/dsh 数据闭环和 Linux 真机验证尚未替代 WPF 默认前端。
 
 发布：
 

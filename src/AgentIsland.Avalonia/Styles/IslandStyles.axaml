@@ -1,0 +1,126 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Island silhouette container style -->
+    <Style Selector="Border.island-silhouette">
+        <Setter Property="Background" Value="{DynamicResource IslandBackgroundBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource IslandBorderBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="16" />
+        <Setter Property="BoxShadow" Value="0 6 24 0 #99000000" />
+    </Style>
+
+    <!-- Provider slot container style -->
+    <Style Selector="Border.provider-slot">
+        <Setter Property="Background" Value="{DynamicResource IslandSurfaceBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource IslandBorderSubtleBrush}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="10" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.15" />
+                <BrushTransition Property="BorderBrush" Duration="0:0:0.15" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Border.provider-slot:pointerover">
+        <Setter Property="Background" Value="{DynamicResource IslandSurfaceHoverBrush}" />
+    </Style>
+
+    <!-- Status indicator dot baseline -->
+    <Style Selector="Ellipse.status-dot">
+        <Setter Property="Fill" Value="{DynamicResource IslandLiveTealBrush}" />
+    </Style>
+
+    <!-- Status text baseline -->
+    <Style Selector="TextBlock.status-text">
+        <Setter Property="Foreground" Value="{DynamicResource IslandTextSecondaryBrush}" />
+    </Style>
+
+    <!-- Visual status: Idle (Ready) -->
+    <Style Selector="Border.provider-slot.status-idle Ellipse.status-dot, Border.provider-slot.idle Ellipse.status-dot">
+        <Setter Property="Fill" Value="{DynamicResource IslandLiveTealBrush}" />
+        <Setter Property="Opacity" Value="0.85" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-idle TextBlock.status-text, Border.provider-slot.idle TextBlock.status-text">
+        <Setter Property="Foreground" Value="{DynamicResource IslandTextSecondaryBrush}" />
+    </Style>
+
+    <!-- Visual status: Working (Active) -->
+    <Style Selector="Border.provider-slot.status-working, Border.provider-slot.working">
+        <Setter Property="BorderBrush" Value="#663DD68C" />
+        <Setter Property="Background" Value="#1A3DD68C" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-working Ellipse.status-dot, Border.provider-slot.working Ellipse.status-dot">
+        <Setter Property="Fill" Value="{DynamicResource IslandLiveTealBrush}" />
+        <Setter Property="Opacity" Value="1.0" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-working TextBlock.status-text, Border.provider-slot.working TextBlock.status-text">
+        <Setter Property="Foreground" Value="{DynamicResource IslandLiveTealBrush}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- Visual status: NeedsYou (Attention / User turn) -->
+    <Style Selector="Border.provider-slot.status-needs-you, Border.provider-slot.needs-you">
+        <Setter Property="BorderBrush" Value="#80F5A524" />
+        <Setter Property="Background" Value="#1AF5A524" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-needs-you Ellipse.status-dot, Border.provider-slot.needs-you Ellipse.status-dot">
+        <Setter Property="Fill" Value="{DynamicResource IslandAmberBrush}" />
+        <Setter Property="Opacity" Value="1.0" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-needs-you TextBlock.status-text, Border.provider-slot.needs-you TextBlock.status-text">
+        <Setter Property="Foreground" Value="{DynamicResource IslandAmberBrush}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- Visual status: Error (Failure / Alert) -->
+    <Style Selector="Border.provider-slot.status-error, Border.provider-slot.error">
+        <Setter Property="BorderBrush" Value="#80E5484D" />
+        <Setter Property="Background" Value="#1AE5484D" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-error Ellipse.status-dot, Border.provider-slot.error Ellipse.status-dot">
+        <Setter Property="Fill" Value="{DynamicResource IslandRedBrush}" />
+        <Setter Property="Opacity" Value="1.0" />
+    </Style>
+    <Style Selector="Border.provider-slot.status-error TextBlock.status-text, Border.provider-slot.error TextBlock.status-text">
+        <Setter Property="Foreground" Value="{DynamicResource IslandRedBrush}" />
+        <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
+    <!-- Pill tag style -->
+    <Style Selector="Border.pill-tag">
+        <Setter Property="Background" Value="#1AFFFFFF" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Padding" Value="6,2" />
+    </Style>
+
+    <!-- Minimal close button style -->
+    <Style Selector="Button.island-close-btn">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource IslandTextSecondaryBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="CornerRadius" Value="6" />
+        <Setter Property="Width" Value="20" />
+        <Setter Property="Height" Value="20" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Transitions">
+            <Transitions>
+                <BrushTransition Property="Background" Duration="0:0:0.12" />
+                <BrushTransition Property="Foreground" Duration="0:0:0.12" />
+            </Transitions>
+        </Setter>
+    </Style>
+    <Style Selector="Button.island-close-btn:pointerover">
+        <Setter Property="Background" Value="#26FFFFFF" />
+        <Setter Property="Foreground" Value="{DynamicResource IslandTextPrimaryBrush}" />
+    </Style>
+
+    <!-- Draggable region indicator -->
+    <Style Selector="Border.drag-handle">
+        <Setter Property="Cursor" Value="SizeAll" />
+    </Style>
+</Styles>
