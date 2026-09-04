@@ -10,8 +10,8 @@ namespace AgentIsland.Providers.Sessions.DeepSeek;
 /// The activity signal reconstructed from one DeepSeek Harness session.
 /// Harness mixes route metadata, streaming chunks, tool work, and turn
 /// boundaries in the same event stream, so the latest route-bearing event is
-/// kept alongside its kind. A host can then ignore a mixed session whose most
-/// recent request belongs to a non-official gateway.
+/// kept alongside its kind. Hosts can use the route as metadata while still
+/// treating activity from every gateway as a local session signal.
 public enum DeepSeekActivityKind
 {
     None,

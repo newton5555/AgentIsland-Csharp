@@ -11,11 +11,12 @@ namespace AgentIsland.Backend.Monitoring;
 /// event protocol while this adapter turns the result into the same
 /// ScannedSession shape used by the other activity monitors.
 ///
-/// Only the official `deepseek-official` route is surfaced. A session can
-/// contain several route headers over its lifetime, so the parser's latest
-/// route is authoritative and a mixed stream that most recently used
-/// `my-gateway` is ignored. Delegated worker sessions are filtered as well;
-/// only a human-facing Harness session can drive the whale.
+/// Every DSH route is surfaced for activity. A session can contain several
+/// route headers over its lifetime, so the parser's latest route is retained
+/// as metadata while the latest event drives the state. Delegated worker
+/// sessions are filtered; only a human-facing Harness session can drive the
+/// whale. The official-route restriction belongs to the balance request, not
+/// local activity detection.
 public static class DeepSeekActivityReader
 {
     private static readonly TimeSpan ActiveWindow = TimeSpan.FromSeconds(18);
@@ -44,7 +45,7 @@ public static class DeepSeekActivityReader
         foreach (var path in SafeFileSystem.EnumerateFiles(root, "session.jsonl.zstd"))
         {
             var snapshot = Read(path);
-            if (snapshot is not { IsOfficialRoute: true } || snapshot.IsSubagent) continue;
+            if (snapshot is null || !IsEligibleForActivity(snapshot)) continue;
 
             var sessionDirectory = Path.GetDirectoryName(path);
             var sessionId = Path.GetFileName(sessionDirectory ?? "");
@@ -149,4 +150,10 @@ public static class DeepSeekActivityReader
     {
         lock (CacheGate) Cache.Clear();
     }
+
+    /// All routes in a DSH session contribute to local activity. Keep this
+    /// predicate separate from the official-balance rule so the two data
+    /// sources cannot accidentally acquire the same filter again.
+    internal static bool IsEligibleForActivity(DeepSeekActivitySnapshot snapshot) =>
+        !snapshot.IsSubagent;
 }

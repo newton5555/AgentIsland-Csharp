@@ -5,17 +5,17 @@ using AgentIsland.Providers.Sessions.DeepSeek;
 
 namespace AgentIsland.Tests;
 
-/// Contract tests for the official DeepSeek Harness activity projection.
+/// Contract tests for the DeepSeek Harness activity projection.
 /// Activity is deliberately separate from token accounting: any streaming
-/// event makes a route Working, while a final assistant message/turn boundary
-/// makes it complete, and the latest route wins for mixed sessions.
+/// event makes a session Working, while a final assistant message/turn
+/// boundary makes it complete, and the latest route wins for mixed sessions.
 public static class DeepSeekActivityTests
 {
     public static void RunAll()
     {
         TestOfficialActiveStream();
         TestOfficialCompletedTurn();
-        TestLatestRouteFiltersMixedStream();
+        TestLatestRouteKeepsEveryGatewayEligible();
         TestSubagentMetadataIsMarked();
         TestProjectFolderDecoding();
         TestActivityMonitorPublishesDeepSeekState();
@@ -67,7 +67,7 @@ public static class DeepSeekActivityTests
         Console.WriteLine("PASS DeepSeek completed turn projection");
     }
 
-    private static void TestLatestRouteFiltersMixedStream()
+    private static void TestLatestRouteKeepsEveryGatewayEligible()
     {
         var lines = new[]
         {
@@ -80,10 +80,12 @@ public static class DeepSeekActivityTests
         var snapshot = DeepSeekActivityParser.ParseLines(lines);
         Expect(snapshot is not null, "mixed route stream still parses safely");
         Expect(!snapshot!.IsOfficialRoute,
-            "a session most recently using my-gateway is excluded from official activity");
+            "the mixed stream retains its non-official route metadata");
         Expect(snapshot.LatestProvider == "my-gateway",
             "latest route metadata wins over an older official header");
-        Console.WriteLine("PASS DeepSeek mixed-route activity filter");
+        Expect(DeepSeekActivityReader.IsEligibleForActivity(snapshot!),
+            "a session most recently using my-gateway still drives whale activity");
+        Console.WriteLine("PASS DeepSeek all-gateway activity eligibility");
     }
 
     private static void TestProjectFolderDecoding()
