@@ -15,7 +15,7 @@ public static class ClaudeLogParser
         var output = new List<(TokenEvent Event, string? DedupKey)>();
         try
         {
-            foreach (var line in File.ReadLines(path))
+            foreach (var line in Jsonl.ReadLinesShared(path))
             {
                 // A pathological multi-MB line (an embedded payload) can't be
                 // a usage event; skip before parsing so it never balloons

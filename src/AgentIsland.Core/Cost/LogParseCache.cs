@@ -64,8 +64,13 @@ public sealed class LogParseCache
             }
 
             var events = parseFile(path);
-            _entries[path] = new Entry(mtime.UtcTicks, size, events.Select(ToDto).ToList());
-            _dirty = true;
+            // Never cache 0 events for a non-trivial file: if it failed or was partially read while locked,
+            // subsequent scans should retry parsing it rather than poisoning the cache forever.
+            if (events.Count > 0 || size <= 1024)
+            {
+                _entries[path] = new Entry(mtime.UtcTicks, size, events.Select(ToDto).ToList());
+                _dirty = true;
+            }
             output.AddRange(events);
         }
 
@@ -112,6 +117,18 @@ public sealed class LogParseCache
                 var text = File.ReadAllText(_cachePath);
                 _entries = JsonSerializer.Deserialize<Dictionary<string, Entry>>(text)
                     ?? new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+
+                // Prune any legacy poisoned entries where a sharing violation or crash caused a non-empty
+                // session file to be permanently cached with 0 events.
+                var poisoned = _entries
+                    .Where(kv => kv.Value.Events.Count == 0 && kv.Value.Size > 1024)
+                    .Select(kv => kv.Key)
+                    .ToList();
+                if (poisoned.Count > 0)
+                {
+                    foreach (var key in poisoned) _entries.Remove(key);
+                    _dirty = true;
+                }
             }
         }
         catch

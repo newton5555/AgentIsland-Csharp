@@ -25,7 +25,7 @@ public static class CodexLogParser
         (long Input, long Output)? lastTotals = null;
         try
         {
-            foreach (var line in File.ReadLines(path))
+            foreach (var line in Jsonl.ReadLinesShared(path))
             {
                 // Multi-MB embedded payload lines can't be token_count events;
                 // skip before parsing to keep peak memory flat.

@@ -68,4 +68,45 @@ public static class Jsonl
             ? parsed
             : null;
     }
+
+    /// <summary>
+    /// Streams lines from a file using non-exclusive sharing (ReadWrite | Delete)
+    /// so external agent processes actively writing or holding the log file
+    /// do not trigger Windows ERROR_SHARING_VIOLATION exceptions.
+    /// </summary>
+    public static IEnumerable<string> ReadLinesShared(string path)
+    {
+        FileStream stream;
+        try
+        {
+            stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+        }
+        catch
+        {
+            yield break;
+        }
+
+        using (stream)
+        using (var reader = new StreamReader(stream, System.Text.Encoding.UTF8))
+        {
+            string? line;
+            while (true)
+            {
+                try
+                {
+                    line = reader.ReadLine();
+                }
+                catch
+                {
+                    break;
+                }
+                if (line is null) break;
+                yield return line;
+            }
+        }
+    }
 }

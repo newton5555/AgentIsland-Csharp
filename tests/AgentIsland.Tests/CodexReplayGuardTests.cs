@@ -65,6 +65,27 @@ public static class CodexReplayGuardTests
         {
             try { File.Delete(path); } catch { }
         }
+
+        // Concurrency test: ensure ParseFile succeeds even if the file is currently
+        // held open with FileAccess.ReadWrite (simulating active Codex Desktop / CLI writing)
+        var lockedPath = Path.Combine(Path.GetTempPath(), $"agentisland-locked-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            File.WriteAllLines(lockedPath, new[] { Event(100, 10, 100, 10) });
+            using var lockStream = new FileStream(
+                lockedPath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.ReadWrite | FileShare.Delete);
+            var lockedEvents = CodexLogReader.ParseFile(lockedPath);
+            Expect(lockedEvents.Count == 1, $"expected 1 event while file open with write lock, got {lockedEvents.Count}");
+            Console.WriteLine("PASS concurrent write-locked transcript parsed successfully");
+        }
+        finally
+        {
+            try { File.Delete(lockedPath); } catch { }
+        }
+
         Console.WriteLine("CodexReplayGuardTests GREEN");
     }
 

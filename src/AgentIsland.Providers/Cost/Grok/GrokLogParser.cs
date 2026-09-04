@@ -32,7 +32,7 @@ public static class GrokLogParser
         var output = new List<(TokenEvent, string?)>();
         try
         {
-            foreach (var line in File.ReadLines(path))
+            foreach (var line in Jsonl.ReadLinesShared(path))
             {
                 // Tool-call results dominate the stream and can be multi-MB;
                 // only turn_completed lines carry a usage object, and every one
