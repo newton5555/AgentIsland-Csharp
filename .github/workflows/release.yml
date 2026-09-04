@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.x
+
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          $tag = '${{ github.ref_name }}'
+          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
+            throw "Release tags must use the vMAJOR.MINOR.PATCH format; received '$tag'."
+          }
+          "VERSION=$($Matches.version)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Build self-contained package
+        shell: pwsh
+        run: .\build.ps1 -Runtime win-x64 -Version $env:VERSION
+
+      - name: Create GitHub Release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $asset = "dist/AgentIsland-$env:VERSION-win-x64.zip"
+          if (-not (Test-Path -LiteralPath $asset)) {
+            throw "Expected release asset was not created: $asset"
+          }
+          gh release create '${{ github.ref_name }}' $asset `
+            --title "Agent Island $env:VERSION" `
+            --generate-notes
