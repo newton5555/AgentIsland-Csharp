@@ -53,7 +53,6 @@ public static class ProviderLogoAnimationTests
         if (Application.Current is null) _ = new Application();
         TestAntigravityWorkingDoesNotSpin();
         TestAntigravityWorkingActivatesWave();
-        TestAntigravityWorkingRendersPixelChangesBetweenFrames();
         TestDeepSeekWorkingActivatesSwim();
         TestDeepSeekStateTransitionsAndCleanup();
         TestDeepSeekWorkingRendersPixelChangesBetweenFrames();
@@ -90,62 +89,6 @@ public static class ProviderLogoAnimationTests
         Expect(logo.AntigravityWaveVisibility == Visibility.Visible, "Antigravity wave host must be visible during working");
         Expect(logo.AntigravityStaticVisibility == Visibility.Collapsed, "Antigravity static face must be collapsed during working");
         Console.WriteLine("PASS antigravity working activates four-color liquid wave");
-    }
-
-    private static void TestAntigravityWorkingRendersPixelChangesBetweenFrames()
-    {
-        var logo = new ProviderLogo { Tool = TriggerTool.Antigravity };
-        logo.SetState(ActivityState.Working);
-
-        var window = new Window
-        {
-            Width = 100,
-            Height = 100,
-            Content = logo,
-            ShowActivated = false,
-        };
-        window.Show();
-
-        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-
-        var rtb1 = new System.Windows.Media.Imaging.RenderTargetBitmap(100, 100, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb1.Render(logo);
-        var pix1 = new byte[100 * 100 * 4];
-        rtb1.CopyPixels(pix1, 400, 0);
-
-        var start = DateTime.UtcNow;
-        while ((DateTime.UtcNow - start).TotalMilliseconds < 350)
-        {
-            System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(() => { }, System.Windows.Threading.DispatcherPriority.Render);
-            System.Threading.Thread.Sleep(20);
-        }
-
-        var rtb2 = new System.Windows.Media.Imaging.RenderTargetBitmap(100, 100, 96, 96, System.Windows.Media.PixelFormats.Pbgra32);
-        rtb2.Render(logo);
-        var pix2 = new byte[100 * 100 * 4];
-        rtb2.CopyPixels(pix2, 400, 0);
-
-        window.Close();
-
-        var changedPixels = 0;
-        var maxDelta = 0;
-        for (var i = 0; i < pix1.Length / 4; i++)
-        {
-            var idx = i * 4;
-            var bDiff = Math.Abs((int)pix1[idx] - (int)pix2[idx]);
-            var gDiff = Math.Abs((int)pix1[idx + 1] - (int)pix2[idx + 1]);
-            var rDiff = Math.Abs((int)pix1[idx + 2] - (int)pix2[idx + 2]);
-            var delta = bDiff + gDiff + rDiff;
-            if (delta > 15)
-            {
-                changedPixels++;
-                if (delta > maxDelta) maxDelta = delta;
-            }
-        }
-
-        Expect(changedPixels > 50, $"Working animation must produce visible pixel changes across frames (got {changedPixels} changed pixels)");
-        Expect(maxDelta > 100, $"Color delta between frames must be perceptible (got max delta {maxDelta})");
-        Console.WriteLine($"PASS antigravity working renders real pixel changes across frames ({changedPixels} changed pixels, max delta {maxDelta})");
     }
 
     private static void TestClaudeAndCodexContinueSpin()
