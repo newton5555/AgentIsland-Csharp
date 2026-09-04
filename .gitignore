@@ -13,3 +13,4 @@ out_test/
 # Local tooling and generated logs
 .tmp/
 *.log
+/.verify-release-build
