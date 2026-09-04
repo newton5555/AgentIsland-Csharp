@@ -1,6 +1,8 @@
 # AgentIsland for Windows
 
-这是独立维护的 Windows 产品线，使用 .NET 8 + WPF。它不再依赖 macOS 上游仓库的目录、构建或发布流程。
+这是从 Agent Island 2.1.2 fork 出来的独立 Windows 产品线，使用 .NET 8 + WPF。当前版本保留 Agent Island 的核心设计与 Agent 监控能力，并针对 Windows 的窗口、托盘、路径和系统集成做了独立实现；它不再依赖 macOS 上游仓库的目录、构建或发布流程。
+
+Agent Island 是一个本地优先的 AI Agent 桌面监控工具，用悬浮岛展示 Claude、Codex、DeepSeek Harness、Antigravity、Grok 和 Cursor 的活动状态、Token 用量、账号额度及周/月统计报告。
 
 ## 项目结构
 
