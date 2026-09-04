@@ -137,7 +137,7 @@ public class IslandViewModel : ViewModelBase
             ShortId = "D",
             ColorKey = "IslandDeepSeekBrush",
             Status = ProviderSlotStatus.Working,
-            QuotaText = "$12.50",
+            BalanceText = "¥12.50",
             StatusText = "Working"
         });
         return vm;

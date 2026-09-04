@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using AgentIsland.Avalonia.ViewModels;
 using AgentIsland.Core;
@@ -201,6 +202,8 @@ public class RuntimeIslandBinder : IDisposable
                 existingSlots[i].Status = capped[i].Status;
                 existingSlots[i].StatusText = capped[i].StatusText;
                 existingSlots[i].QuotaText = capped[i].QuotaText;
+                existingSlots[i].CostText = capped[i].CostText;
+                existingSlots[i].BalanceText = capped[i].BalanceText;
             }
         }
         else
@@ -262,6 +265,8 @@ public class RuntimeIslandBinder : IDisposable
         var (name, shortId, colorKey) = ResolveMetadata(snapshot.Agent);
         var (status, statusText) = ResolveStatus(snapshot);
         var quotaText = ResolveQuota(snapshot);
+        var costText = ResolveCost(snapshot);
+        var balanceText = ResolveBalance(snapshot);
 
         return new ProviderSlotViewModel
         {
@@ -271,6 +276,8 @@ public class RuntimeIslandBinder : IDisposable
             Status = status,
             StatusText = statusText,
             QuotaText = quotaText,
+            CostText = costText,
+            BalanceText = balanceText,
         };
     }
 
@@ -378,6 +385,82 @@ public class RuntimeIslandBinder : IDisposable
         }
 
         return string.Empty;
+    }
+
+    public static string ResolveCost(AgentSnapshot snapshot)
+    {
+        if (snapshot.Cost is null) return string.Empty;
+        var cost = snapshot.Cost;
+
+        if (cost.TodayDollars > 0)
+        {
+            return $"${cost.TodayDollars:F2}";
+        }
+
+        if (cost.TodayTokens > 0)
+        {
+            return FormatTokens(cost.TodayTokens);
+        }
+
+        if (cost.MonthDollars > 0)
+        {
+            return $"${cost.MonthDollars:F2}";
+        }
+
+        if (cost.MonthTokens > 0)
+        {
+            return FormatTokens(cost.MonthTokens);
+        }
+
+        return string.Empty;
+    }
+
+    public static string ResolveBalance(AgentSnapshot snapshot)
+    {
+        if (snapshot.Balance is null) return string.Empty;
+        var balance = snapshot.Balance;
+        if (!balance.HasEntries) return string.Empty;
+
+        if (balance.Entries.Count == 1)
+        {
+            var entry = balance.Entries[0];
+            return FormatBalanceAmount(entry.Currency, entry.Total);
+        }
+
+        return string.Join(" · ", balance.Entries.Select(e =>
+            string.IsNullOrWhiteSpace(e.Currency)
+                ? FormatBalanceAmount("USD", e.Total)
+                : e.Currency.ToUpperInvariant() + " " + FormatBalanceAmount(e.Currency, e.Total)));
+    }
+
+    public static string FormatBalanceAmount(string? currency, decimal amount)
+    {
+        var cur = currency?.Trim().ToUpperInvariant() ?? "USD";
+        var number = Math.Abs(amount).ToString("N2", CultureInfo.InvariantCulture);
+        var symbol = cur switch
+        {
+            "CNY" or "RMB" => "¥",
+            "USD" => "$",
+            "EUR" => "€",
+            "JPY" => "¥",
+            "GBP" => "£",
+            _ => cur + " ",
+        };
+
+        return amount < 0 ? "-" + symbol + number : symbol + number;
+    }
+
+    private static string FormatTokens(long tokens)
+    {
+        if (tokens >= 1_000_000)
+        {
+            return $"{tokens / 1_000_000.0:F1}M tok";
+        }
+        if (tokens >= 1_000)
+        {
+            return $"{tokens / 1_000.0:F1}k tok";
+        }
+        return $"{tokens} tok";
     }
 
     private static bool IsWindowUsable(WindowUsage? window)

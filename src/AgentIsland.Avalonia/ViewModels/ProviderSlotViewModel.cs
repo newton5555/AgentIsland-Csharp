@@ -101,7 +101,8 @@ public class ProviderSlotViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Short text for quota percentage, token count, or balance (e.g. "85%", "$12.50").
+    /// Short text for quota percentage (e.g. "85%").
+    /// Strictly represents AppUsage rate limits.
     /// </summary>
     public string QuotaText
     {
@@ -111,26 +112,68 @@ public class ProviderSlotViewModel : ViewModelBase
             if (SetProperty(ref _quotaText, value))
             {
                 OnPropertyChanged(nameof(HasQuotaText));
-                OnPropertyChanged(nameof(BalanceText));
+                OnPropertyChanged(nameof(MetricsText));
+            }
+        }
+    }
+
+    private string _balanceText = string.Empty;
+
+    /// <summary>
+    /// Short text for monetary account balance (e.g. "¥12.50", "$5.00").
+    /// Strictly represents monetary balance, separate from QuotaText (Usage) and CostText (Spend/Tokens).
+    /// </summary>
+    public string BalanceText
+    {
+        get => _balanceText;
+        set
+        {
+            if (SetProperty(ref _balanceText, value))
+            {
+                OnPropertyChanged(nameof(HasBalanceText));
                 OnPropertyChanged(nameof(MetricsText));
             }
         }
     }
 
     /// <summary>
-    /// Alias for QuotaText.
+    /// Backward-compatible primary metrics text.
     /// </summary>
-    public string BalanceText => QuotaText;
+    public string MetricsText => HasQuotaText ? QuotaText : (HasBalanceText ? BalanceText : CostText);
 
     /// <summary>
-    /// Alias for QuotaText.
-    /// </summary>
-    public string MetricsText => QuotaText;
-
-    /// <summary>
-    /// Indicates whether a non-empty quota or balance text is present.
+    /// Indicates whether a non-empty quota percentage text is present.
     /// </summary>
     public bool HasQuotaText => !string.IsNullOrWhiteSpace(_quotaText);
+
+    /// <summary>
+    /// Indicates whether a non-empty monetary balance text is present.
+    /// </summary>
+    public bool HasBalanceText => !string.IsNullOrWhiteSpace(_balanceText);
+
+    private string _costText = string.Empty;
+
+    /// <summary>
+    /// Short text for cost spend or token count (e.g. "$12.50", "1.5k tok").
+    /// Kept strictly separate from rate limit window QuotaText.
+    /// </summary>
+    public string CostText
+    {
+        get => _costText;
+        set
+        {
+            if (SetProperty(ref _costText, value))
+            {
+                OnPropertyChanged(nameof(HasCostText));
+                OnPropertyChanged(nameof(MetricsText));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Indicates whether a non-empty cost or token count text is present.
+    /// </summary>
+    public bool HasCostText => !string.IsNullOrWhiteSpace(_costText);
 
     /// <summary>
     /// Status description text (e.g. "Ready", "Working", "Needs You", "Error").

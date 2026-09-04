@@ -29,7 +29,8 @@ public sealed record AgentSnapshot(
     DateTimeOffset? DataAt = null,
     AppUsage? Usage = null,
     ProviderCostSummary? Cost = null,
-    string? Error = null)
+    string? Error = null,
+    AccountBalanceSnapshot? Balance = null)
 {
     public bool HasFreshData => Availability == SnapshotAvailability.Ready
         && DataAt is not null;
@@ -53,7 +54,8 @@ public sealed record AgentSnapshot(
         previous?.DataAt,
         previous?.Usage,
         previous?.Cost,
-        error);
+        error,
+        previous?.Balance);
 }
 
 public sealed class AgentSnapshotsChangedEventArgs(

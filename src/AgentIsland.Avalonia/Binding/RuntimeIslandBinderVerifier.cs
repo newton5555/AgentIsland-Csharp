@@ -9,6 +9,7 @@ using AgentIsland.Core.Cost;
 using AgentIsland.Core.Usage;
 using AgentIsland.Runtime.Refresh;
 using AgentIsland.Runtime.Snapshots;
+using AgentIsland.Runtime.Sources;
 
 namespace AgentIsland.Avalonia;
 
@@ -38,6 +39,11 @@ internal static class RuntimeIslandBinderVerifier
         TestStatusMapping();
         TestCostTokensNotFakedAsQuota();
         TestControllerAlias();
+        TestLiveConstructionContract();
+        TestDeepSeekMergedSlotWorkingAndCost();
+        TestFormatBalanceAmountAndCurrencies();
+        TestResolveBalanceSingleAndMultiEntry();
+        TestSlotBalanceIsolationFromQuotaAndCost();
 
         Console.ForegroundColor = ConsoleColor.Green;
         Console.WriteLine("=== ALL VERIFICATIONS PASSED (RuntimeIslandBinder GREEN) ===");
@@ -330,6 +336,27 @@ internal static class RuntimeIslandBinderVerifier
         var quotaValid = RuntimeIslandBinder.ResolveQuota(usableSnapshot);
         Expect(quotaValid == "85%", $"Valid usage must produce formatted percent, was '{quotaValid}'");
 
+        // Distinct Cost resolution: CostText must format dollars or tokens, and not contaminate Quota
+        var costText = RuntimeIslandBinder.ResolveCost(costOnly);
+        Expect(costText == "$12.50", $"ResolveCost should format dollar amount, was '{costText}'");
+        var slot = RuntimeIslandBinder.CreateSlotViewModel(costOnly);
+        Expect(slot.CostText == "$12.50", "SlotViewModel CostText should be set");
+        Expect(slot.HasCostText, "HasCostText must be true");
+        Expect(!slot.HasQuotaText, "HasQuotaText must remain false when Usage is null");
+        Expect(string.IsNullOrEmpty(slot.QuotaText), "QuotaText must remain empty");
+
+        var noCostText = RuntimeIslandBinder.ResolveCost(usableSnapshot);
+        Expect(string.IsNullOrEmpty(noCostText), "ResolveCost should be empty when snapshot.Cost is null");
+
+        var tokenCostSummary = new ProviderCostSummary(
+            0, 1500, 1500, 0, 1500, 1500,
+            new double[24], Array.Empty<double>(),
+            Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(),
+            Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
+        var tokenOnly = new AgentSnapshot("codex", ActivityState.Idle, SnapshotAvailability.Ready, now, now, Cost: tokenCostSummary);
+        var tokenFormatted = RuntimeIslandBinder.ResolveCost(tokenOnly);
+        Expect(tokenFormatted == "1.5k tok", $"Token count formatted, was '{tokenFormatted}'");
+
         Console.WriteLine("PASS TestCostTokensNotFakedAsQuota");
     }
 
@@ -346,6 +373,191 @@ internal static class RuntimeIslandBinderVerifier
         Expect(!controller.IsAttached, "RuntimeIslandController detaches correctly");
 
         Console.WriteLine("PASS TestControllerAlias");
+    }
+
+    private static void TestLiveConstructionContract()
+    {
+        var tempDir = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"AgentIsland_LiveVerify_{Guid.NewGuid():N}");
+        System.IO.Directory.CreateDirectory(tempDir);
+        try
+        {
+            // Provide isolated empty file providers so verification contract never reads real account/session directories
+            var sources = LocalTokenSources.CreateSources(
+                cacheDir: tempDir,
+                codexFileProvider: Array.Empty<string>,
+                deepSeekFileProvider: Array.Empty<string>);
+            Expect(sources.Count == 3, "LocalTokenSources creates Codex cost, DeepSeek cost, and DeepSeek activity sources");
+            Expect(sources[0].Agent == (AgentKey)"codex", "First source is codex");
+            Expect(sources[1].Agent == (AgentKey)"deepseek", "Second source is deepseek cost");
+            Expect(sources[2].Agent == (AgentKey)"deepseek", "Third source is deepseek activity");
+
+            var runtime = new AgentRuntime(sources);
+            var vm = new IslandViewModel();
+            using var binder = new RuntimeIslandBinder(vm, runtime);
+            binder.Attach();
+            Expect(binder.IsAttached, "Binder is attached");
+
+            using var cts = new CancellationTokenSource();
+            var refreshTask = runtime.RefreshAsync(cancellationToken: cts.Token);
+            refreshTask.GetAwaiter().GetResult();
+
+            Expect(runtime.Snapshots.Count == 2, "Snapshots populated for both providers (deepseek merged)");
+            Expect(vm.Slots.Count <= 2, "ViewModel slots respect capacity");
+
+            cts.Cancel();
+            binder.Dispose();
+            Expect(!binder.IsAttached, "Binder is detached after dispose");
+
+            Console.WriteLine("PASS TestLiveConstructionContract");
+        }
+        finally
+        {
+            try { System.IO.Directory.Delete(tempDir, true); } catch { }
+        }
+    }
+
+    private static void TestDeepSeekMergedSlotWorkingAndCost()
+    {
+        var now = DateTimeOffset.Now;
+        var costSummary = new ProviderCostSummary(
+            12.5, 1000, 1000, 25.0, 2000, 2000,
+            new double[24], Array.Empty<double>(),
+            Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(),
+            Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
+
+        var mergedSnapshot = new AgentSnapshot(
+            (AgentKey)"deepseek",
+            ActivityState.Working,
+            SnapshotAvailability.Ready,
+            now,
+            now,
+            Cost: costSummary);
+
+        var (status, statusText) = RuntimeIslandBinder.ResolveStatus(mergedSnapshot);
+        Expect(status == ProviderSlotStatus.Working && statusText == "Working", "DeepSeek resolves to Working");
+
+        var costText = RuntimeIslandBinder.ResolveCost(mergedSnapshot);
+        Expect(costText == "$12.50", "CostText resolves correctly");
+
+        var slot = RuntimeIslandBinder.CreateSlotViewModel(mergedSnapshot);
+        Expect(slot.Status == ProviderSlotStatus.Working, "Slot status is Working");
+        Expect(slot.CostText == "$12.50", "Slot cost text is preserved");
+        Expect(slot.HasCostText, "HasCostText is true");
+
+        Console.WriteLine("PASS TestDeepSeekMergedSlotWorkingAndCost");
+    }
+
+    private static void TestFormatBalanceAmountAndCurrencies()
+    {
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("CNY", 12.50m) == "¥12.50", "CNY formats with ¥");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("RMB", 12.50m) == "¥12.50", "RMB formats with ¥");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("USD", 5.00m) == "$5.00", "USD formats with $");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("EUR", 9.99m) == "€9.99", "EUR formats with €");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("JPY", 1000m) == "¥1,000.00", "JPY formats with ¥");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("GBP", 15.20m) == "£15.20", "GBP formats with £");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("CAD", 10.00m) == "CAD 10.00", "Unrecognized currency formats with code prefix");
+
+        // Zero balance
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("CNY", 0.00m) == "¥0.00", "Zero balance formats with ¥0.00");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("USD", 0.00m) == "$0.00", "Zero USD formats with $0.00");
+
+        // Negative balance (arrears)
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("CNY", -3.20m) == "-¥3.20", "Negative CNY formats with -¥3.20");
+        Expect(RuntimeIslandBinder.FormatBalanceAmount("USD", -10.50m) == "-$10.50", "Negative USD formats with -$10.50");
+
+        Console.WriteLine("PASS TestFormatBalanceAmountAndCurrencies");
+    }
+
+    private static void TestResolveBalanceSingleAndMultiEntry()
+    {
+        var now = DateTimeOffset.Now;
+
+        // Null balance
+        var snapNull = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now);
+        Expect(RuntimeIslandBinder.ResolveBalance(snapNull) == string.Empty, "Null balance resolves to empty string");
+
+        // Empty entries
+        var snapEmpty = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, Array.Empty<AccountBalanceEntry>()));
+        Expect(RuntimeIslandBinder.ResolveBalance(snapEmpty) == string.Empty, "Empty entries resolve to empty string");
+
+        // Single entry
+        var snapSingle = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, new[] { new AccountBalanceEntry("CNY", 12.50m, 0m, 12.50m) }));
+        Expect(RuntimeIslandBinder.ResolveBalance(snapSingle) == "¥12.50", "Single CNY entry resolves to ¥12.50");
+
+        // Single zero entry
+        var snapZero = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, new[] { new AccountBalanceEntry("CNY", 0.00m, 0m, 0.00m) }));
+        Expect(RuntimeIslandBinder.ResolveBalance(snapZero) == "¥0.00", "Single zero CNY entry resolves to ¥0.00");
+
+        // Single negative entry
+        var snapNeg = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, new[] { new AccountBalanceEntry("CNY", -5.40m, 0m, -5.40m) }));
+        Expect(RuntimeIslandBinder.ResolveBalance(snapNeg) == "-¥5.40", "Single negative CNY entry resolves to -¥5.40");
+
+        // Multi entries (CNY + USD)
+        var snapMulti = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, new[]
+            {
+                new AccountBalanceEntry("CNY", 12.50m, 0m, 12.50m),
+                new AccountBalanceEntry("USD", 5.00m, 0m, 5.00m),
+            }));
+        Expect(RuntimeIslandBinder.ResolveBalance(snapMulti) == "CNY ¥12.50 · USD $5.00", "Multi entries resolve joined with middot");
+
+        Console.WriteLine("PASS TestResolveBalanceSingleAndMultiEntry");
+    }
+
+    private static void TestSlotBalanceIsolationFromQuotaAndCost()
+    {
+        var now = DateTimeOffset.Now;
+
+        // 1. Balance only -> BalanceText set, QuotaText and CostText empty, HasBalanceText true
+        var balanceOnlySnap = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Idle, SnapshotAvailability.Ready, now, now,
+            Balance: new AccountBalanceSnapshot(true, new[] { new AccountBalanceEntry("CNY", 18.80m, 0m, 18.80m) }));
+
+        var slot = RuntimeIslandBinder.CreateSlotViewModel(balanceOnlySnap);
+        Expect(slot.BalanceText == "¥18.80", "Slot BalanceText matches formatted balance");
+        Expect(slot.HasBalanceText, "HasBalanceText is true");
+        Expect(slot.QuotaText == string.Empty, "QuotaText is empty when no Usage");
+        Expect(!slot.HasQuotaText, "HasQuotaText is false");
+        Expect(slot.CostText == string.Empty, "CostText is empty when no Cost");
+        Expect(!slot.HasCostText, "HasCostText is false");
+        Expect(slot.MetricsText == "¥18.80", "MetricsText falls back to BalanceText when QuotaText is empty");
+
+        var changed = new List<string?>();
+        slot.PropertyChanged += (_, args) => changed.Add(args.PropertyName);
+        slot.CostText = "$0.01";
+        Expect(changed.Contains(nameof(ProviderSlotViewModel.MetricsText)),
+            "MetricsText raises PropertyChanged when fallback CostText changes");
+
+        // 2. Combined Usage + Cost + Balance -> All three coexist independently without contamination
+        var usage = new AppUsage(
+            FiveHour: new WindowUsage(0.65, now.AddHours(2), null),
+            Weekly: new WindowUsage(0.20, now.AddDays(3), null));
+
+        var cost = new ProviderCostSummary(
+            3.50, 50000, 50000, 10.00, 150000, 150000,
+            new double[24], Array.Empty<double>(),
+            Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(),
+            Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
+
+        var allSnap = new AgentSnapshot((AgentKey)"deepseek", ActivityState.Working, SnapshotAvailability.Ready, now, now,
+            Usage: usage,
+            Cost: cost,
+            Balance: new AccountBalanceSnapshot(true, new[] { new AccountBalanceEntry("CNY", 99.00m, 0m, 99.00m) }));
+
+        var allSlot = RuntimeIslandBinder.CreateSlotViewModel(allSnap);
+        Expect(allSlot.Status == ProviderSlotStatus.Working, "Status is Working");
+        Expect(allSlot.QuotaText == "65%", "QuotaText matches Usage FiveHour percent");
+        Expect(allSlot.HasQuotaText, "HasQuotaText is true");
+        Expect(allSlot.CostText == "$3.50", "CostText matches Cost TodayDollars");
+        Expect(allSlot.HasCostText, "HasCostText is true");
+        Expect(allSlot.BalanceText == "¥99.00", "BalanceText matches Balance entry");
+        Expect(allSlot.HasBalanceText, "HasBalanceText is true");
+        Expect(allSlot.MetricsText == "65%", "MetricsText prioritizes QuotaText when available");
+
+        Console.WriteLine("PASS TestSlotBalanceIsolationFromQuotaAndCost");
     }
 
     private sealed class SimpleSource : IAgentSnapshotSource

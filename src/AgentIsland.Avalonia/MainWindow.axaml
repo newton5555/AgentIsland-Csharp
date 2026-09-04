@@ -129,12 +129,36 @@
                                                    VerticalAlignment="Center"
                                                    Margin="4,0,0,0" />
 
-                                        <!-- Quota / Balance tag -->
+                                        <!-- Quota tag (Usage only) -->
                                         <Border Classes="pill-tag slot-quota"
                                                 IsVisible="{Binding HasQuotaText}"
                                                 VerticalAlignment="Center"
                                                 Margin="6,0,0,0">
                                             <TextBlock Text="{Binding QuotaText}"
+                                                       FontSize="11"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource IslandTextPrimaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <!-- Balance tag (Account Balance only) -->
+                                        <Border Classes="pill-tag slot-balance"
+                                                IsVisible="{Binding HasBalanceText}"
+                                                VerticalAlignment="Center"
+                                                Margin="6,0,0,0">
+                                            <TextBlock Text="{Binding BalanceText}"
+                                                       FontSize="11"
+                                                       FontWeight="Medium"
+                                                       Foreground="{DynamicResource IslandTextPrimaryBrush}"
+                                                       VerticalAlignment="Center" />
+                                        </Border>
+
+                                        <!-- Cost / Token tag (separate from Quota and Balance) -->
+                                        <Border Classes="pill-tag slot-cost"
+                                                IsVisible="{Binding HasCostText}"
+                                                VerticalAlignment="Center"
+                                                Margin="6,0,0,0">
+                                            <TextBlock Text="{Binding CostText}"
                                                        FontSize="11"
                                                        FontWeight="Medium"
                                                        Foreground="{DynamicResource IslandTextPrimaryBrush}"

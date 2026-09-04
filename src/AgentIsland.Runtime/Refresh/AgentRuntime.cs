@@ -21,7 +21,13 @@ public sealed class AgentRuntime
         _sources = sources
             .Where(source => source is not null)
             .GroupBy(source => source.Agent)
-            .Select(group => group.First())
+            .Select(group =>
+            {
+                var list = group.ToArray();
+                return list.Length == 1
+                    ? list[0]
+                    : new CompositeAgentSnapshotSource(group.Key, list);
+            })
             .ToArray();
     }
 
@@ -86,11 +92,14 @@ public sealed class AgentRuntime
         IReadOnlyDictionary<AgentKey, AgentSnapshot> previous,
         CancellationToken cancellationToken)
     {
+        var prev = previous.GetValueOrDefault(source.Agent);
         try
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var snapshot = await source.ReadAsync(observedAt, cancellationToken)
-                .ConfigureAwait(false);
+            var snapshot = source is CompositeAgentSnapshotSource composite
+                ? await composite.ReadAsync(observedAt, prev, cancellationToken).ConfigureAwait(false)
+                : await source.ReadAsync(observedAt, cancellationToken).ConfigureAwait(false);
+
             if (snapshot.Agent != source.Agent)
             {
                 return AgentSnapshot.ErrorState(
@@ -98,8 +107,22 @@ public sealed class AgentRuntime
                     ActivityState.Idle,
                     observedAt,
                     $"snapshot agent mismatch: {snapshot.Agent}",
-                    previous.GetValueOrDefault(source.Agent));
+                    prev);
             }
+
+            if (snapshot.Availability is SnapshotAvailability.Error or SnapshotAvailability.Stale
+                && prev is not null
+                && snapshot.DataAt is null
+                && prev.DataAt is not null)
+            {
+                return AgentSnapshot.ErrorState(
+                    snapshot.Agent,
+                    snapshot.Activity,
+                    observedAt,
+                    snapshot.Error ?? "source error",
+                    prev);
+            }
+
             return snapshot;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -113,7 +136,7 @@ public sealed class AgentRuntime
                 ActivityState.Idle,
                 observedAt,
                 error.Message,
-                previous.GetValueOrDefault(source.Agent));
+                prev);
         }
     }
 }

@@ -20,6 +20,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <!-- LocalTokenSources exposes the provider-neutral Runtime factory plus an
+         injectable DeepSeek activity parser contract. Keep the Providers
+         reference explicit so IDE/design-time builds resolve that contract. -->
+    <ProjectReference Include="..\AgentIsland.Providers\AgentIsland.Providers.csproj" />
     <ProjectReference Include="..\AgentIsland.Runtime\AgentIsland.Runtime.csproj" />
   </ItemGroup>
 </Project>

@@ -58,6 +58,10 @@ dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj
 dotnet run --project .\tests\AgentIsland.Runtime.Tests\AgentIsland.Runtime.Tests.csproj
 dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj
 dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj -- --verify
+# Avalonia 本地真实数据（默认离线）
+dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj -- --live
+# Avalonia 本地数据 + 官方 DeepSeek 余额（显式联网）
+dotnet run --project .\src\AgentIsland.Avalonia\AgentIsland.Avalonia.csproj -- --live-online
 ```
 
 Avalonia 迁移的阶段计划和当前落地状态见 [`docs/avalonia-plan.md`](docs/avalonia-plan.md)。现阶段 Avalonia 仍是独立的验证前端，Runtime 已完成无 UI 的快照/刷新骨架，真实 Codex/dsh 数据闭环和 Linux 真机验证尚未替代 WPF 默认前端。

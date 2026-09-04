@@ -11,6 +11,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentIsland.Providers\AgentIsland.Providers.csproj" />
     <ProjectReference Include="..\..\src\AgentIsland.Runtime\AgentIsland.Runtime.csproj" />
   </ItemGroup>
 
