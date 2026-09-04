@@ -14,8 +14,8 @@ public static class ProviderIdentity
     /// Claude terracotta.
     public static readonly Color ClaudeAccent = Color.FromRgb(0xCC, 0x78, 0x5C);
 
-    /// Codex sky blue.
-    public static readonly Color CodexAccent = Color.FromRgb(0x5A, 0xA8, 0xF0);
+    /// Bright Codex violet keeps small marks and heatmap cells clear on black.
+    public static readonly Color CodexAccent = Color.FromRgb(0xA7, 0x8B, 0xFA);
 
     /// Google blue — Antigravity's mark is a sweep through Google's four
     /// hues, so the flat stand-in is their blue rather than the washed-out
@@ -28,6 +28,11 @@ public static class ProviderIdentity
     /// Cursor bone.
     public static readonly Color CursorAccent = Color.FromRgb(0xF5, 0xF3, 0xEE);
 
+    /// DeepSeek blue whale mark. This is the dominant blue sampled directly
+    /// from mark-deepseek.png (#4D6BFE), shared by the token ledger, balance
+    /// card, status pill, and reports.
+    public static readonly Color DeepSeekAccent = Color.FromRgb(0x4D, 0x6B, 0xFE);
+
     /// The short product name: island slots, Settings rows, chips.
     public static string DisplayName(DisplayProvider provider) => provider switch
     {
@@ -36,6 +41,7 @@ public static class ProviderIdentity
         DisplayProvider.Antigravity => "Antigravity",
         DisplayProvider.Grok => "Grok",
         DisplayProvider.Cursor => "Cursor",
+        DisplayProvider.DeepSeek => "DeepSeek",
         _ => "Claude",
     };
 
@@ -56,6 +62,7 @@ public static class ProviderIdentity
         DisplayProvider.Antigravity => AntigravityAccent,
         DisplayProvider.Grok => GrokAccent,
         DisplayProvider.Cursor => CursorAccent,
+        DisplayProvider.DeepSeek => DeepSeekAccent,
         _ => ClaudeAccent,
     };
 
@@ -80,6 +87,7 @@ public static class ProviderIdentity
         DisplayProvider.Antigravity => GoogleRamp,
         DisplayProvider.Grok => GrokStreamPalette,
         DisplayProvider.Cursor => CursorStreamPalette,
+        DisplayProvider.DeepSeek => DeepSeekStreamPalette,
         _ => ClaudeStreamPalette,
     };
 
@@ -109,9 +117,9 @@ public static class ProviderIdentity
 
     private static readonly IReadOnlyList<Color> CodexStreamPalette = new[]
     {
-        Color.FromRgb(0x38, 0x9B, 0xFF), // electric blue
-        Color.FromRgb(0x7C, 0xD7, 0xFF), // cyan highlight
-        Color.FromRgb(0x6E, 0x7B, 0xFF), // periwinkle
+        Color.FromRgb(0xA7, 0x8B, 0xFA), // bright violet
+        Color.FromRgb(0xC4, 0xB5, 0xFD), // lavender highlight
+        Color.FromRgb(0x8B, 0x5C, 0xF6), // saturated violet
     };
 
     private static readonly IReadOnlyList<Color> GrokStreamPalette = new[]
@@ -126,6 +134,13 @@ public static class ProviderIdentity
         Color.FromRgb(0x00, 0xD2, 0xFF), // electric cyan
         Color.FromRgb(0x69, 0xF0, 0xFF), // ice highlight
         Color.FromRgb(0x7C, 0x83, 0xFF), // blue-violet
+    };
+
+    private static readonly IReadOnlyList<Color> DeepSeekStreamPalette = new[]
+    {
+        Color.FromRgb(0x4D, 0x6B, 0xFE), // whale mark blue
+        Color.FromRgb(0x8D, 0xA6, 0xFF), // blue highlight
+        Color.FromRgb(0x33, 0x4B, 0xD8), // indigo edge
     };
 
     /// macOS brandGradient: the ramp as a WPF brush at one opacity.
@@ -157,6 +172,7 @@ public static class ProviderIdentity
         DisplayProvider.Antigravity => AccentBrushes.Antigravity,
         DisplayProvider.Grok => AccentBrushes.Grok,
         DisplayProvider.Cursor => AccentBrushes.Cursor,
+        DisplayProvider.DeepSeek => AccentBrushes.DeepSeek,
         _ => AccentBrushes.Claude,
     };
 
@@ -171,6 +187,7 @@ public static class ProviderIdentity
         DisplayProvider.Antigravity => "agy",
         DisplayProvider.Grok => "grok",
         DisplayProvider.Cursor => null,
+        DisplayProvider.DeepSeek => null,
         _ => null,
     };
 
@@ -193,5 +210,6 @@ public static class ProviderIdentity
         internal static readonly SolidColorBrush Antigravity = Frozen(AntigravityAccent);
         internal static readonly SolidColorBrush Grok = Frozen(GrokAccent);
         internal static readonly SolidColorBrush Cursor = Frozen(CursorAccent);
+        internal static readonly SolidColorBrush DeepSeek = Frozen(DeepSeekAccent);
     }
 }

@@ -42,6 +42,7 @@ public sealed partial class ReportWindow : Window
     private BitmapSource? _rendered;
     private DispatcherTimer? _coachTimer;
     private readonly System.ComponentModel.PropertyChangedEventHandler _costChanged;
+    private readonly System.ComponentModel.PropertyChangedEventHandler _providerSelectionChanged;
 
     public static void Show(Kind kind)
     {
@@ -124,8 +125,22 @@ public sealed partial class ReportWindow : Window
             RebuildCard();
             AlignCurrentWeek();
         };
+        _providerSelectionChanged = (_, args) =>
+        {
+            // ProviderVisibilityStore raises a batch of compatibility
+            // notifications for one toggle. Rebuild once from the Enabled
+            // change; the overview grid listens to the same source.
+            if (args.PropertyName is not (nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)
+                or nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.SlotProviders))) return;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshForProviderSelection));
+        };
         AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += _costChanged;
-        Closed += (_, _) => AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged -= _costChanged;
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _providerSelectionChanged;
+        Closed += (_, _) =>
+        {
+            AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged -= _costChanged;
+            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _providerSelectionChanged;
+        };
         if (!Core.AppEnvironment.IsDemo) AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
         AlignCurrentWeek();
 
@@ -168,11 +183,11 @@ public sealed partial class ReportWindow : Window
         var card = CardFor(_display, rounded: true);
         card.Effect = new System.Windows.Media.Effects.DropShadowEffect
         {
-            ShadowDepth = 4,
+            ShadowDepth = 2,
             Direction = 270,
-            BlurRadius = 30,
+            BlurRadius = 22,
             Color = Colors.Black,
-            Opacity = 0.30,
+            Opacity = 0.22,
         };
         CardHost.Children.Clear();
         CardHost.Children.Add(card);
@@ -283,6 +298,29 @@ public sealed partial class ReportWindow : Window
         if (_pageOffset != 0 || _anchorDate is not null || _loading) return;
         _display = WeeklyReportData.ForInterval(start, end, slices);
         RebuildCard();
+    }
+
+    private void RefreshForProviderSelection()
+    {
+        if (!IsLoaded || _loading) return;
+
+        // Historical pages were assembled with the previous target set, so
+        // reload the same page. The current page can rebuild immediately from
+        // CostStore and then follow the normal completed-week alignment path.
+        if (_anchorDate is not null)
+        {
+            SetAnchor(_anchorDate.Value);
+            return;
+        }
+        if (_pageOffset > 0)
+        {
+            LoadPage(_pageOffset);
+            return;
+        }
+
+        _display = CurrentData();
+        RebuildCard();
+        if (_kind == Kind.Weekly) AlignCurrentWeek();
     }
 
     private async void LoadPage(int target)

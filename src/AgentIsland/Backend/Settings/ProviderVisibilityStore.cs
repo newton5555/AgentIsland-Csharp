@@ -21,8 +21,9 @@ namespace AgentIsland.Backend.Settings;
 ///     users get the solo layout without hunting for a Settings toggle.
 ///     Manual wins once touched: flipping a toggle records intent, and
 ///     detection stops second-guessing that provider.
-///   - gemini/grok/cursor are zero-intrusion: no login on this machine means
-///     no slot and no panel row, whatever the selection says.
+///   - gemini/grok/cursor/deepseek are zero-intrusion: no local footprint on
+///     this machine means no slot and no panel row, whatever the selection
+///     says.
 public sealed class ProviderVisibilityStore : INotifyPropertyChanged
 {
     private const string EnabledKey = "AgentIsland.enabledProviders.v1";
@@ -181,7 +182,7 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
     {
         if (AppEnvironment.IsDemo) return;
         var changed = false;
-        foreach (var provider in DisplayProviders.Guests)
+        foreach (var provider in DisplayProviders.Guests.Concat(DisplayProviders.CostOnly))
         {
             var detected = Probe(provider);
             if (_detected.TryGetValue(provider, out var known) && known == detected) continue;
@@ -198,6 +199,7 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
     public bool AntigravityDetected => IsDetected(DisplayProvider.Antigravity);
     public bool GrokDetected => IsDetected(DisplayProvider.Grok);
     public bool CursorDetected => IsDetected(DisplayProvider.Cursor);
+    public bool DeepSeekDetected => IsDetected(DisplayProvider.DeepSeek);
 
     /// Alert-domain reads (AlertEngine, glow attention): the manual slot
     /// pick, before detection's auto-yield. Assigning routes through the
@@ -229,6 +231,7 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
     public bool AntigravityPanelShown => IsShown(DisplayProvider.Antigravity);
     public bool GrokPanelShown => IsShown(DisplayProvider.Grok);
     public bool CursorPanelShown => IsShown(DisplayProvider.Cursor);
+    public bool DeepSeekPanelShown => IsShown(DisplayProvider.DeepSeek);
 
     /// Quota-only rows appended to the usage page. Selection-driven, so the
     /// panel re-sizes the moment a guest slot is toggled.
@@ -255,6 +258,10 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
             // Cursor's editor state db is also where its session token lives,
             // so no db means no login worth a slot.
             DisplayProvider.Cursor => CursorCredentials.Exists(),
+            // DSH creates this directory before any network call; presence is
+            // enough to make the local token ledger selectable. Agent Island
+            // never requests a DeepSeek login or quota endpoint.
+            DisplayProvider.DeepSeek => Directory.Exists(IslandPaths.DeepSeekSessionsRoot),
             _ => false,
         };
     }
@@ -320,6 +327,7 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
             nameof(AntigravityPanelShown),
             nameof(GrokPanelShown),
             nameof(CursorPanelShown),
+            nameof(DeepSeekPanelShown),
             nameof(GuestPanelCount),
         };
         foreach (var name in names)

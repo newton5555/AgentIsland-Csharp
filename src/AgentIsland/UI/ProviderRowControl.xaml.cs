@@ -3,6 +3,8 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using AgentIsland.Core;
+using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Usage;
 using AgentIsland.UI.Localization;
 using AgentIsland.UI.Theme;
 
@@ -157,6 +159,9 @@ public partial class ProviderRowControl : UserControl
             case DisplayProvider.Cursor:
                 CursorUsageStore.Shared.KickRefresh();
                 break;
+            case DisplayProvider.DeepSeek:
+                DeepSeekBalanceStore.Shared.KickRefresh();
+                break;
             default:
                 break;
         }
@@ -169,6 +174,7 @@ public partial class ProviderRowControl : UserControl
         DisplayProvider.Antigravity => AntigravityStatus(),
         DisplayProvider.Grok => GrokStatus(),
         DisplayProvider.Cursor => CursorStatus(),
+        DisplayProvider.DeepSeek => DeepSeekStatus(),
         _ => string.Empty,
     };
 
@@ -183,6 +189,9 @@ public partial class ProviderRowControl : UserControl
                 visibility.AntigravityDetected ? AntigravityUsageStore.Shared.TierBadge : null,
             DisplayProvider.Grok => visibility.GrokDetected ? GrokUsageStore.Shared.AuthModeBadge : null,
             DisplayProvider.Cursor => visibility.CursorDetected ? CursorUsageStore.Shared.PlanBadge : null,
+            DisplayProvider.DeepSeek => visibility.DeepSeekDetected
+                ? DeepSeekBalanceStore.Shared.Snapshot is not null ? "BALANCE" : "TOKENS"
+                : null,
             _ => null,
         };
     }
@@ -280,6 +289,48 @@ public partial class ProviderRowControl : UserControl
         else if (store.Snapshot is { } snapshot)
         {
             parts.Add(L10n.TrFormat("cycle {0}%", Percent(snapshot.UsedPercent)));
+        }
+        return string.Join(" · ", parts);
+    }
+
+    private static string DeepSeekStatus()
+    {
+        var visibility = ProviderVisibilityStore.Shared;
+        if (!visibility.DeepSeekDetected)
+        {
+            return L10n.Tr("Not detected — create a DeepSeek Harness session");
+        }
+
+        var balance = DeepSeekBalanceStore.Shared;
+        var parts = new List<string>();
+        if (balance.LastUpdated is { } updated)
+        {
+            parts.Add(L10n.TrFormat("synced {0}", Formatting.RelativeAgo(
+                DateTimeOffset.Now - updated, L10n.IsChinese)));
+        }
+
+        if (balance.Snapshot is { } snapshot)
+        {
+            parts.Add(L10n.TrFormat("balance {0}", DeepSeekBalanceText.Total(snapshot)));
+            parts.Add(DeepSeekBalanceText.Availability(snapshot));
+        }
+        else if (balance.ErrorCaption is { } error)
+        {
+            parts.Add("⚠ " + ErrorDisplay.Localize(error));
+        }
+        else if (!balance.Configured)
+        {
+            parts.Add(L10n.Tr("no deepseek api key"));
+        }
+        else
+        {
+            parts.Add(L10n.Tr("account balance not fetched"));
+        }
+
+        var today = CostStore.Shared.DeepSeek.TodayTokens;
+        if (today > 0)
+        {
+            parts.Add(L10n.TrFormat("{0} tokens today", Formatting.CompactTokens(today)));
         }
         return string.Join(" · ", parts);
     }

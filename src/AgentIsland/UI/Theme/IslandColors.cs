@@ -9,8 +9,9 @@ public static class IslandColors
     /// Claude terracotta — provider branding, logo tint, chart fills.
     public static readonly Color Claude = Color.FromRgb(0xCC, 0x78, 0x5C);
 
-    /// Codex sky blue.
-    public static readonly Color Codex = Color.FromRgb(0x5A, 0xA8, 0xF0);
+    /// Codex indigo, matching ProviderIdentity and the island palette
+    /// reference.
+    public static readonly Color Codex = AgentIsland.UI.Providers.ProviderIdentity.CodexAccent;
 
     /// Loading sweep + idle/working glow.
     public static readonly Color Cobalt = Color.FromRgb(0x00, 0x47, 0xAB);

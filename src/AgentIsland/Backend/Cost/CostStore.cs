@@ -37,6 +37,7 @@ public sealed class CostStore : INotifyPropertyChanged
 
     public ProviderCostSummary Claude => Summary(DisplayProvider.Claude);
     public ProviderCostSummary Codex => Summary(DisplayProvider.Codex);
+    public ProviderCostSummary DeepSeek => Summary(DisplayProvider.DeepSeek);
     public DateTimeOffset? LastUpdated { get => _lastUpdated; private set { _lastUpdated = value; Raise(nameof(LastUpdated)); } }
 
     private void SetSummary(DisplayProvider provider, ProviderCostSummary summary)
@@ -47,6 +48,7 @@ public sealed class CostStore : INotifyPropertyChanged
         // guest tiles ride the LastUpdated notification the commit also raises.
         if (provider == DisplayProvider.Claude) Raise(nameof(Claude));
         else if (provider == DisplayProvider.Codex) Raise(nameof(Codex));
+        else if (provider == DisplayProvider.DeepSeek) Raise(nameof(DeepSeek));
     }
 
     public void StartAutoRefresh()
@@ -85,16 +87,19 @@ public sealed class CostStore : INotifyPropertyChanged
         var dispatcher = Dispatcher.CurrentDispatcher;
         var now = DateTimeOffset.Now;
         var lookback = CostSummarizer.YearHistoryDays(now);
-        // Five readers, one gate. Grok self-reports dollars, Claude/Codex are
-        // table-priced, Cursor yields token counts (no model → no price), and
-        // Gemini is an honest empty stub — each summarized off the UI thread
-        // and committed together so a slow scan never blocks a fast one twice.
+        // Six readers, one gate. Grok self-reports dollars, Claude/Codex are
+        // table-priced, Cursor yields token counts (no model → no price),
+        // DeepSeek reads the complete local Harness ledger across all routes
+        // (tokens only), and Gemini is an honest empty stub — each summarized
+        // off the UI thread and committed together so a slow scan never blocks
+        // a fast one twice.
         var claudeTask = Task.Run(() => CostSummarizer.Summarize(ClaudeLogReader.Scan(lookback), now));
         var codexTask = Task.Run(() => CostSummarizer.Summarize(CodexLogReader.Scan(lookback), now));
         var antigravityTask = Task.Run(() => CostSummarizer.Summarize(AntigravityLogReader.Scan(lookback), now));
         var grokTask = Task.Run(() => CostSummarizer.Summarize(GrokLogReader.Scan(lookback), now));
         var cursorTask = Task.Run(() => CostSummarizer.Summarize(CursorLogReader.Scan(lookback), now));
-        _ = Task.WhenAll(claudeTask, codexTask, antigravityTask, grokTask, cursorTask).ContinueWith(_ =>
+        var deepSeekTask = Task.Run(() => CostSummarizer.Summarize(DeepSeekLogReader.Scan(lookback), now));
+        _ = Task.WhenAll(claudeTask, codexTask, antigravityTask, grokTask, cursorTask, deepSeekTask).ContinueWith(_ =>
         {
             dispatcher.BeginInvoke(() =>
             {
@@ -103,6 +108,7 @@ public sealed class CostStore : INotifyPropertyChanged
                 if (antigravityTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Antigravity, antigravityTask.Result);
                 if (grokTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Grok, grokTask.Result);
                 if (cursorTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Cursor, cursorTask.Result);
+                if (deepSeekTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.DeepSeek, deepSeekTask.Result);
                 LastUpdated = DateTimeOffset.Now;
                 _scanning = false;
             });

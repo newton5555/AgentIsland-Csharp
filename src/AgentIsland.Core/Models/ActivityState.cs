@@ -47,6 +47,7 @@ public enum TriggerTool
     Antigravity,
     Grok,
     Cursor,
+    DeepSeek,
 }
 
 public static class TriggerToolExtensions
@@ -58,6 +59,7 @@ public static class TriggerToolExtensions
         TriggerTool.Antigravity,
         TriggerTool.Grok,
         TriggerTool.Cursor,
+        TriggerTool.DeepSeek,
     };
 
     public static string Display(this TriggerTool tool) => AgentNames.DisplayName(tool);
@@ -69,6 +71,7 @@ public static class TriggerToolExtensions
         TriggerTool.Antigravity => "antigravity",
         TriggerTool.Grok => "grok",
         TriggerTool.Cursor => "cursor",
+        TriggerTool.DeepSeek => "deepseek",
         _ => tool.ToString().ToLowerInvariant(),
     };
 
@@ -81,6 +84,8 @@ public static class TriggerToolExtensions
         "gemini" => TriggerTool.Antigravity,
         "grok" => TriggerTool.Grok,
         "cursor" => TriggerTool.Cursor,
+        "deepseek" => TriggerTool.DeepSeek,
+        "dsh" => TriggerTool.DeepSeek,
         _ => null,
     };
 

@@ -16,10 +16,9 @@ namespace AgentIsland.UI;
 ///
 /// Cost is reconstructed from LOCAL token logs. Claude Code and Codex are
 /// table-priced and Grok self-reports dollars, so those three show a full
-/// dollar tile; Cursor logs tokens but no model, so its tile shows tokens with
-/// "—" for dollars; Gemini ships no local ledger, so its slot keeps the quiet
-/// nameplate rather than a fabricated $0 — the same nameplate that fills the
-/// freed half of a solo split.
+/// dollar tile; Cursor and DeepSeek log tokens without a price, so their tiles
+/// show tokens with "—" for dollars; Gemini ships no local ledger, so its slot
+/// keeps the quiet nameplate rather than a fabricated $0.
 public sealed class CostPage : Border
 {
     private readonly Dictionary<DisplayProvider, CostBlock> _blocks = new();
@@ -35,7 +34,7 @@ public sealed class CostPage : Border
     private static CostFace FaceOf(DisplayProvider provider) => provider switch
     {
         DisplayProvider.Antigravity => CostFace.Cold,
-        DisplayProvider.Cursor => CostFace.TokensOnly,
+        DisplayProvider.Cursor or DisplayProvider.DeepSeek => CostFace.TokensOnly,
         _ => CostFace.Dollars,
     };
 
@@ -69,8 +68,8 @@ public sealed class CostPage : Border
         // re-columns and re-shows them, so nothing here is rebuilt mid-flight
         // (a rebuilt WPF element loses its animation state and can flash empty).
         // Cost tile for each provider that has one, keyed by identity; a
-        // nameplate for all five (the freed half of a solo split, and Gemini's
-        // cold state).
+        // nameplate for all providers (the freed half of a solo split, and
+        // Gemini's cold state).
         foreach (var provider in DisplayProviders.All)
         {
             if (FaceOf(provider) != CostFace.Cold)
@@ -163,7 +162,8 @@ public sealed class CostPage : Border
 /// One provider's cost column.
 public sealed class CostBlock : StackPanel
 {
-    /// Stands in for a dollar figure a tokens-only provider (Cursor) cannot
+    /// Stands in for a dollar figure a tokens-only provider (Cursor or
+    /// DeepSeek) cannot
     /// price. Matches the em dash the rest of the UI uses for "no value"
     /// (ResetCardChip, TurnAlarmWindow).
     private const string NoDollar = "—";
@@ -242,7 +242,7 @@ public sealed class CostBlock : StackPanel
 
     public void Update(ProviderCostSummary summary)
     {
-        // Tokens-only provider (Cursor): no model → no price, so the tile
+        // Tokens-only provider: no price, so the tile
         // leads with the token count and every dollar slot reads "—". This
         // ignores the cost-style preference because the dollar/trend styles
         // have nothing to show here, and a "$0.00" would be a fabricated

@@ -14,20 +14,25 @@ public static class BrandGeometryTests
     {
         Console.WriteLine("--- BrandGeometryTests ---");
 
-        // 1. Verify all five providers have non-empty vector paths
+        // 1. Verify vector-backed providers have non-empty paths. DeepSeek's
+        // official whale is an alpha PNG mask, so it intentionally exercises
+        // the bitmap fallback in ProviderMarks instead of a hand-traced path.
         foreach (var provider in DisplayProviders.All)
         {
             var path = BrandGeometry.PathData(provider);
-            if (string.IsNullOrWhiteSpace(path))
+            if (string.IsNullOrWhiteSpace(path) && provider != DisplayProvider.DeepSeek)
             {
                 throw new Exception($"PathData for {provider} was null or empty.");
             }
 
             // 2. Verify Geometry.Parse parses with FillRule Nonzero without throwing
-            var geometry = Geometry.Parse("F1 " + path);
-            if (geometry.IsEmpty())
+            if (!string.IsNullOrWhiteSpace(path))
             {
-                throw new Exception($"Geometry for {provider} parsed as empty.");
+                var geometry = Geometry.Parse("F1 " + path);
+                if (geometry.IsEmpty())
+                {
+                    throw new Exception($"Geometry for {provider} parsed as empty.");
+                }
             }
 
             // 3. Verify BrandBrush produces valid brushes
@@ -56,7 +61,8 @@ public static class BrandGeometryTests
                 }
             }
 
-            Console.WriteLine($"PASS {provider} vector path parses cleanly and renders {brush.GetType().Name}");
+            var markKind = string.IsNullOrWhiteSpace(path) ? "bitmap mask" : "vector path";
+            Console.WriteLine($"PASS {provider} {markKind} parses cleanly and renders {brush.GetType().Name}");
         }
 
         // Render visual snapshot if AGENTISLAND_SNAPSHOT_DIR is set

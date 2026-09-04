@@ -17,7 +17,7 @@ public static class AgentCatalogTests
         var catalog = new BuiltInAgentCatalog();
         var keys = catalog.Modules.Select(module => module.Descriptor.Key.Value).ToArray();
 
-        Expect(keys.SequenceEqual(new[] { "claude", "codex", "antigravity", "grok", "cursor" }),
+        Expect(keys.SequenceEqual(new[] { "claude", "codex", "antigravity", "grok", "cursor", "deepseek" }),
             "built-in Agent order is stable");
         Expect(keys.Distinct(StringComparer.Ordinal).Count() == keys.Length,
             "built-in Agent keys are unique");
@@ -29,6 +29,12 @@ public static class AgentCatalogTests
             "Claude advertises activity capability");
         Expect(!catalog.Find(new AgentKey("antigravity"))!.Descriptor.Supports(AgentCapabilities.Cost),
             "Antigravity does not advertise unsupported cost data");
+        Expect(catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Cost),
+            "DeepSeek advertises local cost data");
+        Expect(catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Activity),
+            "DeepSeek advertises local Harness activity data");
+        Expect(!catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Usage),
+            "DeepSeek does not advertise unsupported quota data");
 
         Console.WriteLine("AgentCatalogTests GREEN");
     }

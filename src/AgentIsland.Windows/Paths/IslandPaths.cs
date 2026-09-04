@@ -45,6 +45,12 @@ public static class IslandPaths
     public static string CodexSessionIndexFile => Path.Combine(CodexHome, "session_index.jsonl");
     public static string CodexAuthFile => Path.Combine(CodexHome, "auth.json");
 
+    /// DeepSeek Harness persists compressed JSONL event streams below the
+    /// user's `.dsh` directory. The reader intentionally owns only the
+    /// sessions subtree; token storage and other Harness state stay private
+    /// to DSH.
+    public static string DeepSeekSessionsRoot => Path.Combine(Home, ".dsh", "sessions");
+
     public static string CursorGlobalStorageDatabase => Path.Combine(
         RoamingAppData, "Cursor", "User", "globalStorage", "state.vscdb");
 

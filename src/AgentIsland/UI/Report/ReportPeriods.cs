@@ -80,8 +80,8 @@ public static class ReportPeriods
     /// thread. The readers memoize per file (LogParseCache), so the
     /// steady-state cost is a cache walk + dedup pass, not a re-parse —
     /// cheap enough to run per page flip. Never touches CostStore. Scans
-    /// ALL five providers so a Grok-or-Cursor-only past period still fills
-    /// the report card.
+    /// ALL providers so a Grok-, Cursor-, or DeepSeek-only past period still
+    /// fills the report card.
     public static Task<Dictionary<DisplayProvider, ReportSlice>> SlicesAsync(DateTime start, DateTime end)
     {
         var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
@@ -98,6 +98,7 @@ public static class ReportPeriods
                 [DisplayProvider.Antigravity] = Slice(AntigravityLogReader.Scan(lookback)),
                 [DisplayProvider.Grok] = Slice(GrokLogReader.Scan(lookback)),
                 [DisplayProvider.Cursor] = Slice(CursorLogReader.Scan(lookback)),
+                [DisplayProvider.DeepSeek] = Slice(DeepSeekLogReader.Scan(lookback)),
             };
         });
     }

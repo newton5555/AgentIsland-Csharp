@@ -230,6 +230,7 @@ public sealed partial class SettingsWindow : Window
         AntigravityUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
         GrokUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
         CursorUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
+        DeepSeekBalanceStore.Shared.PropertyChanged += OnProviderStoreChanged;
         Closed += (_, _) =>
         {
             UsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
@@ -237,6 +238,7 @@ public sealed partial class SettingsWindow : Window
             AntigravityUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
             GrokUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
             CursorUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
+            DeepSeekBalanceStore.Shared.PropertyChanged -= OnProviderStoreChanged;
         };
 
         var savedTab = Preferences.Get<string?>("Settings.activeTab");

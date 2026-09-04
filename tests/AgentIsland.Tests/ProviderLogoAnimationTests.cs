@@ -54,6 +54,9 @@ public static class ProviderLogoAnimationTests
         TestAntigravityWorkingDoesNotSpin();
         TestAntigravityWorkingActivatesWave();
         TestAntigravityWorkingRendersPixelChangesBetweenFrames();
+        TestDeepSeekWorkingActivatesSwim();
+        TestDeepSeekStateTransitionsAndCleanup();
+        TestDeepSeekWorkingRendersPixelChangesBetweenFrames();
         TestClaudeAndCodexContinueSpin();
         TestAntigravityStateTransitionsAndCleanup();
         TestToolSwitchWhileWorking();
@@ -61,6 +64,7 @@ public static class ProviderLogoAnimationTests
         TestAntigravityOnlyNeedsYouRemainsStationaryAndPreservesReminders();
         TestFollowModelDualActivePipelineWithRemindersDisabled();
         TestFollowModelPalettesCoverEveryProvider();
+        TestProviderBrandColorsStayDistinct();
         TestGooglePaletteRendersAllFourHues();
         TestDualPaletteRendersBothProviderHues();
         TestFollowModelSweepPaletteSelectionRules();
@@ -156,6 +160,120 @@ public static class ProviderLogoAnimationTests
         Expect(codex.IsSpinActive, "Codex Working state must have spin animation active");
         Expect(!codex.IsAntigravityWaveActive, "Codex must not have Antigravity wave active");
         Console.WriteLine("PASS claude and codex continue 360-degree spin");
+    }
+
+    private static void TestDeepSeekWorkingActivatesSwim()
+    {
+        var logo = new ProviderLogo { Tool = TriggerTool.DeepSeek };
+        logo.SetState(ActivityState.Working);
+
+        Expect(logo.IsDeepSeekSwimActive,
+            "DeepSeek Working state must activate whale swim animation");
+        Expect(logo.DeepSeekBubbleVisibility == Visibility.Visible,
+            "DeepSeek Working state must show the bubble layer");
+        Expect(!logo.IsSpinActive,
+            "DeepSeek Working state must not rotate the whale mark");
+        Console.WriteLine("PASS DeepSeek working activates whale swim and bubbles");
+    }
+
+    private static void TestDeepSeekWorkingRendersPixelChangesBetweenFrames()
+    {
+        var logo = new ProviderLogo { Tool = TriggerTool.DeepSeek };
+        logo.SetState(ActivityState.Working);
+
+        var window = new Window
+        {
+            Width = 100,
+            Height = 100,
+            Content = logo,
+            ShowActivated = false,
+        };
+        window.Show();
+        System.Windows.Threading.Dispatcher.CurrentDispatcher.Invoke(
+            () => { }, System.Windows.Threading.DispatcherPriority.Render);
+        PumpDispatcher(TimeSpan.FromMilliseconds(100));
+
+        var rtb1 = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
+        rtb1.Render(logo);
+        var pix1 = new byte[100 * 100 * 4];
+        rtb1.CopyPixels(pix1, 400, 0);
+        var bob1 = logo.DeepSeekBob;
+        var tilt1 = logo.DeepSeekTilt;
+        var bubble1 = logo.DeepSeekBubbleOpacity;
+
+        PumpDispatcher(TimeSpan.FromMilliseconds(450));
+
+        var rtb2 = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
+        rtb2.Render(logo);
+        var pix2 = new byte[100 * 100 * 4];
+        rtb2.CopyPixels(pix2, 400, 0);
+        var bob2 = logo.DeepSeekBob;
+        var tilt2 = logo.DeepSeekTilt;
+        var bubble2 = logo.DeepSeekBubbleOpacity;
+        logo.SetState(ActivityState.Idle);
+        window.Close();
+
+        var changedPixels = 0;
+        var maxDelta = 0;
+        for (var i = 0; i < pix1.Length / 4; i++)
+        {
+            var idx = i * 4;
+            var bDiff = Math.Abs((int)pix1[idx] - (int)pix2[idx]);
+            var gDiff = Math.Abs((int)pix1[idx + 1] - (int)pix2[idx + 1]);
+            var rDiff = Math.Abs((int)pix1[idx + 2] - (int)pix2[idx + 2]);
+            var delta = bDiff + gDiff + rDiff;
+            if (delta > 15)
+            {
+                changedPixels++;
+                if (delta > maxDelta) maxDelta = delta;
+            }
+        }
+
+        Expect(changedPixels > 10,
+            $"DeepSeek swim must produce visible pixel changes across frames (got {changedPixels} changed pixels; bob {bob1:F2}->{bob2:F2}, tilt {tilt1:F2}->{tilt2:F2}, bubble {bubble1:F2}->{bubble2:F2})");
+        Expect(maxDelta > 30,
+            $"DeepSeek swim color delta must be perceptible (got max delta {maxDelta})");
+        Console.WriteLine($"PASS DeepSeek whale swim renders pixel changes ({changedPixels} changed pixels, max delta {maxDelta})");
+    }
+
+    private static void TestDeepSeekStateTransitionsAndCleanup()
+    {
+        var logo = new ProviderLogo { Tool = TriggerTool.DeepSeek };
+        logo.SetState(ActivityState.Working);
+        Expect(logo.IsDeepSeekSwimActive, "DeepSeek swim is active before cleanup transition");
+
+        logo.SetState(ActivityState.Idle);
+        Expect(!logo.IsDeepSeekSwimActive,
+            "DeepSeek Idle state must stop whale movement");
+        Expect(logo.DeepSeekBubbleVisibility == Visibility.Collapsed,
+            "DeepSeek Idle state must collapse bubbles");
+        Expect(!logo.IsSpinActive, "DeepSeek Idle state must not start generic spin");
+
+        logo.SetState(ActivityState.Working);
+        logo.Tool = TriggerTool.Claude;
+        Expect(!logo.IsDeepSeekSwimActive,
+            "switching away from DeepSeek must stop whale movement");
+        Expect(logo.IsSpinActive,
+            "switching from a working whale to Claude must start Claude spin");
+        logo.SetState(ActivityState.Idle);
+        Console.WriteLine("PASS DeepSeek state transitions stop bubbles and do not leak spin");
+    }
+
+    private static void PumpDispatcher(TimeSpan duration)
+    {
+        var frame = new System.Windows.Threading.DispatcherFrame();
+        var timer = new System.Windows.Threading.DispatcherTimer(
+            System.Windows.Threading.DispatcherPriority.Background)
+        {
+            Interval = duration,
+        };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            frame.Continue = false;
+        };
+        timer.Start();
+        System.Windows.Threading.Dispatcher.PushFrame(frame);
     }
 
     private static void TestAntigravityStateTransitionsAndCleanup()
@@ -480,6 +598,17 @@ public static class ProviderLogoAnimationTests
             ProviderIdentity.StreamPalette(DisplayProvider.Antigravity).Count == 4,
             "Antigravity FollowModel palette must contain Google's four hues");
         Console.WriteLine("PASS follow model exposes a multi-colour palette for every provider");
+    }
+
+    private static void TestProviderBrandColorsStayDistinct()
+    {
+        Expect(ProviderIdentity.CodexAccent == Color.FromRgb(0xA7, 0x8B, 0xFA),
+            "Codex accent must use the requested brighter violet");
+        Expect(ProviderIdentity.DeepSeekAccent == Color.FromRgb(0x4D, 0x6B, 0xFE),
+            "DeepSeek accent must stay on the whale icon blue");
+        Expect(ProviderIdentity.CodexAccent != ProviderIdentity.DeepSeekAccent,
+            "Codex violet and DeepSeek whale blue must remain visually distinct");
+        Console.WriteLine("PASS Codex violet and DeepSeek whale blue remain distinct");
     }
 
     private static void TestGooglePaletteRendersAllFourHues()

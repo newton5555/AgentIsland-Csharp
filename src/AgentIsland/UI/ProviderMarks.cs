@@ -112,6 +112,7 @@ public static class ProviderMarks
             DisplayProvider.Codex => "mark-openai.png",
             DisplayProvider.Grok => "mark-grok.png",
             DisplayProvider.Cursor => "mark-cursor.png",
+            DisplayProvider.DeepSeek => "mark-deepseek.png",
             _ => null,
         };
         ImageBrush? brush = null;

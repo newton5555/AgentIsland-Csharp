@@ -5,7 +5,7 @@ using AgentIsland.Core.Cost;
 namespace AgentIsland.UI.Report;
 
 /// One pie slice / legend row of the model breakdown. Carries its owning
-/// provider so the card can price it ("$X") or show "—" (Cursor/Gemini), the
+/// provider so the card can price it ("$X") or show "—" (Cursor/DeepSeek/Gemini), the
 /// same per-row honesty split macOS ModelShare keeps.
 public sealed record ModelShare(
     string Name, long Tokens, double Dollars, double Percent, Color Color,
@@ -13,7 +13,7 @@ public sealed record ModelShare(
 
 /// One provider's token roll-up for a report period — the atom the top-2
 /// duel and the cross-provider totals are built from. Replaces the hardcoded
-/// Claude/Codex share so a Grok-only or Cursor+Gemini period still renders a
+/// Claude/Codex share so a Grok-only, Cursor+Gemini, or DeepSeek-only period still renders a
 /// meaningful card.
 public sealed record ProviderPeriodSlice(AgentIsland.UI.Providers.DisplayProvider Provider, long Tokens);
 
@@ -28,7 +28,10 @@ public sealed record WeeklyReportData(
     IReadOnlyList<ProviderPeriodSlice> Providers,   // token desc, only providers that ran
     IReadOnlyList<long> DailyTokens,   // oldest → today, exactly 7, summed across all providers
     IReadOnlyList<string> DayLetters,
-    IReadOnlyList<ModelShare> TopModels)
+    IReadOnlyList<ModelShare> TopModels,
+    int OmittedModelsCount = 0,
+    double OmittedPercent = 0,
+    bool IsAllTokens = true)
 {
     public static WeeklyReportData Current()
     {
@@ -70,6 +73,8 @@ public sealed record WeeklyReportData(
         // The card follows the app language — a card destined for WeChat
         // groups must read Chinese when the UI is Chinese.
         var range = FormatRange(days[0], anchor);
+        var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
+            ReportFormat.ProviderModels(cost, targets, s => s.WeeklyModels), top: 3);
 
         return new WeeklyReportData(
             range,
@@ -78,8 +83,10 @@ public sealed record WeeklyReportData(
             providers,
             daily,
             LettersFor(days),
-            // TOP 3 across user's enabled targets
-            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, targets, s => s.WeeklyModels), top: 3));
+            topModels,
+            omittedCount,
+            omittedPercent,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
     }
 
     /// Assembles a PAST page of the report pager from interval slices
@@ -120,6 +127,10 @@ public sealed record WeeklyReportData(
         var dollars = targets.Sum(p => SliceOf(p).Dollars);
 
         var lastDay = days[^1];
+        var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
+            targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+            top: 3);
+
         return new WeeklyReportData(
             FormatRange(firstDay, lastDay),
             total,
@@ -127,9 +138,10 @@ public sealed record WeeklyReportData(
             providers,
             daily,
             LettersFor(days),
-            ReportFormat.BuildTopModels(
-                targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
-                top: 3));
+            topModels,
+            omittedCount,
+            omittedPercent,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
     }
 
     internal static string FormatRange(DateTime first, DateTime last) => ReportFormat.IsChinese
@@ -155,7 +167,10 @@ public sealed record MonthlyReportData(
     long TotalTokens,
     double TotalDollars,
     IReadOnlyList<ProviderPeriodSlice> Providers,   // token desc, only providers that ran
-    IReadOnlyList<ModelShare> TopModels)
+    IReadOnlyList<ModelShare> TopModels,
+    int OmittedModelsCount = 0,
+    double OmittedPercent = 0,
+    bool IsAllTokens = true)
 {
     public static MonthlyReportData Current()
     {
@@ -175,12 +190,18 @@ public sealed record MonthlyReportData(
         var totalTokens = providers.Sum(slice => slice.Tokens);
         var totalDollars = targets.Sum(p => cost.Summary(p).MonthDollars);
 
+        var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
+            ReportFormat.ProviderModels(cost, targets, s => s.MonthModels), top: 5);
+
         return new MonthlyReportData(
             zh ? $"{today:yyyy年M月}" : today.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
             totalTokens,
             totalDollars,
             providers,
-            ReportFormat.BuildTopModels(ReportFormat.ProviderModels(cost, targets, s => s.MonthModels), top: 3));
+            topModels,
+            omittedCount,
+            omittedPercent,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
     }
 
     /// A PAST calendar month (or an anchored 30-day window) from interval
@@ -209,14 +230,19 @@ public sealed record MonthlyReportData(
         var totalTokens = providers.Sum(slice => slice.Tokens);
         var totalDollars = targets.Sum(p => SliceOf(p).Dollars);
 
+        var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
+            targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
+            top: 5);
+
         return new MonthlyReportData(
             zh ? $"{start:yyyy年M月}" : start.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
             totalTokens,
             totalDollars,
             providers,
-            ReportFormat.BuildTopModels(
-                targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
-                top: 3));
+            topModels,
+            omittedCount,
+            omittedPercent,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
     }
 }
 
@@ -253,6 +279,10 @@ public static class ReportFormat
     /// brand accent; the dollar figure still rides each row where the provider
     /// can be priced, and reads "—" where it cannot.
     public static IReadOnlyList<ModelShare> BuildTopModels(
+        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top) =>
+        BuildTopModelsDetailed(spend, top).TopModels;
+
+    public static (IReadOnlyList<ModelShare> TopModels, int OmittedCount, double OmittedPercent) BuildTopModelsDetailed(
         IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top)
     {
         // Token counting follows the user's mode, same as the hero total
@@ -261,23 +291,69 @@ public static class ReportFormat
         long TokenOf(ModelSpend s) => mode == AgentIsland.Backend.Settings.TokenCountMode.All ? s.Tokens : s.BillableTokens;
         var all = spend.ToList();
         var tokenUniverse = Math.Max(1, all.Sum(m => TokenOf(m.Spend)));
-        return all
+        var ranked = all
             .Select(m => (m.Provider, m.Spend, Tokens: TokenOf(m.Spend), Percent: TokenOf(m.Spend) / (double)tokenUniverse))
+            .Where(m => m.Tokens > 0)
             .OrderByDescending(m => m.Percent)
-            .Where(m => m.Percent >= 0.005)
-            .Take(top)
-            .Select(m => new ModelShare(
-                m.Spend.Model, m.Tokens, m.Spend.Dollars, m.Percent,
-                AgentIsland.UI.Providers.ProviderIdentity.Accent(m.Provider), m.Provider))
             .ToList();
+
+        var topItems = ranked.Where(m => m.Percent >= 0.005).Take(top).ToList();
+        var omitted = ranked.Skip(topItems.Count).ToList();
+        var omittedCount = omitted.Count;
+        var omittedTokens = omitted.Sum(m => m.Tokens);
+        var omittedPercent = tokenUniverse > 0 ? (double)omittedTokens / tokenUniverse : 0.0;
+
+        var providerCounts = new Dictionary<AgentIsland.UI.Providers.DisplayProvider, int>();
+        var models = new List<ModelShare>();
+        foreach (var item in topItems)
+        {
+            var p = item.Provider;
+            providerCounts.TryGetValue(p, out var index);
+            providerCounts[p] = index + 1;
+            var color = ColorForModel(p, index);
+            models.Add(new ModelShare(item.Spend.Model, item.Tokens, item.Spend.Dollars, item.Percent, color, p));
+        }
+
+        return (models, omittedCount, omittedPercent);
     }
+
+    public static Color ColorForModel(AgentIsland.UI.Providers.DisplayProvider provider, int modelIndex)
+    {
+        var palette = AgentIsland.UI.Providers.ProviderIdentity.StreamPalette(provider);
+        if (palette.Count > 0 && modelIndex < palette.Count)
+        {
+            return palette[modelIndex];
+        }
+        var baseAccent = AgentIsland.UI.Providers.ProviderIdentity.Accent(provider);
+        if (modelIndex == 0) return baseAccent;
+        var step = (modelIndex % 3) switch
+        {
+            1 => 0.25,
+            2 => -0.20,
+            _ => 0.40,
+        };
+        return step > 0 ? Lighten(baseAccent, step) : Darken(baseAccent, -step);
+    }
+
+    private static Color Lighten(Color c, double t) => Color.FromRgb(
+        (byte)Math.Clamp(c.R + (255 - c.R) * t, 0, 255),
+        (byte)Math.Clamp(c.G + (255 - c.G) * t, 0, 255),
+        (byte)Math.Clamp(c.B + (255 - c.B) * t, 0, 255));
+
+    private static Color Darken(Color c, double t) => Color.FromRgb(
+        (byte)Math.Clamp(c.R * (1 - t), 0, 255),
+        (byte)Math.Clamp(c.G * (1 - t), 0, 255),
+        (byte)Math.Clamp(c.B * (1 - t), 0, 255));
 
     /// Whether a provider can state a dollar figure: Claude/Codex are
     /// table-priced and Grok self-reports; Cursor logs tokens with no model
-    /// (no price) and Gemini ships no ledger. Mirrors CostPage.FaceOf so the
-    /// overview shows "—" for Cursor, never a coined $0.
+    /// (no price) and DeepSeek ships tokens without a price. Mirrors
+    /// CostPage.FaceOf so the overview shows "—" for both token-only
+    /// providers, never a coined $0.
     public static bool ProvidesDollars(AgentIsland.UI.Providers.DisplayProvider provider) =>
-        provider is not (AgentIsland.UI.Providers.DisplayProvider.Cursor or AgentIsland.UI.Providers.DisplayProvider.Antigravity);
+        provider is not (AgentIsland.UI.Providers.DisplayProvider.Cursor
+            or AgentIsland.UI.Providers.DisplayProvider.DeepSeek
+            or AgentIsland.UI.Providers.DisplayProvider.Antigravity);
 
     public static string CompactString(long n, bool zh)
     {

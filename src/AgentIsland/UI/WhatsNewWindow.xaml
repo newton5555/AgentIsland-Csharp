@@ -1,9 +1,10 @@
+<!-- 422px content + 48px card padding + 32px shadow bleed + 2px border. -->
 <Window x:Class="AgentIsland.UI.WhatsNewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:charts="clr-namespace:AgentIsland.UI.Charts"
         Title="Agent Island"
-        Width="470"
+        Width="504"
         SizeToContent="Height"
         WindowStyle="None"
         AllowsTransparency="True"

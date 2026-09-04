@@ -431,13 +431,14 @@ public static class SettingsXamlTests
     private static void TestProvidersSettingsPageStructureAndSlotRejection()
     {
         var page = new ProvidersSettingsPage();
-        if (page.SortableHost.Children.Count != 5)
+        var expectedCount = DisplayProviders.All.Length;
+        if (page.SortableHost.Children.Count != expectedCount)
         {
-            throw new Exception($"Expected 5 rows in ProvidersSettingsPage, got {page.SortableHost.Children.Count}");
+            throw new Exception($"Expected {expectedCount} rows in ProvidersSettingsPage, got {page.SortableHost.Children.Count}");
         }
 
         var order = ProviderVisibilityStore.Shared.Order;
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < expectedCount; i++)
         {
             if (page.SortableHost.Children[i] is not ProviderRowControl rowCtrl)
             {
@@ -461,7 +462,7 @@ public static class SettingsXamlTests
             throw new Exception("Slot limit notice should be collapsed when not refused");
         }
 
-        Console.WriteLine("PASS ProvidersSettingsPage 5 rows order and slot rejection hold");
+        Console.WriteLine($"PASS ProvidersSettingsPage {expectedCount} rows order and slot rejection hold");
     }
 
     private static void TestCodexAccountMenuStructure()

@@ -22,6 +22,10 @@ public static class ErrorDisplay
             "rate limited" => "已限流",
             "parse error" => "解析失败",
             "bad response" => "响应异常",
+            "network timeout" => "网络超时",
+            "network drop" => "网络中断",
+            "no deepseek api key" => "未配置 DeepSeek API Key",
+            "deepseek api key rejected" => "DeepSeek API Key 无效",
             // ClaudeWebLogin failure reasons. They reach the UI verbatim now
             // that a failed browser round surfaces its reason instead of
             // silently spawning a retired `claude auth login`.

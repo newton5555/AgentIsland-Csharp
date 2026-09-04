@@ -25,6 +25,7 @@ public sealed class TranscriptEventStream : IDisposable
         roots.AddRange(IslandPaths.ClaudeProjectRoots);
         roots.Add(IslandPaths.CodexSessionsRoot);
         roots.Add(IslandPaths.ClaudeDesktopSessionsRoot);
+        roots.Add(IslandPaths.DeepSeekSessionsRoot);
         foreach (var root in roots.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             try
@@ -59,6 +60,7 @@ public sealed class TranscriptEventStream : IDisposable
     private static bool IsRelevant(string path)
     {
         if (path.EndsWith(".jsonl", StringComparison.OrdinalIgnoreCase)) return true;
+        if (path.EndsWith(".jsonl.zstd", StringComparison.OrdinalIgnoreCase)) return true;
         var name = Path.GetFileName(path);
         return name.StartsWith("local_", StringComparison.Ordinal);
     }

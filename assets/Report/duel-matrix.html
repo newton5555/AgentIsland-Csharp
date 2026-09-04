@@ -3,85 +3,268 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Agent Island - 对决图素材全景与生产计划</title>
+  <title>Agent Island - 对决图素材全景与生产看板</title>
   <style>
     :root {
-      --bg: #090D16;
-      --card-bg: rgba(18, 24, 38, 0.85);
-      --card-border: rgba(255, 255, 255, 0.08);
+      --bg: #070A11;
+      --card-bg: rgba(15, 22, 36, 0.85);
+      --card-border: rgba(255, 255, 255, 0.09);
       --accent-cyan: #00F0FF;
+      --accent-blue: #3B82F6;
       --accent-purple: #A78BFA;
       --accent-green: #10B981;
       --accent-red: #EF4444;
       --accent-orange: #F59E0B;
+      --accent-claude: #D97757;
+      --accent-codex: #10A37F;
+      --accent-deepseek: #1E88E5;
+      --accent-cursor: #00D2FF;
+      --accent-grok: #F59E0B;
+      --accent-antigravity: #6366F1;
+      --accent-doubao: #00D47B;
       --text-main: #F0F6FC;
       --text-muted: #8B949E;
+      --canvas-bg: radial-gradient(circle at 50% 50%, #1A2338 0%, #0D1322 100%);
     }
+
+    /* 棋盘格背景 (用于透明通道检验) */
+    body.bg-checker {
+      --canvas-bg: repeating-conic-gradient(#1e2738 0% 25%, #141b29 0% 50%) 50% / 24px 24px;
+    }
+    /* 浅色纯净背景 (用于检验黑边与杂色残留) */
+    body.bg-light {
+      --canvas-bg: radial-gradient(circle at 50% 50%, #F1F5F9 0%, #E2E8F0 100%);
+      --text-main: #0F172A;
+    }
+
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      background: radial-gradient(circle at 50% -10%, #1c2842 0%, var(--bg) 65%);
+      background: radial-gradient(circle at 50% -10%, #162238 0%, var(--bg) 60%);
       color: var(--text-main);
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", Roboto, sans-serif;
       min-height: 100vh;
-      padding: 48px 24px 80px;
+      padding: 40px 24px 100px;
+      line-height: 1.5;
     }
+
     .container {
-      max-width: 1320px;
+      max-width: 1380px;
       margin: 0 auto;
     }
+
+    /* Header */
     .header {
       text-align: center;
-      margin-bottom: 48px;
+      margin-bottom: 36px;
+      position: relative;
     }
-    .badge {
+    .badge-bar {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 6px 16px;
+      gap: 8px;
+      padding: 6px 18px;
       border-radius: 999px;
-      background: rgba(0, 240, 255, 0.1);
+      background: rgba(0, 240, 255, 0.08);
       color: var(--accent-cyan);
       font-size: 13px;
       font-weight: 700;
-      letter-spacing: 1px;
+      letter-spacing: 1.5px;
       border: 1px solid rgba(0, 240, 255, 0.25);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
+      backdrop-filter: blur(8px);
+    }
+    .badge-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 10px var(--accent-cyan);
     }
     h1 {
-      font-size: 40px;
+      font-size: 42px;
       font-weight: 800;
       letter-spacing: -0.5px;
-      background: linear-gradient(135deg, #FFFFFF 30%, #94A3B8 100%);
+      background: linear-gradient(135deg, #FFFFFF 20%, #94A3B8 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
     .subtitle {
       color: var(--text-muted);
-      font-size: 16px;
-      max-width: 720px;
-      margin: 0 auto;
+      font-size: 15px;
+      max-width: 820px;
+      margin: 0 auto 28px;
       line-height: 1.6;
     }
+
+    /* Metric Stats Bar */
     .stats-bar {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
       gap: 16px;
-      max-width: 860px;
-      margin: 32px auto 0;
+      max-width: 980px;
+      margin: 0 auto;
     }
     .stat-pill {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 16px;
+      border-radius: 18px;
+      padding: 16px 20px;
       text-align: center;
-      backdrop-filter: blur(12px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      backdrop-filter: blur(14px);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+      transition: transform 0.25s ease, border-color 0.25s ease;
     }
-    .stat-val { font-size: 28px; font-weight: 800; }
-    .stat-lbl { font-size: 12px; color: var(--text-muted); text-transform: uppercase; margin-top: 4px; font-weight: 600; }
+    .stat-pill:hover {
+      transform: translateY(-3px);
+      border-color: rgba(255,255,255,0.2);
+    }
+    .stat-val {
+      font-size: 32px;
+      font-weight: 800;
+      line-height: 1.1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .stat-val small { font-size: 16px; font-weight: 600; opacity: 0.8; }
+    .stat-lbl {
+      font-size: 12px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      margin-top: 6px;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
 
+    /* Sticky Control Toolbar */
+    .toolbar-wrapper {
+      position: sticky;
+      top: 16px;
+      z-index: 100;
+      margin-bottom: 36px;
+    }
+    .toolbar {
+      background: rgba(14, 20, 32, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 20px;
+      padding: 12px 18px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.5);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+    }
+    .toolbar-left, .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 12px;
+      padding: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .btn-filter {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 13px;
+      font-weight: 600;
+      padding: 7px 13px;
+      border-radius: 9px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-filter:hover {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.05);
+    }
+    .btn-filter.active {
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--accent-cyan);
+      box-shadow: 0 2px 8px rgba(0, 240, 255, 0.2);
+    }
+    .filter-count {
+      font-size: 11px;
+      padding: 1px 6px;
+      border-radius: 99px;
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .btn-filter.active .filter-count {
+      background: var(--accent-cyan);
+      color: #050B14;
+      font-weight: 800;
+    }
+
+    /* Search & Canvas Switcher */
+    .search-box {
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+    .search-box input {
+      background: rgba(0, 0, 0, 0.4);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      color: #FFF;
+      font-size: 13px;
+      padding: 8px 32px 8px 14px;
+      border-radius: 10px;
+      width: 190px;
+      outline: none;
+      transition: all 0.25s ease;
+    }
+    .search-box input:focus {
+      width: 240px;
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+    }
+    .search-box .clear-btn {
+      position: absolute;
+      right: 10px;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 14px;
+      display: none;
+    }
+    .canvas-switcher {
+      display: flex;
+      align-items: center;
+      background: rgba(0, 0, 0, 0.35);
+      border-radius: 10px;
+      padding: 3px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    .canvas-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s;
+    }
+    .canvas-btn.active {
+      background: rgba(255, 255, 255, 0.15);
+      color: #FFF;
+      font-weight: 600;
+    }
+
+    /* Section Styles */
     .section {
       margin-bottom: 56px;
     }
@@ -89,12 +272,12 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-end;
-      margin-bottom: 24px;
+      margin-bottom: 20px;
       border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-      padding-bottom: 14px;
+      padding-bottom: 12px;
     }
     .section-title {
-      font-size: 24px;
+      font-size: 22px;
       font-weight: 700;
       display: flex;
       align-items: center;
@@ -104,7 +287,7 @@
       content: "";
       display: inline-block;
       width: 5px;
-      height: 24px;
+      height: 22px;
       background: var(--accent-cyan);
       border-radius: 3px;
     }
@@ -116,47 +299,64 @@
     /* Characters Grid */
     .char-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-      gap: 18px;
+      grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+      gap: 16px;
     }
     .char-card {
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      border-radius: 20px;
-      padding: 20px 16px;
+      border-radius: 18px;
+      padding: 20px 14px 16px;
       text-align: center;
-      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
       backdrop-filter: blur(12px);
       position: relative;
+      cursor: pointer;
+      user-select: none;
     }
     .char-card:hover {
-      transform: translateY(-6px);
+      transform: translateY(-5px);
       border-color: rgba(0, 240, 255, 0.4);
-      box-shadow: 0 16px 32px rgba(0, 240, 255, 0.12);
+      box-shadow: 0 14px 28px rgba(0, 240, 255, 0.12);
+    }
+    .char-card.selected {
+      border-color: var(--accent-cyan);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.35);
+      background: rgba(0, 240, 255, 0.07);
     }
     .char-img-wrap {
-      width: 110px;
-      height: 110px;
-      margin: 0 auto 12px;
+      width: 105px;
+      height: 105px;
+      margin: 0 auto 10px;
       display: flex;
       align-items: center;
       justify-content: center;
+      position: relative;
     }
     .char-img {
       max-width: 100%;
       max-height: 100%;
       object-fit: contain;
-      filter: drop-shadow(0 8px 16px rgba(0,0,0,0.5));
-      transition: transform 0.3s ease;
+      filter: drop-shadow(0 8px 14px rgba(0,0,0,0.5));
+      transition: transform 0.25s ease;
     }
     .char-card:hover .char-img { transform: scale(1.08); }
-    .char-name { font-size: 16px; font-weight: 700; color: #FFF; }
-    .char-role { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .char-name { font-size: 15px; font-weight: 700; color: #FFF; }
+    .char-role { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .char-click-hint {
+      font-size: 11px;
+      color: var(--accent-cyan);
+      opacity: 0;
+      transition: opacity 0.2s;
+      margin-top: 6px;
+      display: inline-block;
+    }
+    .char-card:hover .char-click-hint { opacity: 0.9; }
 
-    /* Duel Grid */
+    /* Duel Matrix Grid */
     .duel-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(390px, 1fr));
       gap: 24px;
     }
     .duel-card {
@@ -166,693 +366,1702 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
-      backdrop-filter: blur(12px);
-      transition: all 0.3s ease;
+      backdrop-filter: blur(14px);
+      transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+      position: relative;
     }
     .duel-card:hover {
-      border-color: rgba(255, 255, 255, 0.25);
-      transform: translateY(-4px);
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.5);
+      transform: translateY(-5px);
+      border-color: rgba(255, 255, 255, 0.24);
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.55);
     }
     .duel-card.done { border-top: 3px solid var(--accent-green); }
     .duel-card.planned { border-top: 3px solid #6366F1; opacity: 0.9; }
 
+    /* Duel Preview Container */
     .duel-preview {
       width: 100%;
-      height: 260px;
-      background: radial-gradient(circle, #1E2638 0%, #10141D 100%);
+      height: 270px;
+      background: var(--canvas-bg);
       display: flex;
       align-items: center;
       justify-content: center;
       position: relative;
       overflow: hidden;
-    }
-    .duel-preview img {
-      max-width: 88%;
-      max-height: 88%;
-      object-fit: contain;
-      filter: drop-shadow(0 10px 20px rgba(0,0,0,0.6));
-      transition: transform 0.3s ease;
       cursor: pointer;
     }
-    .duel-preview img:hover { transform: scale(1.06); }
-    .zoom-hint {
+    .duel-preview img {
+      max-width: 86%;
+      max-height: 86%;
+      object-fit: contain;
+      filter: drop-shadow(0 10px 22px rgba(0,0,0,0.65));
+      transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+    }
+    .duel-preview:hover img {
+      transform: scale(1.08);
+    }
+    .preview-badge-tl {
       position: absolute;
-      bottom: 10px;
-      right: 12px;
+      top: 12px;
+      left: 12px;
       background: rgba(0,0,0,0.6);
-      color: rgba(255,255,255,0.7);
+      color: rgba(255,255,255,0.75);
       font-size: 11px;
       padding: 3px 8px;
       border-radius: 6px;
-      pointer-events: none;
+      backdrop-filter: blur(4px);
+      font-family: ui-monospace, Consolas, monospace;
+      letter-spacing: 0.5px;
+    }
+    .preview-badge-br {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      backdrop-filter: blur(6px);
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      opacity: 0.85;
+      transition: opacity 0.2s, background 0.2s;
+    }
+    .duel-preview:hover .preview-badge-br {
+      opacity: 1;
+      background: rgba(0, 240, 255, 0.25);
     }
 
-    .duel-body { padding: 22px; flex: 1; display: flex; flex-direction: column; }
-    .duel-header-row {
+    /* Duel Card Body */
+    .duel-body {
+      padding: 22px;
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+    .duel-meta-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 8px;
+      margin-bottom: 12px;
     }
+    .agent-pairing {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+    }
+    .agent-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.07);
+      color: #E2E8F0;
+    }
+    .agent-chip.claude { border-left: 3px solid var(--accent-claude); }
+    .agent-chip.codex { border-left: 3px solid var(--accent-codex); }
+    .agent-chip.deepseek { border-left: 3px solid var(--accent-deepseek); }
+    .agent-chip.cursor { border-left: 3px solid var(--accent-cursor); }
+    .agent-chip.grok { border-left: 3px solid var(--accent-grok); }
+    .agent-chip.antigravity { border-left: 3px solid var(--accent-antigravity); }
+    .agent-chip.doubao { border-left: 3px solid var(--accent-doubao); }
+    .vs-text {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 800;
+      opacity: 0.6;
+    }
+
     .duel-tag {
       font-size: 11px;
       font-weight: 700;
       padding: 4px 10px;
       border-radius: 6px;
       letter-spacing: 0.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
     }
-    .tag-win { background: rgba(16, 185, 129, 0.15); color: #10B981; border: 1px solid rgba(16, 185, 129, 0.3); }
-    .tag-lose { background: rgba(239, 68, 68, 0.15); color: #EF4444; border: 1px solid rgba(239, 68, 68, 0.3); }
-    .tag-draw { background: rgba(245, 158, 11, 0.15); color: #F59E0B; border: 1px solid rgba(245, 158, 11, 0.3); }
-    .tag-plan { background: rgba(99, 102, 241, 0.15); color: #818CF8; border: 1px solid rgba(99, 102, 241, 0.3); }
+    .tag-win {
+      background: rgba(16, 185, 129, 0.15);
+      color: #10B981;
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
+    }
+    .tag-lose {
+      background: rgba(239, 68, 68, 0.15);
+      color: #EF4444;
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      box-shadow: 0 0 10px rgba(239, 68, 68, 0.15);
+    }
+    .tag-draw {
+      background: rgba(245, 158, 11, 0.15);
+      color: #F59E0B;
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 10px rgba(245, 158, 11, 0.15);
+    }
+    .tag-plan {
+      background: rgba(99, 102, 241, 0.15);
+      color: #818CF8;
+      border: 1px solid rgba(99, 102, 241, 0.35);
+    }
 
-    .duel-title { font-size: 17px; font-weight: 700; color: #FFF; margin-bottom: 6px; }
-    .duel-desc { font-size: 13px; color: var(--text-muted); line-height: 1.55; margin-bottom: 12px; }
-    .duel-file {
+    .duel-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: #FFF;
+      margin-bottom: 6px;
+    }
+    .duel-desc {
+      font-size: 13px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 16px;
+      flex: 1;
+    }
+
+    /* Filename & Quick Copy */
+    .file-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(0, 0, 0, 0.3);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      border-radius: 10px;
+      padding: 6px 10px;
+      margin-top: auto;
+    }
+    .file-name {
       font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
       font-size: 12px;
       color: var(--accent-cyan);
-      background: rgba(0, 240, 255, 0.08);
-      border: 1px solid rgba(0, 240, 255, 0.15);
-      padding: 6px 10px;
-      border-radius: 8px;
-      word-break: break-all;
-      margin-top: auto;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 250px;
+    }
+    .btn-copy {
+      background: rgba(255, 255, 255, 0.08);
+      border: none;
+      color: var(--text-muted);
+      font-size: 11px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-copy:hover {
+      background: var(--accent-cyan);
+      color: #050B14;
+      font-weight: 700;
     }
 
-    /* Modal */
+    /* Lightbox Modal */
     .modal {
       display: none;
       position: fixed;
       top: 0; left: 0; width: 100vw; height: 100vh;
-      background: rgba(5, 8, 15, 0.9);
-      backdrop-filter: blur(16px);
+      background: rgba(4, 7, 14, 0.94);
+      backdrop-filter: blur(20px);
       z-index: 1000;
       align-items: center;
       justify-content: center;
-      cursor: zoom-out;
+      flex-direction: column;
+      padding: 24px;
     }
-    .modal img {
+    .modal.show {
+      display: flex;
+    }
+    .modal-viewport {
+      position: relative;
       max-width: 86vw;
-      max-height: 86vh;
+      max-height: 74vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--canvas-bg);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.8);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .modal-img {
+      max-width: 100%;
+      max-height: 68vh;
       object-fit: contain;
-      filter: drop-shadow(0 20px 40px rgba(0,0,0,0.8));
+      filter: drop-shadow(0 20px 40px rgba(0,0,0,0.85));
+    }
+    .modal-close {
+      position: absolute;
+      top: 24px;
+      right: 28px;
+      background: rgba(255, 255, 255, 0.1);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #FFF;
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      font-size: 20px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+      z-index: 1001;
+    }
+    .modal-close:hover {
+      background: var(--accent-red);
+      border-color: var(--accent-red);
+      transform: rotate(90deg);
+    }
+    .modal-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      background: rgba(255, 255, 255, 0.12);
+      border: 1px solid rgba(255, 255, 255, 0.18);
+      color: #FFF;
+      width: 50px;
+      height: 50px;
+      border-radius: 50%;
+      font-size: 22px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .modal-nav:hover {
+      background: var(--accent-cyan);
+      color: #050B14;
+      border-color: var(--accent-cyan);
+    }
+    .modal-prev { left: -70px; }
+    .modal-next { right: -70px; }
+
+    .modal-info {
+      margin-top: 18px;
+      text-align: center;
+      max-width: 700px;
+    }
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: #FFF;
+      margin-bottom: 4px;
+    }
+    .modal-sub {
+      font-size: 13px;
+      color: var(--text-muted);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%) translateY(100px);
+      background: #10B981;
+      color: #FFF;
+      padding: 10px 22px;
+      border-radius: 999px;
+      font-size: 13px;
+      font-weight: 700;
+      box-shadow: 0 10px 24px rgba(16, 185, 129, 0.4);
+      opacity: 0;
+      transition: all 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+      z-index: 2000;
+      pointer-events: none;
+    }
+    .toast.show {
+      transform: translateX(-50%) translateY(0);
+      opacity: 1;
+    }
+
+    /* Empty state */
+    .empty-state {
+      display: none;
+      grid-column: 1 / -1;
+      padding: 60px 20px;
+      text-align: center;
+      color: var(--text-muted);
+    }
+    .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.6; }
+    .empty-text { font-size: 16px; font-weight: 600; }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .stats-bar { grid-template-columns: repeat(2, 1fr); }
+      .duel-grid { grid-template-columns: 1fr; }
+      .modal-prev { left: 10px; }
+      .modal-next { right: 10px; }
+      .modal-viewport { max-width: 95vw; }
     }
   </style>
 </head>
 <body>
   <div class="container">
+    <!-- Header -->
     <div class="header">
-      <div class="badge">AGENT ISLAND REPORT SYSTEM</div>
+      <div class="badge-bar">
+        <span class="badge-dot"></span>
+        <span>AGENT ISLAND · 对决视觉素材全景矩阵 (DUEL MATRIX)</span>
+      </div>
       <h1>对决图素材全景与生产看板</h1>
-      <p class="subtitle">统一遵循“名称前后顺序代表左 / 右站位”规范体系，整合 7 大 Agent 角色立绘与全套对决姿态库。</p>
+      <p class="subtitle">统一遵循“名称前后顺序代表左 / 右站位”规范体系，整合 7 大 Agent 角色立绘与 37 款 32 位全透明高精对决图库。</p>
       
+      <!-- Metrics -->
       <div class="stats-bar">
         <div class="stat-pill">
-          <div class="stat-val" style="color: var(--accent-cyan);">7</div>
-          <div class="stat-lbl">已就绪人物角色</div>
+          <div class="stat-val" style="color: var(--accent-cyan);">7<small>位</small></div>
+          <div class="stat-lbl">已就绪入库人物角色</div>
         </div>
         <div class="stat-pill">
-          <div class="stat-val" style="color: var(--accent-green);">12</div>
-          <div class="stat-lbl">已完成对决立绘</div>
+          <div class="stat-val" style="color: var(--accent-green);">37<small>款</small></div>
+          <div class="stat-lbl">已完成透明对决立绘</div>
         </div>
         <div class="stat-pill">
-          <div class="stat-val" style="color: var(--accent-purple);">21:31</div>
-          <div class="stat-lbl">AI 配额重置排产</div>
+          <div class="stat-val" style="color: var(--accent-purple);">13 · 12 · 12</div>
+          <div class="stat-lbl">胜 · 败 · 平 对称矩阵</div>
         </div>
         <div class="stat-pill">
-          <div class="stat-val" style="color: var(--accent-orange);">4 组规划</div>
-          <div class="stat-lbl">待续生产批次</div>
+          <div class="stat-val" style="color: var(--accent-orange);">1024<small>px</small></div>
+          <div class="stat-lbl">纯净透明通道 RGBA PNG</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Sticky Toolbar -->
+    <div class="toolbar-wrapper">
+      <div class="toolbar">
+        <div class="toolbar-left">
+          <!-- Main Filter Tabs -->
+          <div class="filter-group" id="series-filter">
+            <button class="btn-filter active" data-filter="all">全部对决 <span class="filter-count">37</span></button>
+            <button class="btn-filter" data-filter="claude">Claude 矩阵 <span class="filter-count">12</span></button>
+            <button class="btn-filter" data-filter="codex">Codex 矩阵 <span class="filter-count">12</span></button>
+            <button class="btn-filter" data-filter="deepseek">DeepSeek 矩阵 <span class="filter-count">7</span></button>
+            <button class="btn-filter" data-filter="doubao">豆包 矩阵 <span class="filter-count">6</span></button>
+            <button class="btn-filter" data-filter="char">人物立绘 <span class="filter-count">7</span></button>
+            <button class="btn-filter" data-filter="planned">待排产 <span class="filter-count">3</span></button>
+          </div>
+
+          <!-- Outcome Filter -->
+          <div class="filter-group" id="outcome-filter">
+            <button class="btn-filter active" data-outcome="all">全部战况</button>
+            <button class="btn-filter" data-outcome="win">胜局 (13)</button>
+            <button class="btn-filter" data-outcome="lose">败局 (12)</button>
+            <button class="btn-filter" data-outcome="draw">平局 (12)</button>
+          </div>
+        </div>
+
+        <div class="toolbar-right">
+          <!-- Canvas Background Switcher -->
+          <div class="canvas-switcher">
+            <button class="canvas-btn active" data-canvas="dark" title="深邃暗黑背景">🌌 深色</button>
+            <button class="canvas-btn" data-canvas="checker" title="棋盘格透光检测">🏁 棋盘透明</button>
+            <button class="canvas-btn" data-canvas="light" title="纯净浅白背景 (检测黑边)">☀️ 浅色</button>
+          </div>
+
+          <!-- Search Input -->
+          <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索角色、对决或文件名...">
+            <span class="clear-btn" id="clearSearch">✕</span>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 1. 人物立绘全家福 -->
-    <div class="section">
+    <div class="section" id="char-section">
       <div class="section-header">
-        <div class="section-title">入库人物角色 (7款)</div>
-        <div class="section-note">所有角色立绘统一收敛于 assets/Report/人物/ 目录</div>
+        <div class="section-title">入库人物角色 (7 款全员就绪)</div>
+        <div class="section-note">点击角色卡片可快速筛选包含该角色的所有对决 · 存储于 assets/Report/人物/</div>
       </div>
       <div class="char-grid">
-        <div class="char-card">
+        <div class="char-card" data-agent="claude" onclick="filterByCharacter('claude')">
           <div class="char-img-wrap"><img class="char-img" src="人物/claude-amodei.png" alt="Claude"></div>
-          <div class="char-name">Claude</div>
+          <div class="char-name" style="color: var(--accent-claude);">Claude</div>
           <div class="char-role">Dario Amodei</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="codex" onclick="filterByCharacter('codex')">
           <div class="char-img-wrap"><img class="char-img" src="人物/codex-altman.png" alt="Codex"></div>
-          <div class="char-name">Codex</div>
+          <div class="char-name" style="color: var(--accent-codex);">Codex</div>
           <div class="char-role">Sam Altman</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="antigravity" onclick="filterByCharacter('antigravity')">
           <div class="char-img-wrap"><img class="char-img" src="人物/antigravity-demis.png" alt="Antigravity"></div>
-          <div class="char-name">Antigravity</div>
+          <div class="char-name" style="color: var(--accent-antigravity);">Antigravity</div>
           <div class="char-role">Demis Hassabis</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="grok" onclick="filterByCharacter('grok')">
           <div class="char-img-wrap"><img class="char-img" src="人物/grok-musk.png" alt="Grok"></div>
-          <div class="char-name">Grok</div>
+          <div class="char-name" style="color: var(--accent-grok);">Grok</div>
           <div class="char-role">Elon Musk</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="cursor" onclick="filterByCharacter('cursor')">
           <div class="char-img-wrap"><img class="char-img" src="人物/cursor-robot.png" alt="Cursor"></div>
-          <div class="char-name">Cursor</div>
-          <div class="char-role">Robot</div>
+          <div class="char-name" style="color: var(--accent-cursor);">Cursor</div>
+          <div class="char-role">Robot 机甲</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="deepseek" onclick="filterByCharacter('deepseek')">
           <div class="char-img-wrap"><img class="char-img" src="人物/deepseek-liang.png" alt="DeepSeek"></div>
-          <div class="char-name">DeepSeek</div>
-          <div class="char-role">梁文锋</div>
+          <div class="char-name" style="color: var(--accent-deepseek);">DeepSeek</div>
+          <div class="char-role">梁文锋 & 蓝鲸</div>
+          <span class="char-click-hint">点击筛选对决 →</span>
         </div>
-        <div class="char-card">
+        <div class="char-card" data-agent="doubao" onclick="filterByCharacter('doubao')">
           <div class="char-img-wrap"><img class="char-img" src="人物/doubao-doujie.png" alt="豆包"></div>
-          <div class="char-name">豆包</div>
-          <div class="char-role">豆姐</div>
+          <div class="char-name" style="color: var(--accent-doubao);">豆包</div>
+          <div class="char-role">豆姐 (元气双丸子)</div>
+          <span class="char-click-hint">查看排产计划 →</span>
         </div>
       </div>
     </div>
 
-    <!-- 2. 已完成对决图 -->
-    <div class="section">
+    <!-- 2. 已完成对决图库 -->
+    <div class="section" id="duel-section">
       <div class="section-header">
-        <div class="section-title">已完成对决图库 (30款，点击图片可全屏预览)</div>
-        <div class="section-note">1024×1024 纯净透明通道 PNG，均存储于 assets/Report/对决/</div>
+        <div class="section-title">
+          <span>对决素材矩阵库</span>
+          <span id="filtered-count" style="font-size: 14px; font-weight: normal; color: var(--accent-cyan); background: rgba(0,240,255,0.1); padding: 2px 10px; border-radius: 99px;">显示 30 / 30 款</span>
+        </div>
+        <div class="section-note">1024×1024 纯净透明通道 PNG · 点击预览可全屏灯箱轮播 · 存储于 assets/Report/对决/</div>
       </div>
-      <div class="duel-grid">
-        <!-- Claude vs Codex -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-win-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+
+      <div class="duel-grid" id="duelGrid">
+        <!-- Claude vs Codex (3) -->
+        <div class="duel-card done" data-series="claude" data-agents="claude codex" data-outcome="win" data-title="Claude vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-win-codex.png', 'Claude (左) VS Codex (右)', 'Claude 胜', 'duel-claude-win-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-win-codex.png" alt="Claude vs Codex 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-win">Claude 胜</span>
             </div>
             <div class="duel-title">Claude (左) VS Codex (右)</div>
             <div class="duel-desc">Claude 左侧踏背金冠胜利比耶，Codex 右侧趴倒晕眩冒汗。</div>
-            <div class="duel-file">duel-claude-win-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-win-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-win-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-lose-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude codex" data-outcome="lose" data-title="Claude vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-lose-codex.png', 'Claude (左) VS Codex (右)', 'Claude 败', 'duel-claude-lose-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-lose-codex.png" alt="Claude vs Codex 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Claude 败</span>
             </div>
             <div class="duel-title">Claude (左) VS Codex (右)</div>
             <div class="duel-desc">Claude 左侧趴倒败北，Codex 右侧踏背金冠胜利比耶。</div>
-            <div class="duel-file">duel-claude-lose-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-lose-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-lose-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-draw-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude codex" data-outcome="draw" data-title="Claude vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-draw-codex.png', 'Claude (左) VS Codex (右)', '平局对峙', 'duel-claude-draw-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-draw-codex.png" alt="Claude vs Codex 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Claude (左) VS Codex (右)</div>
             <div class="duel-desc">Claude 在左、Codex 在右，双手抱胸背靠背智斗，中央迸发对决星光。</div>
-            <div class="duel-file">duel-claude-draw-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-draw-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-draw-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Codex vs Claude -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-win-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Codex vs Claude (3) -->
+        <div class="duel-card done" data-series="codex" data-agents="codex claude" data-outcome="win" data-title="Codex vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-win-claude.png', 'Codex (左) VS Claude (右)', 'Codex 胜', 'duel-codex-win-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-win-claude.png" alt="Codex vs Claude 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-win">Codex 胜</span>
             </div>
             <div class="duel-title">Codex (左) VS Claude (右)</div>
             <div class="duel-desc">Codex 左侧踩踏胜利，Claude 右侧趴倒晕眩（正向 Logo 原生绘制）。</div>
-            <div class="duel-file">duel-codex-win-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-win-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-win-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-lose-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex claude" data-outcome="lose" data-title="Codex vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-lose-claude.png', 'Codex (左) VS Claude (右)', 'Codex 败', 'duel-codex-lose-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-lose-claude.png" alt="Codex vs Claude 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Codex 败</span>
             </div>
             <div class="duel-title">Codex (左) VS Claude (右)</div>
             <div class="duel-desc">Codex 左侧趴倒，Claude 右侧踩踏胜利（正向 Logo 原生绘制）。</div>
-            <div class="duel-file">duel-codex-lose-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-lose-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-lose-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-draw-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex claude" data-outcome="draw" data-title="Codex vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-draw-claude.png', 'Codex (左) VS Claude (右)', '平局对峙', 'duel-codex-draw-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-draw-claude.png" alt="Codex vs Claude 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Codex (左) VS Claude (右)</div>
             <div class="duel-desc">Codex 在左、Claude 在右，背靠背对峙平局。</div>
-            <div class="duel-file">duel-codex-draw-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-draw-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-draw-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Claude vs Antigravity -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-win-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Claude vs Antigravity (3) -->
+        <div class="duel-card done" data-series="claude" data-agents="claude antigravity" data-outcome="win" data-title="Claude vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-win-antigravity.png', 'Claude (左) VS Antigravity (右)', 'Claude 胜', 'duel-claude-win-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-win-antigravity.png" alt="Claude vs Antigravity 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-win">Claude 胜</span>
             </div>
             <div class="duel-title">Claude (左) VS Antigravity (右)</div>
             <div class="duel-desc">Claude 左侧踩踏胜利，Demis 趴倒晕眩冒汗，身旁散落围棋子彩蛋。</div>
-            <div class="duel-file">duel-claude-win-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-win-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-win-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-lose-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude antigravity" data-outcome="lose" data-title="Claude vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-lose-antigravity.png', 'Claude (左) VS Antigravity (右)', 'Claude 败', 'duel-claude-lose-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-lose-antigravity.png" alt="Claude vs Antigravity 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Claude 败</span>
             </div>
             <div class="duel-title">Claude (左) VS Antigravity (右)</div>
             <div class="duel-desc">Claude 趴倒，Demis 右侧头戴金冠、深蓝夹克踩踏优雅比耶胜利。</div>
-            <div class="duel-file">duel-claude-lose-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-lose-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-lose-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-draw-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude antigravity" data-outcome="draw" data-title="Claude vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-draw-antigravity.png', 'Claude (左) VS Antigravity (右)', '平局对峙', 'duel-claude-draw-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-draw-antigravity.png" alt="Claude vs Antigravity 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Claude (左) VS Antigravity (右)</div>
             <div class="duel-desc">Claude 与 Demis 双手抱胸智斗背靠背，中间对决星芒。</div>
-            <div class="duel-file">duel-claude-draw-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-draw-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-draw-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Claude vs Grok -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-win-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Claude vs Grok (3) -->
+        <div class="duel-card done" data-series="claude" data-agents="claude grok" data-outcome="win" data-title="Claude vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-win-grok.png', 'Claude (左) VS Grok (右)', 'Claude 胜', 'duel-claude-win-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-win-grok.png" alt="Claude vs Grok 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-win">Claude 胜</span>
             </div>
             <div class="duel-title">Claude (左) VS Grok (右)</div>
             <div class="duel-desc">Claude 左侧踩踏胜利，马斯克趴倒冒汗，黑色平板掉落身旁。</div>
-            <div class="duel-file">duel-claude-win-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-win-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-win-grok.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-lose-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude grok" data-outcome="lose" data-title="Claude vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-lose-grok.png', 'Claude (左) VS Grok (右)', 'Claude 败', 'duel-claude-lose-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-lose-grok.png" alt="Claude vs Grok 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Claude 败</span>
             </div>
             <div class="duel-title">Claude (左) VS Grok (右)</div>
             <div class="duel-desc">Claude 趴倒，马斯克头戴金冠、身穿 Grok 夹克霸气踩踏胜利。</div>
-            <div class="duel-file">duel-claude-lose-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-lose-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-lose-grok.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-draw-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude grok" data-outcome="draw" data-title="Claude vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-draw-grok.png', 'Claude (左) VS Grok (右)', '平局对峙', 'duel-claude-draw-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-draw-grok.png" alt="Claude vs Grok 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Claude (左) VS Grok (右)</div>
             <div class="duel-desc">Claude 与马斯克双手抱胸背靠背对决，神采飞扬。</div>
-            <div class="duel-file">duel-claude-draw-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-draw-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-draw-grok.png', event)">复制名称</button>
+            </div>
           </div>
-        <!-- Claude vs Cursor -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-win-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        </div>
+
+        <!-- Claude vs Cursor (3) -->
+        <div class="duel-card done" data-series="claude" data-agents="claude cursor" data-outcome="win" data-title="Claude vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-win-cursor.png', 'Claude (左) VS Cursor (右)', 'Claude 胜', 'duel-claude-win-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-win-cursor.png" alt="Claude vs Cursor 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-win">Claude 胜</span>
             </div>
             <div class="duel-title">Claude (左) VS Cursor (右)</div>
             <div class="duel-desc">Claude 戴金冠比耶踩趴 Cursor 机器人，面罩螺旋眼晕眩冒烟。</div>
-            <div class="duel-file">duel-claude-win-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-win-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-win-cursor.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-lose-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude cursor" data-outcome="lose" data-title="Claude vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-lose-cursor.png', 'Claude (左) VS Cursor (右)', 'Claude 败', 'duel-claude-lose-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-lose-cursor.png" alt="Claude vs Cursor 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Claude 败</span>
             </div>
             <div class="duel-title">Claude (左) VS Cursor (右)</div>
             <div class="duel-desc">Cursor 机器人头戴金冠反杀踩人比耶，Claude 蚊香眼趴倒。</div>
-            <div class="duel-file">duel-claude-lose-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-lose-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-lose-cursor.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-claude-draw-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="claude" data-agents="claude cursor" data-outcome="draw" data-title="Claude vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-claude-draw-cursor.png', 'Claude (左) VS Cursor (右)', '平局对峙', 'duel-claude-draw-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-claude-draw-cursor.png" alt="Claude vs Cursor 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip claude">Claude (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Claude (左) VS Cursor (右)</div>
             <div class="duel-desc">Claude 与纯白机甲双手抱胸背靠背，橙青火花交织。</div>
-            <div class="duel-file">duel-claude-draw-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-claude-draw-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-claude-draw-cursor.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Codex vs Antigravity -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-win-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Codex vs Antigravity (3) -->
+        <div class="duel-card done" data-series="codex" data-agents="codex antigravity" data-outcome="win" data-title="Codex vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-win-antigravity.png', 'Codex (左) VS Antigravity (右)', 'Codex 胜', 'duel-codex-win-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-win-antigravity.png" alt="Codex vs Antigravity 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-win">Codex 胜</span>
             </div>
             <div class="duel-title">Codex (左) VS Antigravity (右)</div>
             <div class="duel-desc">Sam Altman 戴金冠比耶踩黑围棋子，Demis 掀翻棋盘倒地。</div>
-            <div class="duel-file">duel-codex-win-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-win-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-win-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-lose-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex antigravity" data-outcome="lose" data-title="Codex vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-lose-antigravity.png', 'Codex (左) VS Antigravity (右)', 'Codex 败', 'duel-codex-lose-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-lose-antigravity.png" alt="Codex vs Antigravity 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Codex 败</span>
             </div>
             <div class="duel-title">Codex (左) VS Antigravity (右)</div>
             <div class="duel-desc">Demis 手捏黑棋比耶戴大金冠反杀，Altman 冒星星倒地。</div>
-            <div class="duel-file">duel-codex-lose-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-lose-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-lose-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-draw-antigravity.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex antigravity" data-outcome="draw" data-title="Codex vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-draw-antigravity.png', 'Codex (左) VS Antigravity (右)', '平局对峙', 'duel-codex-draw-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-draw-antigravity.png" alt="Codex vs Antigravity 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Codex (左) VS Antigravity (右)</div>
             <div class="duel-desc">Altman 与 Demis 双手抱胸背靠背，青蓝与四色彩虹星芒碰撞。</div>
-            <div class="duel-file">duel-codex-draw-antigravity.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-draw-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-draw-antigravity.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Codex vs Grok -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-win-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Codex vs Grok (3) -->
+        <div class="duel-card done" data-series="codex" data-agents="codex grok" data-outcome="win" data-title="Codex vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-win-grok.png', 'Codex (左) VS Grok (右)', 'Codex 胜', 'duel-codex-win-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-win-grok.png" alt="Codex vs Grok 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-win">Codex 胜</span>
             </div>
             <div class="duel-title">Codex (左) VS Grok (右)</div>
             <div class="duel-desc">Altman 戴金冠比耶踩平板，马斯克黑皮衣趴地冒冷汗。</div>
-            <div class="duel-file">duel-codex-win-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-win-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-win-grok.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-lose-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex grok" data-outcome="lose" data-title="Codex vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-lose-grok.png', 'Codex (左) VS Grok (右)', 'Codex 败', 'duel-codex-lose-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-lose-grok.png" alt="Codex vs Grok 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Codex 败</span>
             </div>
             <div class="duel-title">Codex (左) VS Grok (右)</div>
             <div class="duel-desc">马斯克手夹平板戴大金冠霸气反杀踩人，Altman 委屈趴地。</div>
-            <div class="duel-file">duel-codex-lose-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-lose-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-lose-grok.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-draw-grok.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex grok" data-outcome="draw" data-title="Codex vs Grok">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-draw-grok.png', 'Codex (左) VS Grok (右)', '平局对峙', 'duel-codex-draw-grok.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-draw-grok.png" alt="Codex vs Grok 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip grok">Grok (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Codex (左) VS Grok (右)</div>
             <div class="duel-desc">Altman 与马斯克双手抱胸背靠背，硅谷传奇宿敌对峙。</div>
-            <div class="duel-file">duel-codex-draw-grok.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-draw-grok.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-draw-grok.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- DeepSeek vs Codex -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-win-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- DeepSeek vs Codex (3) -->
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek codex" data-outcome="win" data-title="DeepSeek vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-win-codex.png', 'DeepSeek (左) VS Codex (右)', 'DeepSeek 胜', 'duel-deepseek-win-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-win-codex.png" alt="DeepSeek vs Codex 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-win">DeepSeek 胜</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
             <div class="duel-desc">梁文锋身穿极简黑夹克头戴金冠比耶，喷水小蓝鲸护体，Altman 趴地。</div>
-            <div class="duel-file">duel-deepseek-win-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-win-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-win-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-lose-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek codex" data-outcome="lose" data-title="DeepSeek vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-lose-codex.png', 'DeepSeek (左) VS Codex (右)', 'DeepSeek 败', 'duel-deepseek-lose-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-lose-codex.png" alt="DeepSeek vs Codex 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-lose">DeepSeek 败</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
             <div class="duel-desc">Altman 戴大金冠比耶，梁文锋与圆滚滚小蓝鲸翻肚皮蚊香眼。</div>
-            <div class="duel-file">duel-deepseek-lose-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-lose-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-lose-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-draw-codex.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek codex" data-outcome="draw" data-title="DeepSeek vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-draw-codex.png', 'DeepSeek (左) VS Codex (右)', '平局对峙', 'duel-deepseek-draw-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-draw-codex.png" alt="DeepSeek vs Codex 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Codex (右)</div>
             <div class="duel-desc">梁文锋与 Altman 双雄背靠背，深海蓝鲸水波与科技亮蓝星芒激荡。</div>
-            <div class="duel-file">duel-deepseek-draw-codex.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-draw-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-draw-codex.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- DeepSeek vs Claude -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-win-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- DeepSeek vs Claude (3) -->
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek claude" data-outcome="win" data-title="DeepSeek vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-win-claude.png', 'DeepSeek (左) VS Claude (右)', 'DeepSeek 胜', 'duel-deepseek-win-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-win-claude.png" alt="DeepSeek vs Claude 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-win">DeepSeek 胜</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
             <div class="duel-desc">梁文锋头戴金冠比耶、小蓝鲸喷水助威，Claude 卷发蓬乱蚊香眼倒地。</div>
-            <div class="duel-file">duel-deepseek-win-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-win-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-win-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-lose-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek claude" data-outcome="lose" data-title="DeepSeek vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-lose-claude.png', 'DeepSeek (左) VS Claude (右)', 'DeepSeek 败', 'duel-deepseek-lose-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-lose-claude.png" alt="DeepSeek vs Claude 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-lose">DeepSeek 败</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
             <div class="duel-desc">Claude 戴大金冠开朗眨眼比耶，梁文锋与小蓝鲸翻肚皮冒冷汗。</div>
-            <div class="duel-file">duel-deepseek-lose-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-lose-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-lose-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-deepseek-draw-claude.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek claude" data-outcome="draw" data-title="DeepSeek vs Claude">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-draw-claude.png', 'DeepSeek (左) VS Claude (右)', '平局对峙', 'duel-deepseek-draw-claude.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-draw-claude.png" alt="DeepSeek vs Claude 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Claude (右)</div>
             <div class="duel-desc">梁文锋与 Dario Amodei 宗师背靠背，深海蓝与陶橙星芒巅峰交融。</div>
-            <div class="duel-file">duel-deepseek-draw-claude.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-draw-claude.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-draw-claude.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <!-- Codex vs Cursor -->
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-win-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <!-- Codex vs Cursor (3) -->
+        <div class="duel-card done" data-series="codex" data-agents="codex cursor" data-outcome="win" data-title="Codex vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-win-cursor.png', 'Codex (左) VS Cursor (右)', 'Codex 胜', 'duel-codex-win-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-win-cursor.png" alt="Codex vs Cursor 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-win">Codex 胜</span>
             </div>
             <div class="duel-title">Codex (左) VS Cursor (右)</div>
             <div class="duel-desc">Altman 戴金冠比耶踩趴机甲，Cursor 机器人青色面罩螺旋眼冒烟。</div>
-            <div class="duel-file">duel-codex-win-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-win-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-win-cursor.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-lose-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex cursor" data-outcome="lose" data-title="Codex vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-lose-cursor.png', 'Codex (左) VS Cursor (右)', 'Codex 败', 'duel-codex-lose-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-lose-cursor.png" alt="Codex vs Cursor 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-lose">Codex 败</span>
             </div>
             <div class="duel-title">Codex (左) VS Cursor (右)</div>
             <div class="duel-desc">Cursor 纯白机器人头戴大金冠眨眼反杀踩人，Altman 委屈趴地。</div>
-            <div class="duel-file">duel-codex-lose-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-lose-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-lose-cursor.png', event)">复制名称</button>
+            </div>
           </div>
         </div>
 
-        <div class="duel-card done">
-          <div class="duel-preview">
-            <img src="对决/duel-codex-draw-cursor.png" onclick="showModal(this.src)">
-            <span class="zoom-hint">点击放大</span>
+        <div class="duel-card done" data-series="codex" data-agents="codex cursor" data-outcome="draw" data-title="Codex vs Cursor">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-codex-draw-cursor.png', 'Codex (左) VS Cursor (右)', '平局对峙', 'duel-codex-draw-cursor.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-codex-draw-cursor.png" alt="Codex vs Cursor 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
           </div>
           <div class="duel-body">
-            <div class="duel-header-row">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip codex">Codex (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip cursor">Cursor (右)</span>
+              </div>
               <span class="duel-tag tag-draw">平局对峙</span>
             </div>
             <div class="duel-title">Codex (左) VS Cursor (右)</div>
             <div class="duel-desc">Altman 与 Cursor 机器人双手抱胸背靠背，模型与编辑器神级结对。</div>
-            <div class="duel-file">duel-codex-draw-cursor.png</div>
+            <div class="file-bar">
+              <span class="file-name">duel-codex-draw-cursor.png</span>
+              <button class="btn-copy" onclick="copyText('duel-codex-draw-cursor.png', event)">复制名称</button>
+            </div>
           </div>
+        </div>
+
+        <!-- 豆包 vs Codex (3) -->
+        <div class="duel-card done" data-series="doubao" data-agents="doubao codex" data-outcome="win" data-title="豆包 vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-win-codex.png', '豆包 (左) VS Codex (右)', '豆包 胜', 'duel-doubao-win-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-win-codex.png" alt="豆包 vs Codex 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
+              <span class="duel-tag tag-win">豆包 胜</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS Codex (右)</div>
+            <div class="duel-desc">短发黑卫衣豆姐左侧戴金冠比耶踏背胜利，Altman 右侧趴倒晕眩冒汗。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-win-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-win-codex.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card done" data-series="doubao" data-agents="doubao codex" data-outcome="lose" data-title="豆包 vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-lose-codex.png', '豆包 (左) VS Codex (右)', '豆包 败', 'duel-doubao-lose-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-lose-codex.png" alt="豆包 vs Codex 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
+              <span class="duel-tag tag-lose">豆包 败</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS Codex (右)</div>
+            <div class="duel-desc">豆姐左侧趴倒蚊香眼败北，Altman 右侧戴金冠比耶踩踏反杀。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-lose-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-lose-codex.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card done" data-series="doubao" data-agents="doubao codex" data-outcome="draw" data-title="豆包 vs Codex">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-draw-codex.png', '豆包 (左) VS Codex (右)', '平局对峙', 'duel-doubao-draw-codex.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-draw-codex.png" alt="豆包 vs Codex 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip codex">Codex (右)</span>
+              </div>
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS Codex (右)</div>
+            <div class="duel-desc">豆姐在左、Altman 在右，双手抱胸背靠背对峙，火花星芒迸发。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-draw-codex.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-draw-codex.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 豆包 vs DeepSeek (3) -->
+        <div class="duel-card done" data-series="doubao" data-agents="doubao deepseek" data-outcome="win" data-title="豆包 vs DeepSeek">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-win-deepseek.png', '豆包 (左) VS DeepSeek (右)', '豆包 胜', 'duel-doubao-win-deepseek.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-win-deepseek.png" alt="豆包 vs DeepSeek 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip deepseek">DeepSeek (右)</span>
+              </div>
+              <span class="duel-tag tag-win">豆包 胜</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS DeepSeek (右)</div>
+            <div class="duel-desc">豆姐戴单金冠比耶踏背胜利，戴细框眼镜的梁文锋与小蓝鲸趴地晕眩。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-win-deepseek.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-win-deepseek.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card done" data-series="doubao" data-agents="doubao deepseek" data-outcome="lose" data-title="豆包 vs DeepSeek">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-lose-deepseek.png', '豆包 (左) VS DeepSeek (右)', '豆包 败', 'duel-doubao-lose-deepseek.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-lose-deepseek.png" alt="豆包 vs DeepSeek 败">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip deepseek">DeepSeek (右)</span>
+              </div>
+              <span class="duel-tag tag-lose">豆包 败</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS DeepSeek (右)</div>
+            <div class="duel-desc">豆姐趴倒晕眩败北，梁文锋戴金冠比耶踩踏反杀，小蓝鲸喷水欢呼。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-lose-deepseek.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-lose-deepseek.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card done" data-series="doubao" data-agents="doubao deepseek" data-outcome="draw" data-title="豆包 vs DeepSeek">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-doubao-draw-deepseek.png', '豆包 (左) VS DeepSeek (右)', '平局对峙', 'duel-doubao-draw-deepseek.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-doubao-draw-deepseek.png" alt="豆包 vs DeepSeek 平局">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip deepseek">DeepSeek (右)</span>
+              </div>
+              <span class="duel-tag tag-draw">平局对峙</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS DeepSeek (右)</div>
+            <div class="duel-desc">豆姐与梁文锋双手抱胸背靠背，中间激荡火花星芒，小蓝鲸探头助威。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-draw-deepseek.png</span>
+              <button class="btn-copy" onclick="copyText('duel-doubao-draw-deepseek.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- DeepSeek vs Antigravity (1) -->
+        <div class="duel-card done" data-series="deepseek" data-agents="deepseek antigravity" data-outcome="win" data-title="DeepSeek vs Antigravity">
+          <div class="duel-preview" onclick="openLightbox('对决/duel-deepseek-win-antigravity.png', 'DeepSeek (左) VS Antigravity (右)', 'DeepSeek 胜', 'duel-deepseek-win-antigravity.png')">
+            <span class="preview-badge-tl">1024×1024 RGBA</span>
+            <img src="对决/duel-deepseek-win-antigravity.png" alt="DeepSeek vs Antigravity 胜">
+            <span class="preview-badge-br">🔍 点击放大</span>
+          </div>
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
+              <span class="duel-tag tag-win">DeepSeek 胜</span>
+            </div>
+            <div class="duel-title">DeepSeek (左) VS Antigravity (右)</div>
+            <div class="duel-desc">梁文锋戴单金冠比耶、小蓝鲸喷水踩踏胜利，Demis 趴地晕眩、围棋子散落。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-win-antigravity.png</span>
+              <button class="btn-copy" onclick="copyText('duel-deepseek-win-antigravity.png', event)">复制名称</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Empty Filter Result -->
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">🔍</div>
+          <div class="empty-text">未找到符合当前筛选条件的对决素材</div>
+          <p style="margin-top: 6px; font-size: 13px;">请尝试切换上方筛选标签或清除搜索词</p>
         </div>
       </div>
     </div>
 
     <!-- 3. 下一批次生产计划 -->
-    <div class="section">
+    <div class="section" id="planned-section">
       <div class="section-header">
         <div class="section-title">排产计划矩阵（待下批次推进）</div>
-        <div class="section-note">按国产 Agent 豆包及拓展组合推进</div>
+        <div class="section-note">按国产 Agent 豆包及拓展跨模型组合推进</div>
       </div>
       <div class="duel-grid">
-        <!-- 豆包系列 -->
-        <div class="duel-card planned">
+        <!-- 下一批次计划 -->
+        <div class="duel-card planned" data-series="planned" data-agents="deepseek antigravity">
           <div class="duel-body">
-            <div class="duel-header-row">
-              <span class="duel-tag tag-plan">优先级 1 (3张)</span>
-            </div>
-            <div class="duel-title">豆包 (左) VS Codex (右)</div>
-            <div class="duel-desc">豆姐（元气双丸子头 + 豆包绿）对战 Sam Altman。</div>
-            <div class="duel-file">duel-doubao-[win|lose|draw]-codex.png</div>
-          </div>
-        </div>
-
-        <div class="duel-card planned">
-          <div class="duel-body">
-            <div class="duel-header-row">
-              <span class="duel-tag tag-plan">优先级 2 (3张)</span>
-            </div>
-            <div class="duel-title">豆包 (左) VS DeepSeek (右)</div>
-            <div class="duel-desc">豆姐元气对阵梁文锋（豆包绿与蓝鲸）。</div>
-            <div class="duel-file">duel-doubao-[win|lose|draw]-deepseek.png</div>
-          </div>
-        </div>
-
-        <div class="duel-card planned">
-          <div class="duel-body">
-            <div class="duel-header-row">
-              <span class="duel-tag tag-plan">优先级 3 (3张)</span>
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip deepseek">DeepSeek (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
+              <span class="duel-tag tag-plan">排产待续 (2款)</span>
             </div>
             <div class="duel-title">DeepSeek (左) VS Antigravity (右)</div>
-            <div class="duel-desc">梁文锋对战 Demis Hassabis（蓝鲸与围棋智斗）。</div>
-            <div class="duel-file">duel-deepseek-[win|lose|draw]-antigravity.png</div>
+            <div class="duel-desc">梁文锋对决 Demis Hassabis（败局与平局对峙：围棋反杀与双雄并肩）。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-deepseek-[lose|draw]-antigravity.png</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card planned" data-series="planned" data-agents="cursor antigravity">
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip cursor">Cursor (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip antigravity">Antigravity (右)</span>
+              </div>
+              <span class="duel-tag tag-plan">排产 P2 (3款)</span>
+            </div>
+            <div class="duel-title">Cursor (左) VS Antigravity (右)</div>
+            <div class="duel-desc">纯白机器人机甲对决围棋宗师 Demis（AI 编辑器与通用智力对决）。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-cursor-[win|lose|draw]-antigravity.png</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="duel-card planned" data-series="planned" data-agents="doubao claude">
+          <div class="duel-body">
+            <div class="duel-meta-row">
+              <div class="agent-pairing">
+                <span class="agent-chip doubao">豆包 (左)</span>
+                <span class="vs-text">VS</span>
+                <span class="agent-chip claude">Claude (右)</span>
+              </div>
+              <span class="duel-tag tag-plan">排产 P3 (3款)</span>
+            </div>
+            <div class="duel-title">豆包 (左) VS Claude (右)</div>
+            <div class="duel-desc">豆姐对决 Dario Amodei 宗师（黑卫衣与陶橙色卫衣友谊交手）。</div>
+            <div class="file-bar">
+              <span class="file-name">duel-doubao-[win|lose|draw]-claude.png</span>
+            </div>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <div id="modal" class="modal" onclick="this.style.display='none'">
-    <img id="modal-img" src="">
+  <!-- Lightbox Modal -->
+  <div id="lightbox" class="modal" onclick="onModalBackdropClick(event)">
+    <button class="modal-close" onclick="closeLightbox()" title="关闭 (Esc)">✕</button>
+    <div class="modal-viewport">
+      <button class="modal-nav modal-prev" onclick="navLightbox(-1)" title="上一张 (←)">‹</button>
+      <img id="lightbox-img" class="modal-img" src="" alt="预览大图">
+      <button class="modal-nav modal-next" onclick="navLightbox(1)" title="下一张 (→)">›</button>
+    </div>
+    <div class="modal-info">
+      <div class="modal-title" id="lightbox-title">对决大图预览</div>
+      <div class="modal-sub">
+        <span id="lightbox-tag" class="duel-tag tag-win">胜利</span>
+        <span id="lightbox-file" style="font-family: monospace;">filename.png</span>
+        <span id="lightbox-counter">1 / 30</span>
+      </div>
+    </div>
   </div>
 
+  <!-- Floating Toast -->
+  <div id="toast" class="toast">已复制到剪贴板！</div>
+
   <script>
-    function showModal(src) {
-      document.getElementById('modal-img').src = src;
-      document.getElementById('modal').style.display = 'flex';
+    // State
+    let currentFilter = 'all';
+    let currentOutcome = 'all';
+    let searchQuery = '';
+    let currentLightboxList = [];
+    let currentLightboxIdx = 0;
+
+    // Collect all duel cards on startup
+    const duelCards = Array.from(document.querySelectorAll('#duelGrid .duel-card'));
+    const charSection = document.getElementById('char-section');
+    const duelSection = document.getElementById('duel-section');
+    const plannedSection = document.getElementById('planned-section');
+    const filteredCountSpan = document.getElementById('filtered-count');
+    const emptyState = document.getElementById('emptyState');
+    const searchInput = document.getElementById('searchInput');
+    const clearSearchBtn = document.getElementById('clearSearch');
+
+    // Filter by Series
+    document.querySelectorAll('#series-filter .btn-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#series-filter .btn-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentFilter = btn.dataset.filter;
+        applyFilters();
+      });
+    });
+
+    // Filter by Outcome
+    document.querySelectorAll('#outcome-filter .btn-filter').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('#outcome-filter .btn-filter').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentOutcome = btn.dataset.outcome;
+        applyFilters();
+      });
+    });
+
+    // Canvas Switcher
+    document.querySelectorAll('.canvas-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.canvas-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        const mode = btn.dataset.canvas;
+        document.body.classList.remove('bg-checker', 'bg-light');
+        if (mode === 'checker') document.body.classList.add('bg-checker');
+        if (mode === 'light') document.body.classList.add('bg-light');
+      });
+    });
+
+    // Search Input
+    searchInput.addEventListener('input', (e) => {
+      searchQuery = e.target.value.trim().toLowerCase();
+      clearSearchBtn.style.display = searchQuery ? 'block' : 'none';
+      applyFilters();
+    });
+
+    clearSearchBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      searchQuery = '';
+      clearSearchBtn.style.display = 'none';
+      applyFilters();
+    });
+
+    // Quick Character Filter
+    function filterByCharacter(agentKey) {
+      document.querySelectorAll('.char-card').forEach(c => {
+        c.classList.toggle('selected', c.dataset.agent === agentKey);
+      });
+      searchInput.value = agentKey;
+      searchQuery = agentKey;
+      clearSearchBtn.style.display = 'block';
+
+      // Switch to all duel series tab
+      document.querySelectorAll('#series-filter .btn-filter').forEach(b => b.classList.remove('active'));
+      const allBtn = document.querySelector('#series-filter .btn-filter[data-filter="all"]');
+      if (allBtn) allBtn.classList.add('active');
+      currentFilter = 'all';
+
+      applyFilters();
+
+      // Scroll to duels
+      duelSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
+
+    // Core Filtering Logic
+    function applyFilters() {
+      // Toggle character section visibility
+      if (currentFilter === 'char') {
+        charSection.style.display = 'block';
+        duelSection.style.display = 'none';
+        plannedSection.style.display = 'none';
+        return;
+      } else if (currentFilter === 'planned') {
+        charSection.style.display = 'none';
+        duelSection.style.display = 'none';
+        plannedSection.style.display = 'block';
+        return;
+      } else {
+        charSection.style.display = 'block';
+        duelSection.style.display = 'block';
+        plannedSection.style.display = 'block';
+      }
+
+      let visibleCount = 0;
+      currentLightboxList = [];
+
+      duelCards.forEach(card => {
+        const series = card.dataset.series || '';
+        const agents = card.dataset.agents || '';
+        const outcome = card.dataset.outcome || '';
+        const textContent = card.innerText.toLowerCase();
+
+        const matchSeries = (currentFilter === 'all') || (series === currentFilter) || (agents.includes(currentFilter));
+        const matchOutcome = (currentOutcome === 'all') || (outcome === currentOutcome);
+        const matchSearch = !searchQuery || textContent.includes(searchQuery);
+
+        if (matchSeries && matchOutcome && matchSearch) {
+          card.style.display = 'flex';
+          visibleCount++;
+
+          // Register for lightbox
+          const img = card.querySelector('.duel-preview img');
+          const title = card.querySelector('.duel-title').innerText;
+          const tag = card.querySelector('.duel-tag').innerText;
+          const tagClass = card.querySelector('.duel-tag').className;
+          const filename = card.querySelector('.file-name').innerText;
+          currentLightboxList.push({
+            src: img.src,
+            title,
+            tag,
+            tagClass,
+            filename
+          });
+        } else {
+          card.style.display = 'none';
+        }
+      });
+
+      filteredCountSpan.innerText = `显示 ${visibleCount} / 37 款`;
+      emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
+    }
+
+    // Lightbox Controls
+    function openLightbox(src, title, tag, filename) {
+      // Find index in current visible list
+      const idx = currentLightboxList.findIndex(item => item.src.endsWith(filename));
+      currentLightboxIdx = idx >= 0 ? idx : 0;
+      updateLightboxContent();
+      document.getElementById('lightbox').classList.add('show');
+      document.body.style.overflow = 'hidden';
+    }
+
+    function updateLightboxContent() {
+      if (!currentLightboxList.length) return;
+      const item = currentLightboxList[currentLightboxIdx];
+      document.getElementById('lightbox-img').src = item.src;
+      document.getElementById('lightbox-title').innerText = item.title;
+      const tagEl = document.getElementById('lightbox-tag');
+      tagEl.innerText = item.tag;
+      tagEl.className = item.tagClass;
+      document.getElementById('lightbox-file').innerText = item.filename;
+      document.getElementById('lightbox-counter').innerText = `${currentLightboxIdx + 1} / ${currentLightboxList.length}`;
+    }
+
+    function navLightbox(direction) {
+      if (!currentLightboxList.length) return;
+      currentLightboxIdx = (currentLightboxIdx + direction + currentLightboxList.length) % currentLightboxList.length;
+      updateLightboxContent();
+    }
+
+    function closeLightbox() {
+      document.getElementById('lightbox').classList.remove('show');
+      document.body.style.overflow = '';
+    }
+
+    function onModalBackdropClick(e) {
+      if (e.target.id === 'lightbox' || e.target.classList.contains('modal-viewport')) {
+        closeLightbox();
+      }
+    }
+
+    // Keyboard support
+    window.addEventListener('keydown', (e) => {
+      const lb = document.getElementById('lightbox');
+      if (lb.classList.contains('show')) {
+        if (e.key === 'Escape') closeLightbox();
+        if (e.key === 'ArrowLeft') navLightbox(-1);
+        if (e.key === 'ArrowRight') navLightbox(1);
+      }
+    });
+
+    // Copy to Clipboard
+    function copyText(text, e) {
+      if (e) e.stopPropagation();
+      navigator.clipboard.writeText(text).then(() => {
+        showToast(`已复制: ${text}`);
+      }).catch(() => {
+        // Fallback
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showToast(`已复制: ${text}`);
+      });
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.innerText = msg;
+      toast.classList.add('show');
+      setTimeout(() => {
+        toast.classList.remove('show');
+      }, 2000);
+    }
+
+    // Initial setup
+    applyFilters();
   </script>
 </body>
 </html>

@@ -86,6 +86,43 @@ public sealed class NotchPeekPill : TextBlock
         }
     }
 
+    /// Renders an account balance for providers such as DeepSeek that do not
+    /// expose a percentage-based quota window. The compact pill must still
+    /// occupy the same visual slot: a fresh balance is shown as-is, a first
+    /// request shows an ellipsis, and an unavailable/error state keeps a
+    /// visible marker instead of collapsing to an empty flank.
+    public void UpdateBalance(string? balanceText, bool loading, bool unavailable = false)
+    {
+        Inlines.Clear();
+
+        var tint = unavailable ? IslandColors.AlertRed : IslandColors.For(_tool);
+        if (Mirrored)
+        {
+            if (string.IsNullOrWhiteSpace(balanceText))
+            {
+                Inlines.Add(Dim(loading ? "…" : "—", loading ? 0.55 : 0.40));
+            }
+            else
+            {
+                Inlines.Add(new Run(balanceText) { Foreground = IslandColors.Brush(tint) });
+            }
+            if (unavailable)
+            {
+                Inlines.Add(new Run(" ⚠") { Foreground = IslandColors.Brush(tint) });
+            }
+        }
+        else
+        {
+            if (unavailable)
+            {
+                Inlines.Add(new Run("⚠ ") { Foreground = IslandColors.Brush(tint) });
+            }
+            Inlines.Add(string.IsNullOrWhiteSpace(balanceText)
+                ? Dim(loading ? "…" : "—", loading ? 0.55 : 0.40)
+                : new Run(balanceText) { Foreground = IslandColors.Brush(tint) });
+        }
+    }
+
     public static string CompactCountdown(TimeSpan remaining)
     {
         // Day-unit first: a weekly window reads "6d", never "150h". Then Nh

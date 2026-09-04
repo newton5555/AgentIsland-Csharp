@@ -13,6 +13,7 @@ public enum DisplayProvider
     Antigravity,
     Grok,
     Cursor,
+    DeepSeek,
 }
 
 public static class DisplayProviders
@@ -27,6 +28,7 @@ public static class DisplayProviders
         DisplayProvider.Antigravity,
         DisplayProvider.Grok,
         DisplayProvider.Cursor,
+        DisplayProvider.DeepSeek,
     };
 
     /// The two providers that carry the full monitoring stack.
@@ -44,6 +46,14 @@ public static class DisplayProviders
         DisplayProvider.Cursor,
     };
 
+    /// Providers that have a local cost/token ledger but no percentage-window
+    /// usage model. DeepSeek may also expose an account balance card, but it
+    /// must not be rendered as a fake 5h/weekly quota tile.
+    public static readonly DisplayProvider[] CostOnly =
+    {
+        DisplayProvider.DeepSeek,
+    };
+
     public static DisplayProvider? Parse(string? raw) => raw?.Trim().ToLowerInvariant() switch
     {
         "claude" => DisplayProvider.Claude,
@@ -54,6 +64,8 @@ public static class DisplayProviders
         "gemini" => DisplayProvider.Antigravity,
         "grok" => DisplayProvider.Grok,
         "cursor" => DisplayProvider.Cursor,
+        "deepseek" => DisplayProvider.DeepSeek,
+        "dsh" => DisplayProvider.DeepSeek,
         _ => null,
     };
 }
@@ -69,6 +81,7 @@ public static class DisplayProviderExtensions
         DisplayProvider.Antigravity => "antigravity",
         DisplayProvider.Grok => "grok",
         DisplayProvider.Cursor => "cursor",
+        DisplayProvider.DeepSeek => "deepseek",
         _ => provider.ToString().ToLowerInvariant(),
     };
 
@@ -79,12 +92,20 @@ public static class DisplayProviderExtensions
     public static bool HasFullMonitoring(this DisplayProvider provider) =>
         provider is DisplayProvider.Claude or DisplayProvider.Codex;
 
+    /// DeepSeek Harness supplies token/cost events and, when its official API
+    /// key is available, a currency balance. It still has no percentage
+    /// windows, so the Usage page uses its balance face instead of a zero
+    /// quota chart.
+    public static bool HasUsage(this DisplayProvider provider) =>
+        provider is not DisplayProvider.DeepSeek;
+
     /// Which flank the logo holds in the solo layout — the pill crosses to
     /// the opposite side. Claude's historical home is the left tab, Codex's
     /// the right; the guests get stable assignments so the layout never
     /// flips between launches.
     public static bool SoloLogoFlankIsLeading(this DisplayProvider provider) =>
-        provider is DisplayProvider.Claude or DisplayProvider.Antigravity or DisplayProvider.Cursor;
+        provider is DisplayProvider.Claude or DisplayProvider.Antigravity or DisplayProvider.Cursor
+            or DisplayProvider.DeepSeek;
 
     /// Position in canonical slot order; the enum's declaration order is it.
     public static int SlotOrder(this DisplayProvider provider) => (int)provider;
@@ -96,6 +117,7 @@ public static class DisplayProviderExtensions
         DisplayProvider.Antigravity => TriggerTool.Antigravity,
         DisplayProvider.Grok => TriggerTool.Grok,
         DisplayProvider.Cursor => TriggerTool.Cursor,
+        DisplayProvider.DeepSeek => TriggerTool.DeepSeek,
         _ => TriggerTool.Claude,
     };
 
@@ -106,6 +128,7 @@ public static class DisplayProviderExtensions
         TriggerTool.Antigravity => DisplayProvider.Antigravity,
         TriggerTool.Grok => DisplayProvider.Grok,
         TriggerTool.Cursor => DisplayProvider.Cursor,
+        TriggerTool.DeepSeek => DisplayProvider.DeepSeek,
         _ => DisplayProvider.Claude,
     };
 }

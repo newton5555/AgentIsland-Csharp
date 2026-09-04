@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using AgentIsland.Backend.Usage;
 using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
@@ -13,12 +14,13 @@ namespace AgentIsland.UI;
 /// re-auth escape hatch when the stored token can't satisfy the usage
 /// endpoint.
 ///
-/// Five providers, one rendering path. Guests used to get a skinny strip
+/// Six providers, one rendering path. Guests used to get a skinny strip
 /// instead of tiles, which left the whole data area an empty void the moment
 /// a guests-only pair was selected (owner screenshot, 2026-08-08).
 public sealed class UsagePage : Border
 {
     private readonly Dictionary<DisplayProvider, ProviderChartsBlock> _blocks = new();
+    private readonly Dictionary<DisplayProvider, DeepSeekBalanceBlock> _balanceBlocks = new();
     private readonly Dictionary<DisplayProvider, UIElement> _badges = new();
     private readonly Button _reauth;
     private readonly Border _hairline;
@@ -57,20 +59,32 @@ public sealed class UsagePage : Border
         // visual tree is ever rebuilt mid-flight.
         foreach (var provider in DisplayProviders.All)
         {
-            var block = new ProviderChartsBlock(
-                provider,
-                PrimaryLabelKey(provider),
-                SecondaryLabelKey(provider),
-                // Per-provider seeds keep each Spark wave distinct and stable
-                // whichever flank the provider lands on. Claude 1/2 and
-                // Codex 3/4 are the seeds those two blocks already used.
-                seed: 1 + provider.SlotOrder() * 2,
-                extra: provider == DisplayProvider.Claude ? _reauth : null)
+            if (provider.HasUsage())
             {
-                Visibility = Visibility.Collapsed,
-            };
-            _blocks[provider] = block;
-            grid.Children.Add(block);
+                var block = new ProviderChartsBlock(
+                    provider,
+                    PrimaryLabelKey(provider),
+                    SecondaryLabelKey(provider),
+                    // Per-provider seeds keep each Spark wave distinct and stable
+                    // whichever flank the provider lands on. Claude 1/2 and
+                    // Codex 3/4 are the seeds those two blocks already used.
+                    seed: 1 + provider.SlotOrder() * 2,
+                    extra: provider == DisplayProvider.Claude ? _reauth : null)
+                {
+                    Visibility = Visibility.Collapsed,
+                };
+                _blocks[provider] = block;
+                grid.Children.Add(block);
+            }
+            else if (provider == DisplayProvider.DeepSeek)
+            {
+                var balance = new DeepSeekBalanceBlock
+                {
+                    Visibility = Visibility.Collapsed,
+                };
+                _balanceBlocks[provider] = balance;
+                grid.Children.Add(balance);
+            }
 
             var badge = new SoloProviderBadge(provider) { Visibility = Visibility.Collapsed };
             _badges[provider] = badge;
@@ -78,7 +92,7 @@ public sealed class UsagePage : Border
         }
 
         // macOS splits this into a headline plus the route back (it is a
-        // Settings destination, not a sentence), and with five providers "both
+        // Settings destination, not a sentence), and with six providers "both
         // hidden" is no longer the only way to reach an empty island — a
         // selected guest that isn't installed on this machine gets here too.
         _bothHidden = new TextBlock
@@ -105,6 +119,7 @@ public sealed class UsagePage : Border
         System.ComponentModel.PropertyChangedEventHandler onUpdate =
             (_, _) => Dispatcher.BeginInvoke(Update);
         UsageStore.Shared.PropertyChanged += onUpdate;
+        DeepSeekBalanceStore.Shared.PropertyChanged += onUpdate;
         StylePreferenceStore.Shared.PropertyChanged += onUpdate;
         QuotaDisplayModeStore.Shared.PropertyChanged += onUpdate;
         ProviderVisibilityStore.Shared.PropertyChanged += onUpdate;
@@ -114,6 +129,7 @@ public sealed class UsagePage : Border
         Unloaded += (_, _) =>
         {
             UsageStore.Shared.PropertyChanged -= onUpdate;
+            DeepSeekBalanceStore.Shared.PropertyChanged -= onUpdate;
             StylePreferenceStore.Shared.PropertyChanged -= onUpdate;
             QuotaDisplayModeStore.Shared.PropertyChanged -= onUpdate;
             ProviderVisibilityStore.Shared.PropertyChanged -= onUpdate;
@@ -172,16 +188,33 @@ public sealed class UsagePage : Border
         var style = StylePreferenceStore.Shared.Style;
         var slots = ProviderVisibilityStore.Shared.SlotProviders;
 
-        foreach (var provider in DisplayProviders.All)
+        foreach (var block in _blocks.Values) block.Visibility = Visibility.Collapsed;
+        foreach (var block in _balanceBlocks.Values) block.Visibility = Visibility.Collapsed;
+        foreach (var badge in _badges.Values) badge.Visibility = Visibility.Collapsed;
+
+        void PlaceSlot(DisplayProvider provider, int column)
         {
-            _blocks[provider].Visibility = Visibility.Collapsed;
-            _badges[provider].Visibility = Visibility.Collapsed;
+            if (provider == DisplayProvider.DeepSeek
+                && _balanceBlocks.TryGetValue(provider, out var balance))
+            {
+                Place(balance, column);
+            }
+            else if (provider.HasUsage() && _blocks.TryGetValue(provider, out var block))
+            {
+                Place(block, column);
+            }
+            else
+            {
+                // Providers without a percentage window still get their own
+                // branded fallback when no specialized balance block exists.
+                Place(_badges[provider], column);
+            }
         }
 
         if (slots.Count >= 2)
         {
-            Place(_blocks[slots[0]], 0);
-            Place(_blocks[slots[1]], 2);
+            PlaceSlot(slots[0], 0);
+            PlaceSlot(slots[1], 2);
         }
         else if (slots.Count == 1)
         {
@@ -189,8 +222,21 @@ public sealed class UsagePage : Border
             // holds, and the same provider's nameplate fills the freed half.
             var solo = slots[0];
             var leading = solo.SoloLogoFlankIsLeading();
-            Place(_blocks[solo], leading ? 0 : 2);
-            Place(_badges[solo], leading ? 2 : 0);
+            if (solo == DisplayProvider.DeepSeek
+                && _balanceBlocks.TryGetValue(solo, out var balance))
+            {
+                Place(balance, leading ? 0 : 2);
+                Place(_badges[solo], leading ? 2 : 0);
+            }
+            else if (solo.HasUsage() && _blocks.TryGetValue(solo, out var block))
+            {
+                Place(block, leading ? 0 : 2);
+                Place(_badges[solo], leading ? 2 : 0);
+            }
+            else
+            {
+                Place(_badges[solo], leading ? 0 : 2);
+            }
         }
 
         _hairline.Visibility = slots.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -201,11 +247,15 @@ public sealed class UsagePage : Border
         // per-frame recompositing on every poll — and a block that takes a
         // slot gets its numbers in this same pass, because the visibility
         // store's own change is what brought us here.
-        foreach (var provider in DisplayProviders.All)
+        foreach (var (provider, block) in _blocks)
         {
-            var block = _blocks[provider];
             if (block.Visibility != Visibility.Visible) continue;
             block.Update(UsageFor(provider), style);
+        }
+        foreach (var (provider, balance) in _balanceBlocks)
+        {
+            if (balance.Visibility != Visibility.Visible) continue;
+            balance.Update(DeepSeekBalanceStore.Shared);
         }
 
         // Keep a manual Claude auth escape hatch available whenever the
@@ -345,4 +395,102 @@ internal sealed class ProviderChartsBlock : StackPanel
         _secondary.Visibility = single ? Visibility.Collapsed : Visibility.Visible;
         Grid.SetColumnSpan(_primary, single ? 3 : 1);
     }
+}
+
+/// DeepSeek's usage-column face. It shows the official account balance and
+/// its granted/top-up breakdown instead of pretending that a currency amount
+/// is a 5h or weekly percentage.
+internal sealed class DeepSeekBalanceBlock : StackPanel
+{
+    private readonly TextBlock _hero;
+    private readonly TextBlock _caption;
+    private readonly TextBlock _details;
+    private readonly TextBlock _status;
+
+    internal DeepSeekBalanceBlock()
+    {
+        Orientation = Orientation.Vertical;
+        Height = ProviderChartsBlockHeight;
+        Margin = new Thickness(12, 0, 12, 0);
+
+        _hero = new TextBlock
+        {
+            FontFamily = IslandFonts.Mono,
+            FontSize = 30,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = IslandColors.Brush(ProviderIdentity.DeepSeekAccent),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+        };
+        _caption = new TextBlock
+        {
+            FontFamily = IslandFonts.Ui,
+            FontSize = 11,
+            FontWeight = FontWeights.Medium,
+            Foreground = IslandColors.Brush(IslandColors.White(0.62)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Text = L10n.Tr("API balance"),
+        };
+        _details = new TextBlock
+        {
+            FontFamily = IslandFonts.Ui,
+            FontSize = 10,
+            Foreground = IslandColors.Brush(IslandColors.White(0.42)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        _status = new TextBlock
+        {
+            FontFamily = IslandFonts.Ui,
+            FontSize = 10,
+            Foreground = IslandColors.Brush(IslandColors.White(0.48)),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        };
+        Children.Add(_hero);
+        Children.Add(_caption);
+        Children.Add(_details);
+        Children.Add(_status);
+    }
+
+    internal void Update(DeepSeekBalanceStore store)
+    {
+        _hero.Text = store.Snapshot is { } snapshot
+            ? DeepSeekBalanceText.Total(snapshot)
+            : "—";
+
+        if (store.Snapshot is { } balance)
+        {
+            _details.Text = DeepSeekBalanceText.Details(balance);
+            var state = DeepSeekBalanceText.Availability(balance);
+            var sync = store.LastUpdated is { } updated
+                ? L10n.TrFormat("synced {0}", Core.Formatting.RelativeAgo(
+                    DateTimeOffset.Now - updated, L10n.IsChinese))
+                : L10n.Tr("idle");
+            _status.Text = store.ErrorCaption is { } error
+                ? "⚠ " + ErrorDisplay.Localize(error)
+                : state + " · " + sync;
+        }
+        else if (store.ErrorCaption is { } error)
+        {
+            _details.Text = "⚠ " + ErrorDisplay.Localize(error);
+            _status.Text = store.Loading ? L10n.Tr("Syncing…") : L10n.Tr("idle");
+        }
+        else if (!store.Configured)
+        {
+            _details.Text = L10n.Tr("no deepseek api key");
+            _status.Text = L10n.Tr("idle");
+        }
+        else
+        {
+            _details.Text = L10n.Tr("account balance not fetched");
+            _status.Text = store.Loading ? L10n.Tr("Syncing…") : L10n.Tr("idle");
+        }
+    }
+
+    // Keep the balance face aligned with the two percentage columns without
+    // coupling it to ChartTile's public implementation details.
+    private const double ProviderChartsBlockHeight = 96;
 }

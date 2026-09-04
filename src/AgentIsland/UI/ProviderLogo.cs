@@ -11,7 +11,8 @@ namespace AgentIsland.UI;
 
 /// One provider mark in the island bar: renders the brand geometry and
 /// animates it per activity state — spin + breath while working, red pulse
-/// for attention states, still otherwise. Mirrors LogoOverlay/
+/// for attention states, still otherwise. DeepSeek uses a whale-specific
+/// swim/bubble loop instead of rotating its mark. Mirrors LogoOverlay/
 /// StatePreviewLogo on macOS.
 public sealed class ProviderLogo : Grid
 {
@@ -48,10 +49,29 @@ public sealed class ProviderLogo : Grid
     private readonly RotateTransform _causticRotate = new(0, 0.5, 0.5);
     private bool _isAntigravityWaveActive;
 
+    // DeepSeek's mark is a raster alpha mask, so its motion lives in a
+    // nested container: the whale bobs/tilts/squashes while two tiny bubbles
+    // rise from the blowhole. The outer mark host keeps the shared tint and
+    // glow behavior used by every provider.
+    private Grid? _deepSeekContainer;
+    private readonly TranslateTransform _deepSeekBob = new();
+    private readonly RotateTransform _deepSeekTilt = new(0, 0.5, 0.5);
+    private readonly ScaleTransform _deepSeekSquash = new(1, 1);
+    private System.Windows.Shapes.Ellipse? _deepSeekBubbleOne;
+    private System.Windows.Shapes.Ellipse? _deepSeekBubbleTwo;
+    private TranslateTransform? _deepSeekBubbleMoveOne;
+    private TranslateTransform? _deepSeekBubbleMoveTwo;
+    private bool _isDeepSeekSwimActive;
+
     internal bool IsAntigravityWaveActive => _isAntigravityWaveActive;
+    internal bool IsDeepSeekSwimActive => _isDeepSeekSwimActive;
     internal bool IsSpinActive => _rotate.HasAnimatedProperties;
     internal Visibility AntigravityWaveVisibility => _antigravityWaveHost?.Visibility ?? Visibility.Collapsed;
     internal Visibility AntigravityStaticVisibility => _antigravityStaticImage?.Visibility ?? Visibility.Collapsed;
+    internal Visibility DeepSeekBubbleVisibility => _deepSeekBubbleOne?.Visibility ?? Visibility.Collapsed;
+    internal double DeepSeekBob => _deepSeekBob.Y;
+    internal double DeepSeekTilt => _deepSeekTilt.Angle;
+    internal double DeepSeekBubbleOpacity => _deepSeekBubbleOne?.Opacity ?? 0;
     internal double CurrentAngle => _rotate.Angle;
     internal double WaveAngle => _waveRotate.Angle;
 
@@ -193,6 +213,63 @@ public sealed class ProviderLogo : Grid
         _antigravityContainer.Children.Add(_antigravityWaveHost);
     }
 
+    private void EnsureDeepSeekElements()
+    {
+        if (_deepSeekContainer is not null) return;
+
+        _deepSeekContainer = new Grid
+        {
+            Width = MarkSize,
+            Height = MarkSize,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            Visibility = Visibility.Visible,
+        };
+        var transforms = new TransformGroup();
+        transforms.Children.Add(_deepSeekSquash);
+        transforms.Children.Add(_deepSeekTilt);
+        transforms.Children.Add(_deepSeekBob);
+        _deepSeekContainer.RenderTransform = transforms;
+
+        var whale = ProviderMarks.IslandMark(
+            DisplayProvider.DeepSeek, MarkSize, _fill);
+        _deepSeekContainer.Children.Add(whale);
+
+        var bubbleBrush = new SolidColorBrush(
+            IslandColors.Alpha(ProviderIdentity.DeepSeekAccent, 0.9));
+        _deepSeekBubbleOne = MakeDeepSeekBubble(
+            bubbleBrush, 2.4, new Thickness(14.0, 1.0, 0, 0), out _deepSeekBubbleMoveOne);
+        _deepSeekBubbleTwo = MakeDeepSeekBubble(
+            bubbleBrush, 1.7, new Thickness(16.0, 4.2, 0, 0), out _deepSeekBubbleMoveTwo);
+        _deepSeekContainer.Children.Add(_deepSeekBubbleOne);
+        _deepSeekContainer.Children.Add(_deepSeekBubbleTwo);
+    }
+
+    private static System.Windows.Shapes.Ellipse MakeDeepSeekBubble(
+        Brush fill,
+        double size,
+        Thickness margin,
+        out TranslateTransform move)
+    {
+        move = new TranslateTransform();
+        var bubble = new System.Windows.Shapes.Ellipse
+        {
+            Width = size,
+            Height = size,
+            Fill = fill,
+            Margin = margin,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            Opacity = 0,
+            Visibility = Visibility.Collapsed,
+            IsHitTestVisible = false,
+            RenderTransformOrigin = new Point(0.5, 0.5),
+            RenderTransform = move,
+        };
+        return bubble;
+    }
+
     private void RetintBlob(Color color)
     {
         // Fast falloff: by half the radius the halo is already faint, so
@@ -228,11 +305,18 @@ public sealed class ProviderLogo : Grid
                 {
                     StartAntigravityWave();
                 }
+                else if (_tool == TriggerTool.DeepSeek)
+                {
+                    StartDeepSeekSwim();
+                }
                 else
                 {
                     StartSpin();
                 }
-                StartBreath(from: 1.0, to: 1.05, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
+                if (_tool != TriggerTool.DeepSeek)
+                {
+                    StartBreath(from: 1.0, to: 1.05, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
+                }
                 StartGlow(radiusFrom: 6, radiusTo: 15, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
             }
         }
@@ -245,6 +329,7 @@ public sealed class ProviderLogo : Grid
         // brand masks elsewhere, Antigravity in its own colours.
         _markHost.Children.Clear();
         StopAntigravityWave();
+        StopDeepSeekSwim();
 
         var provider = _tool.ToDisplayProvider();
         if (_tool == TriggerTool.Antigravity)
@@ -253,6 +338,18 @@ public sealed class ProviderLogo : Grid
             if (_antigravityContainer is not null)
             {
                 _markHost.Children.Add(_antigravityContainer);
+            }
+            else
+            {
+                _markHost.Children.Add(ProviderMarks.IslandMark(provider, MarkSize, _fill));
+            }
+        }
+        else if (_tool == TriggerTool.DeepSeek)
+        {
+            EnsureDeepSeekElements();
+            if (_deepSeekContainer is not null)
+            {
+                _markHost.Children.Add(_deepSeekContainer);
             }
             else
             {
@@ -309,11 +406,18 @@ public sealed class ProviderLogo : Grid
                 {
                     StartAntigravityWave();
                 }
+                else if (_tool == TriggerTool.DeepSeek)
+                {
+                    StartDeepSeekSwim();
+                }
                 else
                 {
                     StartSpin();
                 }
-                StartBreath(from: 1.0, to: 1.05, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
+                if (_tool != TriggerTool.DeepSeek)
+                {
+                    StartBreath(from: 1.0, to: 1.05, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
+                }
                 // macOS radii are gaussian sigmas; WPF BlurRadius is the
                 // kernel extent (~3x), else the glow reads as an outline.
                 StartGlow(radiusFrom: 6, radiusTo: 15, halfCycle: IslandAnimations.WorkingBreathDuration.TimeSpan);
@@ -345,7 +449,7 @@ public sealed class ProviderLogo : Grid
     private void StartSpin()
     {
         // Antigravity does not spin its contour — it uses wave flow instead.
-        if (_tool == TriggerTool.Antigravity) return;
+        if (_tool is TriggerTool.Antigravity or TriggerTool.DeepSeek) return;
 
         // The marks counter-rotate: Claude clockwise, Codex the other way.
         var to = _tool is TriggerTool.Claude or TriggerTool.Cursor ? 360d : -360d;
@@ -380,6 +484,131 @@ public sealed class ProviderLogo : Grid
         };
         Timeline.SetDesiredFrameRate(causticAnim, GlowFps);
         _causticRotate.BeginAnimation(RotateTransform.AngleProperty, causticAnim);
+    }
+
+    private void StartDeepSeekSwim()
+    {
+        if (_tool != TriggerTool.DeepSeek) return;
+        EnsureDeepSeekElements();
+        if (_deepSeekContainer is null
+            || _deepSeekBubbleOne is null
+            || _deepSeekBubbleTwo is null
+            || _deepSeekBubbleMoveOne is null
+            || _deepSeekBubbleMoveTwo is null)
+        {
+            return;
+        }
+
+        _isDeepSeekSwimActive = true;
+        _deepSeekContainer.Visibility = Visibility.Visible;
+        _deepSeekBubbleOne.Visibility = Visibility.Visible;
+        _deepSeekBubbleTwo.Visibility = Visibility.Visible;
+
+        var bob = new DoubleAnimation(-0.75, 0.75,
+            new Duration(TimeSpan.FromMilliseconds(900)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        Timeline.SetDesiredFrameRate(bob, GlowFps);
+        _deepSeekBob.BeginAnimation(TranslateTransform.YProperty, bob);
+
+        var tilt = new DoubleAnimation(-4.0, 4.0,
+            new Duration(TimeSpan.FromMilliseconds(1200)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        Timeline.SetDesiredFrameRate(tilt, GlowFps);
+        _deepSeekTilt.BeginAnimation(RotateTransform.AngleProperty, tilt);
+
+        var squashX = new DoubleAnimation(0.98, 1.03,
+            new Duration(TimeSpan.FromMilliseconds(1000)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        var squashY = new DoubleAnimation(1.02, 0.97,
+            new Duration(TimeSpan.FromMilliseconds(1000)))
+        {
+            AutoReverse = true,
+            RepeatBehavior = RepeatBehavior.Forever,
+            EasingFunction = new SineEase { EasingMode = EasingMode.EaseInOut },
+        };
+        Timeline.SetDesiredFrameRate(squashX, GlowFps);
+        Timeline.SetDesiredFrameRate(squashY, GlowFps);
+        _deepSeekSquash.BeginAnimation(ScaleTransform.ScaleXProperty, squashX);
+        _deepSeekSquash.BeginAnimation(ScaleTransform.ScaleYProperty, squashY);
+
+        StartDeepSeekBubble(_deepSeekBubbleOne, _deepSeekBubbleMoveOne, 0);
+        StartDeepSeekBubble(_deepSeekBubbleTwo, _deepSeekBubbleMoveTwo, 540);
+    }
+
+    private static void StartDeepSeekBubble(
+        System.Windows.Shapes.Ellipse bubble,
+        TranslateTransform move,
+        int delayMilliseconds)
+    {
+        var rise = new DoubleAnimation(0.0, -7.0,
+            new Duration(TimeSpan.FromMilliseconds(1250)))
+        {
+            RepeatBehavior = RepeatBehavior.Forever,
+            BeginTime = TimeSpan.FromMilliseconds(delayMilliseconds),
+        };
+        Timeline.SetDesiredFrameRate(rise, GlowFps);
+        move.BeginAnimation(TranslateTransform.YProperty, rise);
+
+        var opacity = new DoubleAnimationUsingKeyFrames
+        {
+            RepeatBehavior = RepeatBehavior.Forever,
+            BeginTime = TimeSpan.FromMilliseconds(delayMilliseconds),
+        };
+        opacity.KeyFrames.Add(new LinearDoubleKeyFrame(
+            0.0, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        opacity.KeyFrames.Add(new EasingDoubleKeyFrame(
+            0.85, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(180)),
+            new SineEase { EasingMode = EasingMode.EaseInOut }));
+        opacity.KeyFrames.Add(new EasingDoubleKeyFrame(
+            0.18, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(870)),
+            new SineEase { EasingMode = EasingMode.EaseInOut }));
+        opacity.KeyFrames.Add(new LinearDoubleKeyFrame(
+            0.0, KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(1250))));
+        Timeline.SetDesiredFrameRate(opacity, GlowFps);
+        bubble.BeginAnimation(OpacityProperty, opacity);
+    }
+
+    private void StopDeepSeekSwim()
+    {
+        _isDeepSeekSwimActive = false;
+        _deepSeekBob.BeginAnimation(TranslateTransform.YProperty, null);
+        _deepSeekTilt.BeginAnimation(RotateTransform.AngleProperty, null);
+        _deepSeekSquash.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        _deepSeekSquash.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        _deepSeekBob.Y = 0;
+        _deepSeekTilt.Angle = 0;
+        _deepSeekSquash.ScaleX = 1;
+        _deepSeekSquash.ScaleY = 1;
+
+        if (_deepSeekBubbleMoveOne is not null)
+        {
+            _deepSeekBubbleMoveOne.BeginAnimation(TranslateTransform.YProperty, null);
+            _deepSeekBubbleMoveOne.Y = 0;
+        }
+        if (_deepSeekBubbleMoveTwo is not null)
+        {
+            _deepSeekBubbleMoveTwo.BeginAnimation(TranslateTransform.YProperty, null);
+            _deepSeekBubbleMoveTwo.Y = 0;
+        }
+        foreach (var bubble in new[] { _deepSeekBubbleOne, _deepSeekBubbleTwo })
+        {
+            if (bubble is null) continue;
+            bubble.BeginAnimation(OpacityProperty, null);
+            bubble.Opacity = 0;
+            bubble.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void StopAntigravityWave()
@@ -457,6 +686,7 @@ public sealed class ProviderLogo : Grid
         _scale.ScaleX = 1;
         _scale.ScaleY = 1;
 
+        StopDeepSeekSwim();
         StopAntigravityWave();
     }
 }

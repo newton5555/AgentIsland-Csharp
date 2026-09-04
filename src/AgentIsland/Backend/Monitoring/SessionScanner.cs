@@ -5,7 +5,7 @@ using AgentIsland.Providers.Sessions;
 
 namespace AgentIsland.Backend.Monitoring;
 
-/// Discovers Claude Code / Claude Desktop / Codex / Grok / Gemini sessions
+/// Discovers Claude Code / Claude Desktop / Codex / Grok / DeepSeek Harness
 /// from the local artifacts those tools already write, and classifies each one
 /// through a conservative state machine. Direct port of the macOS
 /// SessionScanner; the thresholds are the tuned values from the shipping app.
@@ -40,7 +40,8 @@ public static class SessionScanner
 
     /// Picker scan: desktop-titled Claude threads (archived filtered) UNION
     /// transcript-only CLI threads the desktop store has never seen, one Codex
-    /// entry per project, plus every Grok and Gemini session.
+    /// entry per project, plus every Grok and Gemini session. DeepSeek
+    /// Harness is monitoring-only until a safe resume target exists.
     public static List<ScannedSession> Scan(DateTimeOffset now, IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
     {
         var output = ScanClaudeFromDesktopStore(now, lastWorking);
@@ -63,9 +64,10 @@ public static class SessionScanner
     }
 
     /// Monitoring scan: every Claude transcript (desktop-labelled when known),
-    /// every recent Codex rollout with no project dedupe, plus every Grok and
-    /// Gemini session. Subagent / child threads never participate — machine
-    /// fan-out finishes dozens of threads per prompt and a human is never "up"
+    /// every recent Codex rollout with no project dedupe, plus every Grok,
+    /// Gemini, and official DeepSeek Harness session. Subagent / child
+    /// threads never participate — machine fan-out finishes dozens of threads
+    /// per prompt and a human is never "up"
     /// in any of them, so they are skipped outright rather than gated behind a
     /// toggle (owner call, 2026-08-08).
     public static List<ScannedSession> MonitoringScan(DateTimeOffset now, IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
@@ -75,9 +77,18 @@ public static class SessionScanner
         output.AddRange(ScanGrok(now, lastWorking));
         output.AddRange(ScanAntigravity(now, lastWorking));
         output.AddRange(ScanCursor(now, lastWorking));
+        output.AddRange(ScanDeepSeek(now, lastWorking));
         output.Sort((a, b) => b.Modified.CompareTo(a.Modified));
         return output;
     }
+
+    /// DeepSeek Harness owns its compressed event protocol in the Providers
+    /// project; this thin wrapper keeps all session discovery behind the same
+    /// scanner surface as the other providers.
+    public static List<ScannedSession> ScanDeepSeek(
+        DateTimeOffset now,
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
+        DeepSeekActivityReader.Scan(now, lastWorking);
 
     // MARK: - Claude: desktop session store (titles + archived flag)
 

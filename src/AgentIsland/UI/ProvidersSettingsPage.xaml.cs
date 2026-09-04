@@ -48,7 +48,11 @@ public partial class ProvidersSettingsPage : UserControl
         UpdateTokenSubtitle();
 
         CostRefreshButton.Label = L10n.Tr("Refresh");
-        CostRefreshButton.Clicked += () => AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
+        CostRefreshButton.Clicked += () =>
+        {
+            AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
+            DeepSeekBalanceStore.Shared.Refresh();
+        };
 
         RefreshRows();
     }

@@ -174,6 +174,7 @@ public sealed class UsageStore : INotifyPropertyChanged
         GrokUsageStore.Shared.KickRefresh();
         AntigravityUsageStore.Shared.KickRefresh();
         CursorUsageStore.Shared.KickRefresh();
+        DeepSeekBalanceStore.Shared.KickRefresh();
         _refreshCts?.Cancel();
         var cts = new CancellationTokenSource();
         _refreshCts = cts;

@@ -12,6 +12,7 @@ public static class AgentNames
         TriggerTool.Antigravity => "Antigravity",
         TriggerTool.Grok => "Grok",
         TriggerTool.Cursor => "Cursor",
+        TriggerTool.DeepSeek => "DeepSeek",
         _ => tool.ToString(),
     };
 
@@ -22,6 +23,7 @@ public static class AgentNames
         TriggerTool.Antigravity => "agy",
         TriggerTool.Grok => "grok",
         TriggerTool.Cursor => null,
+        TriggerTool.DeepSeek => null,
         _ => null,
     };
 }

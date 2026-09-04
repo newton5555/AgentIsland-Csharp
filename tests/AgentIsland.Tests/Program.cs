@@ -11,6 +11,11 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "report-preview")
+        {
+            ReportPreview.Run(args[1]);
+            return 0;
+        }
         if (args.Length > 0 && args[0] == "scan")
         {
             return LiveScan();
@@ -93,9 +98,13 @@ public static class Program
             ScannerCwdTests.RunAll();
             CodexPayloadParsingTests.RunAll();
             AntigravityQuotaTests.RunAll();
+            DeepSeekLogParserTests.RunAll();
+            DeepSeekActivityTests.RunAll();
+            DeepSeekBalanceTests.RunAll();
             SteppedMeterTests.RunAll();
             ProviderLogoAnimationTests.RunAll();
             BrandGeometryTests.RunAll();
+            ReportDuelTests.RunAll();
             SettingsXamlTests.RunAll();
             Console.WriteLine("ALL GREEN");
             return 0;

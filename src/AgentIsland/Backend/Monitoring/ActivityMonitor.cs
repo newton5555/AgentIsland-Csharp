@@ -31,7 +31,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     public event PropertyChangedEventHandler? PropertyChanged;
 
     /// Providers whose session status is actually scanned. Cursor is absent
-    /// All five ride the scan. Cursor graduated once the real signal was
+    /// from the old batch-search path; all six ride the live scan. Cursor graduated once the real signal was
     /// found: each workspace's state.vscdb (and its -wal journal) is written
     /// continuously while a Cursor window is open — unlike the batch-written
     /// conversation-search.db that disqualified it earlier. Its turn
@@ -44,6 +44,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         TriggerTool.Grok,
         TriggerTool.Antigravity,
         TriggerTool.Cursor,
+        TriggerTool.DeepSeek,
     };
 
     /// Binds the legacy runtime enum to the stable Agent catalog at the
@@ -72,7 +73,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     private Dictionary<string, DateTimeOffset> _lastWorking = new();
 
     /// Visible state for every monitored provider. Raised as one change so
-    /// five-wide surfaces refresh together.
+    /// provider surfaces refresh together.
     public IReadOnlyDictionary<TriggerTool, ActivityState> States => _states;
 
     public IReadOnlyDictionary<TriggerTool, ActiveThread> Threads => _threads;
@@ -97,6 +98,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     // over the maps so those bindings keep working unchanged.
     public ActivityState Claude => StateFor(TriggerTool.Claude);
     public ActivityState Codex => StateFor(TriggerTool.Codex);
+    public ActivityState DeepSeek => StateFor(TriggerTool.DeepSeek);
     public ActiveThread? ClaudeThread => ThreadFor(TriggerTool.Claude);
     public ActiveThread? CodexThread => ThreadFor(TriggerTool.Codex);
 
@@ -366,7 +368,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         session.LaunchTarget);
 
     /// Both the maps and the two named views have to be announced: the island
-    /// and tray listen for "Claude"/"Codex", the five-wide panel reads the
+    /// and tray listen for "Claude"/"Codex", the provider panel reads the
     /// maps, and a provider whose notification is missing simply stops
     /// updating on screen.
     private void RaiseAll()
@@ -375,6 +377,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         Raise(nameof(Threads));
         Raise(nameof(Claude));
         Raise(nameof(Codex));
+        Raise(nameof(DeepSeek));
         Raise(nameof(ClaudeThread));
         Raise(nameof(CodexThread));
     }

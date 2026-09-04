@@ -21,7 +21,7 @@ public static class ProviderSelectionTests
             ("third pick is refused, nothing evicted", TestThirdPickRefused),
             ("toggle off at the cap always succeeds", TestToggleOffAtCap),
             ("migration carries the pre-slot pair over", TestMigration),
-            ("all five agents parse and roundtrip correctly", TestAllFiveAgentsRoundtrip),
+            ("all six agents parse and roundtrip correctly", TestAllSixAgentsRoundtrip),
             ("custom provider pairings sanitize and persist correctly", TestCustomProviderPairings),
         };
         foreach (var (name, test) in tests)
@@ -43,13 +43,13 @@ public static class ProviderSelectionTests
     private static void TestSanitizeOrders()
     {
         var result = ProviderSelection.SanitizeOrder(new[] { "codex", "claude" });
-        Expect(Spell(result) == "codex,claude,antigravity,grok,cursor", $"user order not preserved: {Spell(result)}");
+        Expect(Spell(result) == "codex,claude,antigravity,grok,cursor,deepseek", $"user order not preserved: {Spell(result)}");
     }
 
     private static void TestSanitizeCleans()
     {
         var result = ProviderSelection.SanitizeOrder(new[] { "grok", "nope", "grok", "" });
-        Expect(Spell(result) == "grok,claude,codex,antigravity,cursor", $"unknown/duplicate entries survived or missing omitted: {Spell(result)}");
+        Expect(Spell(result) == "grok,claude,codex,antigravity,cursor,deepseek", $"unknown/duplicate entries survived or missing omitted: {Spell(result)}");
     }
 
     private static void TestSanitizeCaps()
@@ -63,7 +63,7 @@ public static class ProviderSelectionTests
 
     private static void TestSanitizeNull()
     {
-        Expect(ProviderSelection.SanitizeOrder(null).Count == 5, "a missing key must decode to a full order");
+        Expect(ProviderSelection.SanitizeOrder(null).Count == 6, "a missing key must decode to a full order");
         Expect(ProviderSelection.SanitizeEnabled(null, new List<DisplayProvider>()).Count == 0, "a missing key must decode to an empty selection");
     }
 
@@ -114,7 +114,7 @@ public static class ProviderSelectionTests
             "an empty pre-slot island must migrate to an empty selection");
     }
 
-    private static void TestAllFiveAgentsRoundtrip()
+    private static void TestAllSixAgentsRoundtrip()
     {
         var all = new[]
         {
@@ -123,6 +123,7 @@ public static class ProviderSelectionTests
             DisplayProvider.Antigravity,
             DisplayProvider.Grok,
             DisplayProvider.Cursor,
+            DisplayProvider.DeepSeek,
         };
         foreach (var p in all)
         {

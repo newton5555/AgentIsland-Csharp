@@ -4,6 +4,7 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AgentIsland.Core;
+using AgentIsland.Backend.Usage;
 using AgentIsland.UI.Theme;
 using AgentIsland.Core.Usage;
 using AgentIsland.UI.Providers;
@@ -39,7 +40,7 @@ public partial class IslandWindow : Window
     private System.Windows.Controls.TextBlock? _leftChip;
     private System.Windows.Controls.TextBlock? _rightChip;
 
-    /// What the two physical flanks currently carry. Any two of the five
+    /// What the two physical flanks currently carry. Any two of the six
     /// providers can hold the slots (任选两家) — the elements keep their
     /// historical Claude*/Codex* names but are retargeted per selection.
     private TriggerTool? _leftTool = TriggerTool.Claude;
@@ -423,6 +424,15 @@ public partial class IslandWindow : Window
             RightPill.Opacity = 0;
         }
 
+        // DeepSeek's official endpoint reports an account currency balance,
+        // not a percentage quota. Kick its short-lived balance cache whenever
+        // the provider claims a visible slot so the peek pill can paint the
+        // latest amount without waiting for another provider's refresh tick.
+        if (_leftTool == TriggerTool.DeepSeek || _rightTool == TriggerTool.DeepSeek)
+        {
+            DeepSeekBalanceStore.Shared.KickRefresh();
+        }
+
         // The logo's fixed grid column reserves its slot either way, so we
         // fade opacity (the macOS openMorph spring) rather than hard-toggle
         // Visibility — toggling a provider springs the mark in/out.
@@ -509,7 +519,11 @@ public partial class IslandWindow : Window
         TopStrip.Children.Add(_rightTitle);
 
         System.ComponentModel.PropertyChangedEventHandler onPlanChips =
-            (_, _) => Dispatcher.BeginInvoke(UpdatePlanChips);
+            (_, _) => Dispatcher.BeginInvoke(() =>
+            {
+                UpdatePlanChips();
+                UpdatePills();
+            });
         UsageStore.Shared.PropertyChanged += onPlanChips;
         _teardown.Add(() => UsageStore.Shared.PropertyChanged -= onPlanChips);
         AntigravityUsageStore.Shared.PropertyChanged += onPlanChips;
@@ -518,6 +532,8 @@ public partial class IslandWindow : Window
         _teardown.Add(() => GrokUsageStore.Shared.PropertyChanged -= onPlanChips);
         CursorUsageStore.Shared.PropertyChanged += onPlanChips;
         _teardown.Add(() => CursorUsageStore.Shared.PropertyChanged -= onPlanChips);
+        DeepSeekBalanceStore.Shared.PropertyChanged += onPlanChips;
+        _teardown.Add(() => DeepSeekBalanceStore.Shared.PropertyChanged -= onPlanChips);
         UpdatePlanChips();
 
         // Overview needs the taller panel (contribution grid); the size
@@ -589,8 +605,8 @@ public partial class IslandWindow : Window
 
     private void UpdatePlanChips()
     {
-        UpdateChip(_leftChip, _leftTool is { } l ? UsagePage.UsageFor(l.ToDisplayProvider()).Plan : null);
-        UpdateChip(_rightChip, _rightTool is { } r ? UsagePage.UsageFor(r.ToDisplayProvider()).Plan : null);
+        UpdateChip(_leftChip, ProviderChip(_leftTool));
+        UpdateChip(_rightChip, ProviderChip(_rightTool));
 
         var store = UsageStore.Shared;
         var banked = (store.Codex.ResetCards ?? 0) > 0;
@@ -614,6 +630,15 @@ public partial class IslandWindow : Window
                 _rightResetCards.Update(store.Codex.ResetCards, store.Codex.ResetCardDetails);
             }
         }
+    }
+
+    private static string? ProviderChip(TriggerTool? tool)
+    {
+        if (tool is not { } value) return null;
+        var provider = value.ToDisplayProvider();
+        return provider == DisplayProvider.DeepSeek
+            ? DeepSeekBalanceStore.Shared.Snapshot is not null ? "BALANCE" : null
+            : UsagePage.UsageFor(provider).Plan;
     }
 
     private static void UpdateChip(System.Windows.Controls.TextBlock? chip, string? plan)
@@ -1659,34 +1684,67 @@ public partial class IslandWindow : Window
         TriggerTool.Antigravity => AntigravityUsageStore.Shared.Loading,
         TriggerTool.Grok => GrokUsageStore.Shared.Loading,
         TriggerTool.Cursor => CursorUsageStore.Shared.Loading,
+        TriggerTool.DeepSeek => DeepSeekBalanceStore.Shared.Loading,
         _ => false,
     };
+
+    private static bool HasPill(TriggerTool? tool) =>
+        tool is { } value
+        && (value == TriggerTool.DeepSeek || value.ToDisplayProvider().HasUsage());
+
+    private static void UpdateBalancePill(NotchPeekPill pill)
+    {
+        var store = DeepSeekBalanceStore.Shared;
+        var snapshot = store.Snapshot;
+        pill.UpdateBalance(
+            snapshot is null ? null : DeepSeekBalanceText.Total(snapshot),
+            store.Loading,
+            unavailable: snapshot is { IsAvailable: false } || store.ErrorCaption is not null);
+    }
 
     private void UpdatePills()
     {
         var engine = AgentIsland.Backend.Settings.AlertEngine.Shared;
-        if (_leftTool is { } leftTool)
+        var leftHasPill = HasPill(_leftTool);
+        if (leftHasPill && _leftTool is { } left)
         {
-            LeftPill.Update(
-                UsagePage.UsageFor(leftTool.ToDisplayProvider()).FiveHour,
-                IsToolLoading(leftTool),
-                engine.SeverityFor(leftTool));
+            if (left == TriggerTool.DeepSeek)
+            {
+                UpdateBalancePill(LeftPill);
+            }
+            else
+            {
+                LeftPill.Update(
+                    UsagePage.UsageFor(left.ToDisplayProvider()).FiveHour,
+                    IsToolLoading(left),
+                    engine.SeverityFor(left));
+            }
         }
         else
         {
             LeftPill.Inlines.Clear();
+            LeftPill.Visibility = Visibility.Collapsed;
         }
 
-        if (_rightTool is { } rightTool)
+        var rightHasPill = HasPill(_rightTool);
+        if (rightHasPill && _rightTool is { } right)
         {
-            RightPill.Update(
-                UsagePage.UsageFor(rightTool.ToDisplayProvider()).FiveHour,
-                IsToolLoading(rightTool),
-                engine.SeverityFor(rightTool));
+            if (right == TriggerTool.DeepSeek)
+            {
+                UpdateBalancePill(RightPill);
+            }
+            else
+            {
+                RightPill.Update(
+                    UsagePage.UsageFor(right.ToDisplayProvider()).FiveHour,
+                    IsToolLoading(right),
+                    engine.SeverityFor(right));
+            }
         }
         else
         {
             RightPill.Inlines.Clear();
+            RightPill.Visibility = Visibility.Collapsed;
         }
 
         // In compact, the pills normally hide. "Always show usage" keeps the
@@ -1698,10 +1756,10 @@ public partial class IslandWindow : Window
         {
             LeftPill.BeginAnimation(OpacityProperty, null);
             RightPill.BeginAnimation(OpacityProperty, null);
-            LeftPill.Opacity = _leftTool is not null ? 1 : 0;
-            RightPill.Opacity = _rightTool is not null ? 1 : 0;
-            LeftPill.Visibility = _leftTool is not null ? Visibility.Visible : Visibility.Collapsed;
-            RightPill.Visibility = _rightTool is not null ? Visibility.Visible : Visibility.Collapsed;
+            LeftPill.Opacity = leftHasPill ? 1 : 0;
+            RightPill.Opacity = rightHasPill ? 1 : 0;
+            LeftPill.Visibility = leftHasPill ? Visibility.Visible : Visibility.Collapsed;
+            RightPill.Visibility = rightHasPill ? Visibility.Visible : Visibility.Collapsed;
         }
         else if (_model.State == IslandState.Compact)
         {
@@ -1709,8 +1767,8 @@ public partial class IslandWindow : Window
             RightPill.BeginAnimation(OpacityProperty, null);
             LeftPill.Opacity = 0;
             RightPill.Opacity = 0;
-            if (_leftTool is null) LeftPill.Visibility = Visibility.Collapsed;
-            if (_rightTool is null) RightPill.Visibility = Visibility.Collapsed;
+            if (!leftHasPill) LeftPill.Visibility = Visibility.Collapsed;
+            if (!rightHasPill) RightPill.Visibility = Visibility.Collapsed;
         }
     }
 
