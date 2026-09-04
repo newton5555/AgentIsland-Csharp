@@ -1,5 +1,16 @@
 # Migration Notes
 
+## 与 Agent Island 2.1.2 的关系
+
+本仓库是基于 Agent Island 2.1.2 的独立 Windows fork。2.1.2 提供产品交互、状态语义、报告结构和视觉方向的参考；本仓库没有继续携带 macOS 的 Xcode、SwiftUI、Sparkle 或 Keychain 运行时，而是在同一产品目标下重做 Windows 宿主。
+
+相对 2.1.2，当前 1.0.0 的重要变化是：
+
+1. **平台替换**：SwiftUI/macOS 宿主替换为 .NET 8/WPF；路径、托盘、开机启动、Win32 窗口跳转和 SQLite 访问均由 Windows 层负责。
+2. **模块化**：跨平台模型、聚合和规则进入 `AgentIsland.Core`，Provider 解析进入 `AgentIsland.Providers`，Windows 能力进入 `AgentIsland.Windows`，WPF 只负责界面和组合。
+3. **Agent 扩展**：除 Claude/Codex 外接入 Antigravity、Grok、Cursor，并加入 DeepSeek Harness 的本地 `.dsh` Token/活动统计与官方余额接口；每个 Agent 按实际能力声明用量、成本、活动和导航能力。
+4. **统计与视觉**：把本地 Token/费用聚合、周/月报告、对决素材、Provider 色彩和工作态动画接入 Windows UI；不支持的官方数据保持为空或明确标注，不用 0 代替。
+
 ## 已完成
 
 1. 从旧仓库的 `windows/` 提取到独立顶层目录，清理 macOS 工程和资源残留。

@@ -4,6 +4,18 @@
 
 Agent Island 是一个本地优先的 AI Agent 桌面监控工具，用悬浮岛展示 Claude、Codex、DeepSeek Harness、Antigravity、Grok 和 Cursor 的活动状态、Token 用量、账号额度及周/月统计报告。
 
+## 相对 Agent Island 2.1.2 的主要修改
+
+本项目以 Agent Island 2.1.2 的产品交互、数据契约和视觉方向为基线，重新实现为 Windows 产品线；它不是把 macOS 工程直接换平台编译。1.0.0 主要包含：
+
+- **Windows 独立运行**：改为 .NET 8 + WPF，集中处理 Windows 路径、托盘、注册表开机启动以及 Win32 窗口/进程跳转，不再依赖 macOS 宿主能力。
+- **架构重组**：拆成 `Core`、`Providers`、`Windows` 和 WPF 组合根四个项目；用稳定的字符串 `AgentKey`、显式 Agent Catalog 和能力声明替代继续扩展共享枚举。
+- **Agent 适配扩展**：保留 Claude/Codex 的核心用量与会话监控，并加入 Antigravity、Grok、Cursor；新增 DeepSeek Harness 的 `.dsh` 压缩事件流 Token/活动统计和官方余额查询。没有实现的能力显示“不支持/暂无数据”，不伪造百分比额度。
+- **本地统计与报告**：费用、Token、活动状态、周/月卡和年度热力图均从本机已有记录聚合；支持全部 Token 与输入/输出 Token 两种口径、Provider 专属色彩、对决图和 DeepSeek 余额卡。
+- **Windows UI 与可靠性**：设置页改为 XAML 控件体系，补齐 Provider 槽位绑定、动画、托盘状态、原子化偏好写入、单实例保护和崩溃日志。
+
+具体的迁移边界、保留项和暂不拆分的模块见 [`docs/migration.md`](docs/migration.md)。
+
 ## 项目结构
 
 ```text
