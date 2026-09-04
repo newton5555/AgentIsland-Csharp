@@ -25,7 +25,7 @@ public static class SettingsXamlTests
         TestSettingsRowControl();
         TestCaptionButtons();
         TestGeneralSettingsPageInitializationNoSideEffects();
-        TestSevenNavigationTabsOrderAndIntegrity();
+        TestSixNavigationTabsOrderAndIntegrity();
         TestBatch2PagesInstantiationNoSideEffects();
         TestBatch2PagesXamlFilesIntegrity();
         TestStylePickerControls();
@@ -50,7 +50,7 @@ public static class SettingsXamlTests
         throw new FileNotFoundException($"Could not locate {relativePath} walking up from {AppContext.BaseDirectory}.");
     }
 
-    private static void TestSevenNavigationTabsOrderAndIntegrity()
+    private static void TestSixNavigationTabsOrderAndIntegrity()
     {
         var expectedTabs = new[]
         {
@@ -59,7 +59,6 @@ public static class SettingsXamlTests
             "Alerts",
             "General",
             "Status",
-            "Notes",
             "About",
         };
 
@@ -273,7 +272,6 @@ public static class SettingsXamlTests
         var alerts = new AlertsSettingsPage();
         var display = new DisplaySettingsPage();
         var status = new StatusSettingsPage();
-        var notes = new NotesSettingsPage();
         var about = new AboutSettingsPage();
 
         var afterExists = File.Exists(settingsFile);
@@ -298,7 +296,6 @@ public static class SettingsXamlTests
             Path.Combine("src", "AgentIsland", "UI", "AlertsSettingsPage.xaml"),
             Path.Combine("src", "AgentIsland", "UI", "DisplaySettingsPage.xaml"),
             Path.Combine("src", "AgentIsland", "UI", "StatusSettingsPage.xaml"),
-            Path.Combine("src", "AgentIsland", "UI", "NotesSettingsPage.xaml"),
             Path.Combine("src", "AgentIsland", "UI", "AboutSettingsPage.xaml"),
         };
 

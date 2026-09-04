@@ -30,62 +30,81 @@
         </Image>
 
         <!-- Main Content -->
-        <StackPanel Margin="24,8,24,12">
+        <StackPanel Margin="24,20,24,20">
             <!-- App Name -->
             <TextBlock Text="Agent Island"
                        FontFamily="{x:Static charts:IslandFonts.Ui}"
                        FontSize="26" FontWeight="Bold"
                        Foreground="#F2FFFFFF"
-                       Margin="0,0,0,16" />
-
-            <!-- Manifesto Paragraphs -->
-            <TextBlock x:Name="Paragraph1"
-                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
-                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
-                       Margin="0,0,0,12" />
-            <TextBlock x:Name="Paragraph2"
-                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
-                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
-                       Margin="0,0,0,12" />
-            <TextBlock x:Name="Paragraph3"
-                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
-                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
-                       Margin="0,0,0,12" />
-            <TextBlock x:Name="Paragraph4"
-                       FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12.5"
-                       Foreground="#BDFFFFFF" TextWrapping="Wrap" LineHeight="20"
-                       Margin="0,0,0,12" />
+                       Margin="0,0,0,4" />
+            <TextBlock x:Name="SubtitleText"
+                       FontFamily="{x:Static charts:IslandFonts.Ui}"
+                       FontSize="12"
+                       Foreground="#66FFFFFF"
+                       Margin="0,0,0,24" />
 
             <!-- Divider -->
-            <Border Height="0.5" Background="#12FFFFFF" Margin="0,8,0,12" />
+            <Border Height="0.5" Background="#18FFFFFF" Margin="0,0,0,20" />
 
-            <!-- Fact 1: Made by -->
-            <Border x:Name="MadeByRow" Cursor="Hand" Margin="0,0,0,10">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="MadeByLabel" Width="74"
-                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
-                               Foreground="#66FFFFFF" />
-                    <TextBlock Text="Tristan Tang"
-                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
-                               FontWeight="SemiBold" Foreground="#CCFFFFFF" />
-                    <TextBlock Text=" &#xE8A7;" FontFamily="Segoe MDL2 Assets"
-                               FontSize="8" Foreground="#4DFFFFFF" VerticalAlignment="Center" />
-                </StackPanel>
-            </Border>
+            <!-- Source & Repository Links -->
+            <StackPanel>
+                <!-- 1. This Repo (Fork) -->
+                <Border x:Name="ForkRepoRow" CornerRadius="8" Padding="12,10,12,10" Background="#08FFFFFF" Cursor="Hand" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="ForkRepoLabel"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   Foreground="#9EFFFFFF" VerticalAlignment="Center" />
+                        <TextBlock Text="https://github.com/newton5555/AgentIsland-Csharp" Grid.Column="1"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#42A5F5" VerticalAlignment="Center" />
+                        <TextBlock Text=" &#xE8A7;" Grid.Column="2" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="9" Foreground="#55FFFFFF" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    </Grid>
+                </Border>
 
-            <!-- Fact 2: Sponsor -->
-            <Border x:Name="SponsorRow" Cursor="Hand" Margin="0,0,0,10">
-                <StackPanel Orientation="Horizontal">
-                    <TextBlock x:Name="SponsorLabel" Width="74"
-                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
-                               Foreground="#66FFFFFF" />
-                    <TextBlock x:Name="SponsorValue"
-                               FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="11.5"
-                               FontWeight="SemiBold" Foreground="#CCFFFFFF" />
-                    <TextBlock Text=" &#xE8A7;" FontFamily="Segoe MDL2 Assets"
-                               FontSize="8" Foreground="#4DFFFFFF" VerticalAlignment="Center" />
-                </StackPanel>
-            </Border>
+                <!-- 2. Upstream Project (Agent Island macOS) -->
+                <Border x:Name="UpstreamRepoRow" CornerRadius="8" Padding="12,10,12,10" Background="#08FFFFFF" Cursor="Hand" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="UpstreamRepoLabel"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   Foreground="#9EFFFFFF" VerticalAlignment="Center" />
+                        <TextBlock Text="https://github.com/tristan666666/agent-island" Grid.Column="1"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#CCFFFFFF" VerticalAlignment="Center" />
+                        <TextBlock Text=" &#xE8A7;" Grid.Column="2" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="9" Foreground="#55FFFFFF" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    </Grid>
+                </Border>
+
+                <!-- 3. Reference Project (Codex Island) -->
+                <Border x:Name="InspirationRepoRow" CornerRadius="8" Padding="12,10,12,10" Background="#08FFFFFF" Cursor="Hand" Margin="0,0,0,10">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="140" />
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock x:Name="InspirationRepoLabel"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   Foreground="#9EFFFFFF" VerticalAlignment="Center" />
+                        <TextBlock Text="https://github.com/ericjypark/codex-island" Grid.Column="1"
+                                   FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
+                                   FontWeight="SemiBold" Foreground="#CCFFFFFF" VerticalAlignment="Center" />
+                        <TextBlock Text=" &#xE8A7;" Grid.Column="2" FontFamily="Segoe MDL2 Assets"
+                                   FontSize="9" Foreground="#55FFFFFF" VerticalAlignment="Center" Margin="6,0,0,0" />
+                    </Grid>
+                </Border>
+            </StackPanel>
         </StackPanel>
     </Grid>
 </UserControl>

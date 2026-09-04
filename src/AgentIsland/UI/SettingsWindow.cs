@@ -191,7 +191,6 @@ public sealed partial class SettingsWindow : Window
         Alerts,
         General,
         Status,
-        Notes,
         About,
     }
 
@@ -202,7 +201,6 @@ public sealed partial class SettingsWindow : Window
         Tab.Alerts => ("Alerts", "\uEA8F"),
         Tab.General => ("General", "\uE713"),
         Tab.Status => ("Status", "\uE890"),
-        Tab.Notes => ("Notes", "\uE70B"),
         Tab.About => ("About", "\uE946"),
         _ => (tab.ToString(), "\uE713"),
     };
@@ -256,13 +254,13 @@ public sealed partial class SettingsWindow : Window
     private void SetupSidebarFooter()
     {
         VersionText.Text = "v" + (typeof(SettingsWindow).Assembly.GetName().Version?.ToString(3) ?? "0");
-        VersionPill.ToolTip = L10n.Tr("What's new in this version");
+        VersionPill.ToolTip = L10n.Tr("View Releases on GitHub");
         VersionPill.MouseEnter += (_, _) => VersionPill.Background = IslandColors.Brush(IslandColors.White(0.10));
         VersionPill.MouseLeave += (_, _) => VersionPill.Background = IslandColors.Brush(IslandColors.White(0.05));
         VersionPill.MouseLeftButtonUp += (_, args) =>
         {
             args.Handled = true;
-            WhatsNewWindow.Open();
+            AboutSettingsPage.OpenUrl("https://github.com/newton5555/AgentIsland-Csharp/releases");
         };
 
         QuitText.Text = L10n.Tr("Quit");
@@ -278,14 +276,6 @@ public sealed partial class SettingsWindow : Window
 
     private void SetupFooter()
     {
-        GuideButton.Text = L10n.Tr("Guide");
-        GuideButton.ToolTip = L10n.Tr("How Agent Island works");
-        GuideButton.MouseLeftButtonUp += (_, args) =>
-        {
-            args.Handled = true;
-            WhatsNewWindow.OpenGuide();
-        };
-
         WeeklyButton.Label = L10n.Tr("Weekly");
         WeeklyButton.ToolTip = L10n.Tr("Share weekly report");
         WeeklyButton.Clicked += () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly);
@@ -305,7 +295,6 @@ public sealed partial class SettingsWindow : Window
             (Tab.Alerts, NavAlerts),
             (Tab.General, NavGeneral),
             (Tab.Status, NavStatus),
-            (Tab.Notes, NavNotes),
             (Tab.About, NavAbout),
         };
 
@@ -370,7 +359,6 @@ public sealed partial class SettingsWindow : Window
             Tab.Alerts => (UIElement)new AlertsSettingsPage(),
             Tab.General => (UIElement)new GeneralSettingsPage(),
             Tab.Status => (UIElement)new StatusSettingsPage(),
-            Tab.Notes => (UIElement)new NotesSettingsPage(),
             Tab.About => (UIElement)new AboutSettingsPage(),
             _ => (UIElement)new StackPanel(),
         };

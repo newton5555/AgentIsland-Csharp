@@ -1,5 +1,6 @@
 using System.Windows.Controls;
 using AgentIsland.UI.Localization;
+using AgentIsland.UI.Theme;
 
 namespace AgentIsland.UI;
 
@@ -9,25 +10,34 @@ public sealed partial class AboutSettingsPage : UserControl
     {
         InitializeComponent();
 
-        Paragraph1.Text = L10n.Tr("Agents are part of every builder's day now — Claude Code, Codex, Gemini, Grok, Cursor… and whatever ships next month. They run, you wait, and nobody tells you when it is your turn again");
-        Paragraph2.Text = L10n.Tr("Agent Island 2.0 puts them all on one island. Who is working, whose turn it is, how much quota is left, what it cost — one glance at the notch, no window switching, no terminal tabs to hunt through");
-        Paragraph3.Text = L10n.Tr("Every number is computed on your own computer — Mac or Windows — from logs the agents already write. No account, no telemetry, nothing uploaded");
-        Paragraph4.Text = L10n.Tr("If Agent Island helps you, a star on GitHub and a share with a friend are the two things that keep it going");
+        SubtitleText.Text = L10n.Tr("Windows native edition · Independent implementation");
 
-        MadeByLabel.Text = L10n.Tr("Made by");
-        SponsorLabel.Text = L10n.Tr("Sponsor");
-        SponsorValue.Text = L10n.Tr("Star on GitHub");
+        ForkRepoLabel.Text = L10n.Tr("This Repo (GitHub)");
+        UpstreamRepoLabel.Text = L10n.Tr("Upstream Repo");
+        InspirationRepoLabel.Text = L10n.Tr("Inspiration (Codex)");
 
-        MadeByRow.MouseLeftButtonUp += (_, args) =>
+        ForkRepoRow.MouseEnter += (_, _) => ForkRepoRow.Background = IslandColors.Brush(IslandColors.White(0.12));
+        ForkRepoRow.MouseLeave += (_, _) => ForkRepoRow.Background = IslandColors.Brush(IslandColors.White(0.05));
+        ForkRepoRow.MouseLeftButtonUp += (_, args) =>
         {
             args.Handled = true;
-            OpenUrl("https://tristan.media");
+            OpenUrl("https://github.com/newton5555/AgentIsland-Csharp");
         };
 
-        SponsorRow.MouseLeftButtonUp += (_, args) =>
+        UpstreamRepoRow.MouseEnter += (_, _) => UpstreamRepoRow.Background = IslandColors.Brush(IslandColors.White(0.12));
+        UpstreamRepoRow.MouseLeave += (_, _) => UpstreamRepoRow.Background = IslandColors.Brush(IslandColors.White(0.05));
+        UpstreamRepoRow.MouseLeftButtonUp += (_, args) =>
         {
             args.Handled = true;
             OpenUrl("https://github.com/tristan666666/agent-island");
+        };
+
+        InspirationRepoRow.MouseEnter += (_, _) => InspirationRepoRow.Background = IslandColors.Brush(IslandColors.White(0.12));
+        InspirationRepoRow.MouseLeave += (_, _) => InspirationRepoRow.Background = IslandColors.Brush(IslandColors.White(0.05));
+        InspirationRepoRow.MouseLeftButtonUp += (_, args) =>
+        {
+            args.Handled = true;
+            OpenUrl("https://github.com/ericjypark/codex-island");
         };
     }
 

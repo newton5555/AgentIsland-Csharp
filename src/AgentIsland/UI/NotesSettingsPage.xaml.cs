@@ -16,7 +16,7 @@ public sealed partial class NotesSettingsPage : UserControl
         GuideButton.Clicked += WhatsNewWindow.OpenGuide;
 
         ChangelogButton.Label = L10n.Tr("Open");
-        ChangelogButton.Clicked += () => OpenUrl("https://agent-island.dev/changelog/");
+        ChangelogButton.Clicked += () => OpenUrl("https://github.com/newton5555/AgentIsland-Csharp/releases");
     }
 
     internal static void OpenUrl(string url)

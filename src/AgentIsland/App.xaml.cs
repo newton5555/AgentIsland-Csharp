@@ -107,18 +107,6 @@ public partial class App : System.Windows.Application
         AgentIsland.Backend.Settings.AlertEngine.Shared.Start();
 
         // Release card: once per version, shortly after the island lands
-        // (macOS 2.1.2 parity — WhatsNewGate is its own suppressor for
-        // demo/snapshot runs).
-        var whatsNewTimer = new System.Windows.Threading.DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1.2),
-        };
-        whatsNewTimer.Tick += (_, _) =>
-        {
-            whatsNewTimer.Stop();
-            UI.WhatsNewGate.MaybeShow();
-        };
-        whatsNewTimer.Start();
 
         // Weekly report moment: once per ISO week, surface the card shortly
         // after launch. Suppressed for demo/debug/snapshot runs.

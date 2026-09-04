@@ -24,11 +24,6 @@ public static class WhatsNewGate
     /// (owner call, 1.7.2: every user walks through the release card once).
     public static void MaybeShow()
     {
-        if (AppEnvironment.IsDemo) return;
-        if (Environment.GetEnvironmentVariable("AGENTISLAND_REPORT_SNAPSHOT") is not null) return;
-        if (Environment.GetEnvironmentVariable("AGENTISLAND_MONTHLY_SNAPSHOT") is not null) return;
-        if (Preferences.Get<string?>(SeenKey) == CurrentVersion) return;
-        WhatsNewWindow.Open();
     }
 
     public static void MarkSeen() => Preferences.Set(SeenKey, CurrentVersion);

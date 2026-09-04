@@ -111,18 +111,7 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- 6. Notes -->
-                        <Border x:Name="NavNotes" Tag="Notes" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
-                                Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE70B;" FontFamily="Segoe MDL2 Assets" FontSize="12" Width="16"
-                                           TextAlignment="Center" VerticalAlignment="Center" Margin="0,0,8,0" />
-                                <TextBlock Text="Notes" FontFamily="{x:Static charts:IslandFonts.Ui}" FontSize="12"
-                                           FontWeight="Medium" VerticalAlignment="Center" />
-                            </StackPanel>
-                        </Border>
-
-                        <!-- 7. About -->
+                        <!-- 6. About -->
                         <Border x:Name="NavAbout" Tag="About" CornerRadius="7" Padding="10,7,10,7" Margin="8,1,8,1"
                                 Background="Transparent" Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
                             <StackPanel Orientation="Horizontal">
@@ -176,21 +165,14 @@
                 <Grid DockPanel.Dock="Bottom" Margin="24,12,24,14">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <ui:DottedLink x:Name="GithubLink" Grid.Column="0"
-                                   Title="GitHub" Url="https://github.com/tristan666666/agent-island"
+                                   Title="GitHub" Url="https://github.com/newton5555/AgentIsland-Csharp"
                                    VerticalAlignment="Center"
                                    shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                    <TextBlock x:Name="GuideButton" Grid.Column="1"
-                               Margin="14,0,0,0" VerticalAlignment="Center"
-                               FontFamily="{x:Static charts:IslandFonts.Ui}"
-                               FontSize="11.5" Foreground="#8CFFFFFF"
-                               Cursor="Hand"
-                               shell:WindowChrome.IsHitTestVisibleInChrome="True" />
-                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <StackPanel Grid.Column="2" Orientation="Horizontal">
                         <ui:PillButtonControl x:Name="WeeklyButton" Margin="0,0,8,0"
                                               shell:WindowChrome.IsHitTestVisibleInChrome="True" />
                         <ui:PillButtonControl x:Name="MonthlyButton"
