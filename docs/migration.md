@@ -22,6 +22,7 @@
 7. 将 WPF 项目整理为 `UI/` 与 `Backend/` 两块，并把后台监控命名空间明确为 `AgentIsland.Backend.Monitoring`。
 8. 用显式 `BuiltInAgentCatalog` 建立可扩展的 Agent 注册点，并由 WPF 组合根绑定当前活动能力。
 9. 保留一个兼容测试入口，Debug/Release 构建和现有测试均通过。
+10. 已完成 Antigravity（`agy`）、DeepSeek Harness（`dsh`）和 Codex 的实际运行验证，确认统计与状态展示链路可用。
 
 ## 当前边界
 

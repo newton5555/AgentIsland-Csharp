@@ -16,6 +16,14 @@ Agent Island 是一个本地优先的 AI Agent 桌面监控工具，用悬浮岛
 
 具体的迁移边界、保留项和暂不拆分的模块见 [`docs/migration.md`](docs/migration.md)。
 
+## 当前验证范围
+
+以下 Agent 已完成实际运行验证，统计与状态展示链路可用：
+
+- Antigravity（`agy`）
+- DeepSeek Harness（`dsh`）
+- Codex
+
 ## 项目结构
 
 ```text
