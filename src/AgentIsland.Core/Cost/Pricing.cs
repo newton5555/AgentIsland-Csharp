@@ -65,14 +65,15 @@ public static class Pricing
     /// base form: the suffix is a dash followed by exactly 8 digits.
     public static string CanonicalModelName(string model)
     {
-        if (model.Length > 9)
+        if (model.Length <= 9) return model;
+
+        var suffixStart = model.Length - 9;
+        if (model[suffixStart] != '-') return model;
+        for (var i = suffixStart + 1; i < model.Length; i++)
         {
-            var suffix = model[^9..];
-            if (suffix[0] == '-' && suffix[1..].All(char.IsAsciiDigit))
-            {
-                return model[..^9];
-            }
+            if (!char.IsAsciiDigit(model[i])) return model;
         }
-        return model;
+
+        return model[..suffixStart];
     }
 }

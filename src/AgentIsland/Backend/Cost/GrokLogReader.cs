@@ -9,7 +9,7 @@ namespace AgentIsland.Backend.Cost;
 /// pricing table.
 public static class GrokLogReader
 {
-    public static List<TokenEvent> Scan(int lookbackDays)
+    public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default)
     {
         var cutoff = DateTimeOffset.Now.AddDays(-lookbackDays);
         var root = Path.Combine(IslandPaths.Home, ".grok", "sessions");
@@ -19,9 +19,11 @@ public static class GrokLogReader
         var output = new List<TokenEvent>();
         foreach (var path in SafeFileSystem.EnumerateFiles(root, "updates.jsonl"))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (SafeFileSystem.LastWriteTime(path) < cutoff) continue;
             foreach (var (tokenEvent, dedupKey) in GrokLogParser.ParseFile(path))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (tokenEvent.Timestamp < cutoff) continue;
                 if (dedupKey is not null && !seen.Add(dedupKey)) continue;
                 output.Add(tokenEvent);

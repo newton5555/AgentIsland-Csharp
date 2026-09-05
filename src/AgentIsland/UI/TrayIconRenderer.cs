@@ -38,7 +38,12 @@ internal static class TrayIconRenderer
         }
     });
 
-    private static Color? BadgeColor(ActivityState state, double usage5h)
+    internal readonly record struct VisualStateKey(Color? BadgeColor);
+
+    internal static VisualStateKey GetVisualStateKey(double usage5h, ActivityState state) =>
+        new(BadgeColor(state, usage5h));
+
+    internal static Color? BadgeColor(ActivityState state, double usage5h)
     {
         if (state.IsAttentionState()) return AlarmRed;
         if (state == ActivityState.NeedsYou) return Amber;

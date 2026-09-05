@@ -1,3 +1,4 @@
+using System.Buffers;
 using System.IO;
 using System.Text;
 using AgentIsland.Core;
@@ -9,10 +10,8 @@ namespace AgentIsland.Backend.Monitoring;
 /// from the local artifacts those tools already write, and classifies each one
 /// through a conservative state machine. Direct port of the macOS
 /// SessionScanner; the thresholds are the tuned values from the shipping app.
-///
-/// Cursor is absent on purpose: its conversation-search.db is a batch search
-/// cache rather than a live stream, so it cannot answer "is this session
-/// running right now" honestly.
+/// Cursor's live signal comes from the workspace state database and is kept on
+/// the same conservative recency path as the other guest providers.
 public static class SessionScanner
 {
     private static readonly TimeSpan ActiveWindow = TimeSpan.FromSeconds(18);
@@ -70,14 +69,30 @@ public static class SessionScanner
     /// per prompt and a human is never "up"
     /// in any of them, so they are skipped outright rather than gated behind a
     /// toggle (owner call, 2026-08-08).
-    public static List<ScannedSession> MonitoringScan(DateTimeOffset now, IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
+    ///
+    /// The provider set is optional to preserve the picker/test entry point's
+    /// historical behavior. The live monitor passes its enabled set so a
+    /// disabled provider is not even enumerated or opened.
+    public static List<ScannedSession> MonitoringScan(
+        DateTimeOffset now,
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking,
+        IReadOnlySet<TriggerTool>? providers = null)
     {
-        var output = ScanClaudeTranscripts(now, lastWorking, excludeArchived: false);
-        output.AddRange(ScanCodex(now, lastWorking, limit: MonitoringCodexLimit, dedupeProjects: false));
-        output.AddRange(ScanGrok(now, lastWorking));
-        output.AddRange(ScanAntigravity(now, lastWorking));
-        output.AddRange(ScanCursor(now, lastWorking));
-        output.AddRange(ScanDeepSeek(now, lastWorking));
+        bool IsEnabled(TriggerTool provider) => providers is null || providers.Contains(provider);
+
+        var output = new List<ScannedSession>();
+        if (IsEnabled(TriggerTool.Claude))
+            output.AddRange(ScanClaudeTranscripts(now, lastWorking, excludeArchived: false));
+        if (IsEnabled(TriggerTool.Codex))
+            output.AddRange(ScanCodex(now, lastWorking, limit: MonitoringCodexLimit, dedupeProjects: false));
+        if (IsEnabled(TriggerTool.Grok))
+            output.AddRange(ScanGrok(now, lastWorking));
+        if (IsEnabled(TriggerTool.Antigravity))
+            output.AddRange(ScanAntigravity(now, lastWorking));
+        if (IsEnabled(TriggerTool.Cursor))
+            output.AddRange(ScanCursor(now, lastWorking));
+        if (IsEnabled(TriggerTool.DeepSeek))
+            output.AddRange(ScanDeepSeek(now, lastWorking));
         output.Sort((a, b) => b.Modified.CompareTo(a.Modified));
         return output;
     }
@@ -225,38 +240,78 @@ public static class SessionScanner
         Automation,
     }
 
+    private const int MaxCodexFirstLineBytes = 2_000_000;
+    private const int CodexInitialBufferSize = 65_536;
+
     /// Reads the first JSONL line in full. Codex's `session_meta` is line 1
     /// but can be tens of KB (it embeds the full base instructions), so keep
     /// pulling chunks until the first newline.
-    private static (string Sid, string Cwd, CodexRolloutKind Kind)? CodexMeta(string path)
+    internal static (string Sid, string Cwd, CodexRolloutKind Kind)? CodexMeta(string path)
     {
-        byte[] firstLine;
+        var rented = ArrayPool<byte>.Shared.Rent(CodexInitialBufferSize);
         try
         {
-            using var stream = new FileStream(
+            var totalRead = 0;
+            var lineLength = -1;
+            using (var stream = new FileStream(
                 path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            var buffer = new List<byte>(65_536);
-            var chunk = new byte[65_536];
-            var newline = -1;
-            while (newline < 0)
+                FileShare.ReadWrite | FileShare.Delete))
             {
-                var read = stream.Read(chunk, 0, chunk.Length);
-                if (read <= 0) break;
-                for (var i = 0; i < read && newline < 0; i++)
+                while (true)
                 {
-                    if (chunk[i] == (byte)'\n') newline = buffer.Count + i;
+                    if (totalRead >= MaxCodexFirstLineBytes)
+                    {
+                        break;
+                    }
+
+                    if (totalRead >= rented.Length)
+                    {
+                        var nextCapacity = Math.Min(rented.Length * 2, MaxCodexFirstLineBytes);
+                        if (nextCapacity <= rented.Length)
+                        {
+                            nextCapacity = MaxCodexFirstLineBytes;
+                        }
+                        var newRented = ArrayPool<byte>.Shared.Rent(nextCapacity);
+                        Buffer.BlockCopy(rented, 0, newRented, 0, totalRead);
+                        ArrayPool<byte>.Shared.Return(rented);
+                        rented = newRented;
+                    }
+
+                    var toRead = Math.Min(rented.Length - totalRead, MaxCodexFirstLineBytes - totalRead);
+                    if (toRead <= 0)
+                    {
+                        break;
+                    }
+
+                    var read = stream.Read(rented, totalRead, toRead);
+                    if (read <= 0)
+                    {
+                        break;
+                    }
+
+                    var chunkSpan = rented.AsSpan(totalRead, read);
+                    var newlineRel = chunkSpan.IndexOf((byte)'\n');
+                    if (newlineRel >= 0)
+                    {
+                        lineLength = totalRead + newlineRel;
+                        break;
+                    }
+
+                    totalRead += read;
                 }
-                buffer.AddRange(chunk.AsSpan(0, read).ToArray());
-                if (buffer.Count > 2_000_000) break;
             }
-            firstLine = newline >= 0 ? buffer.Take(newline).ToArray() : buffer.ToArray();
+
+            var length = lineLength >= 0 ? lineLength : totalRead;
+            return ParseCodexMeta(Encoding.UTF8.GetString(rented.AsSpan(0, length)));
         }
         catch
         {
             return null;
         }
-        return ParseCodexMeta(Encoding.UTF8.GetString(firstLine));
+        finally
+        {
+            ArrayPool<byte>.Shared.Return(rented);
+        }
     }
 
     /// Classifies a rollout from its session_meta line. `payload.source` is
@@ -932,6 +987,65 @@ public static class SessionScanner
     internal static void ClearTurnCache()
     {
         lock (TurnCacheGate) TurnCache.Clear();
+    }
+
+    /// Drop only one provider's entries when a slot is disabled. The activity
+    /// cache is shared for throughput, but clearing the whole dictionary would
+    /// make an enabled sibling pay the parse cost again on its next tick.
+    internal static void ClearTurnCache(TriggerTool provider)
+    {
+        IEnumerable<string> roots = provider switch
+        {
+            TriggerTool.Claude => IslandPaths.ClaudeProjectRoots,
+            TriggerTool.Codex => new[] { IslandPaths.CodexSessionsRoot },
+            TriggerTool.Grok => new[] { GrokSessionsRoot },
+            TriggerTool.Antigravity => AntigravityRootNames.Select(name =>
+                Path.Combine(IslandPaths.Home, ".gemini", name)),
+            _ => Array.Empty<string>(),
+        };
+
+        var rootsList = roots.ToList();
+        if (rootsList.Count == 0) return;
+        lock (TurnCacheGate)
+        {
+            foreach (var path in TurnCache.Keys
+                         .Where(path => rootsList.Any(root => IsUnderRoot(path, root)))
+                         .ToList())
+            {
+                TurnCache.Remove(path);
+            }
+        }
+    }
+
+    private static bool IsUnderRoot(string path, string root)
+    {
+        try
+        {
+            var fullPath = Path.GetFullPath(path);
+            var fullRoot = Path.GetFullPath(root)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            return fullPath.Equals(fullRoot, StringComparison.OrdinalIgnoreCase)
+                || fullPath.StartsWith(
+                    fullRoot + Path.DirectorySeparatorChar,
+                    StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// Cursor keeps a separate parsed-conversation cache because its live
+    /// signal comes from state.vscdb rather than a transcript turn parser.
+    /// Reset the stamp as well as the list so the next enable performs a
+    /// fresh read even when Cursor has not changed the database meanwhile.
+    internal static void ClearCursorCache()
+    {
+        lock (CursorGate)
+        {
+            _cursorStamp = DateTimeOffset.MinValue;
+            _cursorCache = new();
+        }
     }
 
     // MARK: - Helpers

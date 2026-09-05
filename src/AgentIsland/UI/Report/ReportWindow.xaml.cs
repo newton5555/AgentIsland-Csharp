@@ -40,6 +40,9 @@ public sealed partial class ReportWindow : Window
     private DateTime? _anchorDate;
     private bool _loading;
     private BitmapSource? _rendered;
+    private CancellationTokenSource? _queryCts;
+    private long _querySequence;
+    private bool _selectionRefreshQueued;
     private DispatcherTimer? _coachTimer;
     private readonly System.ComponentModel.PropertyChangedEventHandler _costChanged;
     private readonly System.ComponentModel.PropertyChangedEventHandler _providerSelectionChanged;
@@ -132,12 +135,21 @@ public sealed partial class ReportWindow : Window
             // change; the overview grid listens to the same source.
             if (args.PropertyName is not (nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)
                 or nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.SlotProviders))) return;
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(RefreshForProviderSelection));
+            if (_selectionRefreshQueued) return;
+            _selectionRefreshQueued = true;
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                _selectionRefreshQueued = false;
+                RefreshForProviderSelection();
+            }));
         };
         AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += _costChanged;
         AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _providerSelectionChanged;
         Closed += (_, _) =>
         {
+            CancelReportQuery();
+            _pagerHideTimer.Stop();
+            _coachTimer?.Stop();
             AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged -= _costChanged;
             AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _providerSelectionChanged;
         };
@@ -162,6 +174,7 @@ public sealed partial class ReportWindow : Window
     public void SwitchKind(Kind target)
     {
         if (_kind == target) return;
+        CancelReportQuery();
         _kind = target;
         _pageOffset = 0;
         _anchorDate = null;
@@ -275,6 +288,7 @@ public sealed partial class ReportWindow : Window
 
     private void Flip(int target)
     {
+        CancelReportQuery();
         _anchorDate = null;
         if (target < 0) return;
         _pageOffset = target;
@@ -294,15 +308,29 @@ public sealed partial class ReportWindow : Window
         if (_kind != Kind.Weekly || Core.AppEnvironment.IsDemo) return;
         var (start, end) = ReportPeriods.WeekInterval(0);
         if (end > DateTime.Today) return;
-        var slices = await ReportPeriods.SlicesAsync(start, end);
-        if (_pageOffset != 0 || _anchorDate is not null || _loading) return;
-        _display = WeeklyReportData.ForInterval(start, end, slices);
-        RebuildCard();
+        var queryId = BeginReportQuery(out var cts);
+        try
+        {
+            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            if (queryId != _querySequence || !IsLoaded
+                || _pageOffset != 0 || _anchorDate is not null || _loading) return;
+            _display = WeeklyReportData.ForInterval(start, end, slices);
+            RebuildCard();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            EndReportQuery(queryId, cts);
+        }
     }
 
     private void RefreshForProviderSelection()
     {
-        if (!IsLoaded || _loading) return;
+        if (!IsLoaded) return;
+        CancelReportQuery();
+        _loading = false;
 
         // Historical pages were assembled with the previous target set, so
         // reload the same page. The current page can rebuild immediately from
@@ -325,18 +353,60 @@ public sealed partial class ReportWindow : Window
 
     private async void LoadPage(int target)
     {
+        var queryId = BeginReportQuery(out var cts);
         _loading = true;
         UpdatePagerChrome();
         var (start, end) = _kind == Kind.Weekly
             ? ReportPeriods.WeekInterval(target)
             : ReportPeriods.MonthInterval(target);
-        var slices = await ReportPeriods.SlicesAsync(start, end);
-        if (_pageOffset != target || _anchorDate is not null) return;
-        _display = _kind == Kind.Weekly
-            ? WeeklyReportData.ForInterval(start, end, slices)
-            : MonthlyReportData.ForInterval(start, slices);
-        _loading = false;
-        RebuildCard();
+        var accepted = false;
+        try
+        {
+            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            if (queryId != _querySequence || !IsLoaded
+                || _pageOffset != target || _anchorDate is not null) return;
+            _display = _kind == Kind.Weekly
+                ? WeeklyReportData.ForInterval(start, end, slices)
+                : MonthlyReportData.ForInterval(start, slices);
+            accepted = true;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (queryId == _querySequence)
+            {
+                _loading = false;
+                EndReportQuery(queryId, cts);
+                UpdatePagerChrome();
+            }
+        }
+        if (accepted) RebuildCard();
+    }
+
+    private long BeginReportQuery(out CancellationTokenSource cts)
+    {
+        _queryCts?.Cancel();
+        _queryCts?.Dispose();
+        cts = new CancellationTokenSource();
+        _queryCts = cts;
+        return ++_querySequence;
+    }
+
+    private void EndReportQuery(long queryId, CancellationTokenSource cts)
+    {
+        if (queryId != _querySequence) return;
+        if (ReferenceEquals(_queryCts, cts)) _queryCts = null;
+        cts.Dispose();
+    }
+
+    private void CancelReportQuery()
+    {
+        _querySequence++;
+        _queryCts?.Cancel();
+        _queryCts?.Dispose();
+        _queryCts = null;
     }
 
     private void OpenCalendar()
@@ -387,6 +457,7 @@ public sealed partial class ReportWindow : Window
 
     private async void SetAnchor(DateTime day)
     {
+        CancelReportQuery();
         var start = day.Date;
         if (_kind == Kind.Weekly && start >= ReportPeriods.WeekInterval(0).Start)
         {
@@ -404,13 +475,30 @@ public sealed partial class ReportWindow : Window
         UpdatePagerChrome();
         SetPagerVisible(false);
         var end = start.AddDays(_kind == Kind.Weekly ? 7 : 30);
-        var slices = await ReportPeriods.SlicesAsync(start, end);
-        if (_anchorDate != start) return;
-        _display = _kind == Kind.Weekly
-            ? WeeklyReportData.ForInterval(start, end, slices)
-            : MonthlyReportData.ForInterval(start, slices);
-        _loading = false;
-        RebuildCard();
+        var queryId = BeginReportQuery(out var cts);
+        var accepted = false;
+        try
+        {
+            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            if (queryId != _querySequence || !IsLoaded || _anchorDate != start) return;
+            _display = _kind == Kind.Weekly
+                ? WeeklyReportData.ForInterval(start, end, slices)
+                : MonthlyReportData.ForInterval(start, slices);
+            accepted = true;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            if (queryId == _querySequence)
+            {
+                _loading = false;
+                EndReportQuery(queryId, cts);
+                UpdatePagerChrome();
+            }
+        }
+        if (accepted) RebuildCard();
     }
 
     private UIElement CloseDisc()

@@ -33,6 +33,8 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
     private string? _localPlan;
     private bool _loading;
     private DateTimeOffset? _lastAttempt;
+    private long _refreshGeneration;
+    private CancellationTokenSource? _refreshCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -59,12 +61,7 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         // Identity is deliberately NOT read here: on Windows it is a raw scan
         // of Cursor's multi-megabyte state db, and this constructor runs on
         // the UI thread. The first kick loads it off-thread instead.
-        if (Preferences.Get<Cached?>(CacheKey) is { Snapshot: { } cached } stored
-            && DateTimeOffset.Now - stored.UpdatedAt <= CacheMaxAge)
-        {
-            _snapshot = cached;
-            _lastUpdated = stored.UpdatedAt;
-        }
+        RestoreCachedSnapshot();
     }
 
     public CursorUsageSnapshot? Snapshot
@@ -105,6 +102,22 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    /// Release the local snapshot and cancel the active request while keeping
+    /// the persisted value for a later re-enable.
+    public void ClearMemory()
+    {
+        _refreshGeneration++;
+        _refreshCts?.Cancel();
+        _refreshCts = null;
+        Snapshot = null;
+        ErrorCaption = null;
+        LastUpdated = null;
+        AccountEmail = null;
+        _localPlan = null;
+        _lastAttempt = null;
+        Loading = false;
+    }
+
     /// "FREE" / "PRO" chip text for the Settings row. Reads two cached
     /// fields, never the state db — the badge is bound by the UI.
     public string? PlanBadge => (_snapshot?.PlanName ?? _localPlan)?.ToUpperInvariant();
@@ -123,8 +136,12 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         if (!ProviderVisibilityStore.Shared.CursorPanelShown) return;
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
+        RestoreCachedSnapshot();
         _lastAttempt = DateTimeOffset.Now;
         Loading = true;
+        var generation = ++_refreshGeneration;
+        var cts = new CancellationTokenSource();
+        _refreshCts = cts;
         var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
@@ -134,14 +151,41 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
                 // so the account line and the numbers can never disagree.
                 var email = CursorCredentials.CachedEmail();
                 var plan = CursorCredentials.CachedPlan();
-                var outcome = await CursorUsageFetcher.Fetch();
-                await dispatcher.BeginInvoke(() => Apply(outcome, email, plan));
+                var outcome = await CursorUsageFetcher.Fetch(cts.Token);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                await dispatcher.BeginInvoke(() =>
+                {
+                    if (cts.IsCancellationRequested || generation != _refreshGeneration
+                        || !ProviderVisibilityStore.Shared.CursorPanelShown) return;
+                    Apply(outcome, email, plan);
+                });
             }
             catch
             {
-                // A faulted attempt must never leave Loading latched — that
-                // would wedge every later kick behind the in-flight guard.
-                await dispatcher.BeginInvoke(() => { Loading = false; });
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                try
+                {
+                    await dispatcher.BeginInvoke(() =>
+                    {
+                        if (generation != _refreshGeneration
+                            || !ProviderVisibilityStore.Shared.CursorPanelShown) return;
+                        ErrorCaption = L10n.Tr("network drop");
+                        Loading = false;
+                    });
+                }
+                catch { }
+            }
+            finally
+            {
+                if (ReferenceEquals(_refreshCts, cts))
+                {
+                    _refreshCts = null;
+                    if (generation == _refreshGeneration)
+                    {
+                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                    }
+                }
+                cts.Dispose();
             }
         });
     }
@@ -176,6 +220,14 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
 
     private static void Persist(CursorUsageSnapshot fresh) =>
         Preferences.Set(CacheKey, new Cached { Snapshot = fresh, UpdatedAt = DateTimeOffset.Now });
+
+    private void RestoreCachedSnapshot()
+    {
+        if (Preferences.Get<Cached?>(CacheKey) is not { Snapshot: { } cached } stored
+            || DateTimeOffset.Now - stored.UpdatedAt > CacheMaxAge) return;
+        Snapshot = cached;
+        LastUpdated = stored.UpdatedAt;
+    }
 
     /// The recording rig's guest fixtures. AppEnvironment carries no flag for
     /// them yet, so the macOS variable is read directly here.

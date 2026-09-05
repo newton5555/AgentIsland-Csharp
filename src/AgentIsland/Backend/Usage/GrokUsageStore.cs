@@ -38,6 +38,8 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
     private string? _authModeBadge;
     private bool _loading;
     private DateTimeOffset? _lastAttempt;
+    private long _refreshGeneration;
+    private CancellationTokenSource? _refreshCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -66,11 +68,7 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
         }
 
         LoadIdentity();
-        if (Preferences.Get<GrokCachedSnapshot?>(CacheKey) is not { } cached) return;
-        if (cached.Snapshot is not { } restored) return;
-        if (DateTimeOffset.Now - cached.UpdatedAt > CacheMaxAge) return;
-        _snapshot = restored;
-        _lastUpdated = cached.UpdatedAt;
+        RestoreCachedSnapshot();
     }
 
     public GrokBillingSnapshot? Snapshot
@@ -113,6 +111,23 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    /// Releases the in-process snapshot and cancels a provider request while
+    /// retaining the persisted last-good value. A request that was already in
+    /// flight is generation-checked before it can publish or persist anything.
+    public void ClearMemory()
+    {
+        _refreshGeneration++;
+        _refreshCts?.Cancel();
+        _refreshCts = null;
+        Snapshot = null;
+        ErrorCaption = null;
+        LastUpdated = null;
+        AccountEmail = null;
+        AuthModeBadge = null;
+        _lastAttempt = null;
+        Loading = false;
+    }
+
     public void KickRefresh()
     {
         if (AppEnvironment.IsDemo) return;
@@ -120,23 +135,53 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
+        RestoreCachedSnapshot();
+        LoadIdentity();
         _lastAttempt = DateTimeOffset.Now;
         Loading = true;
+        var generation = ++_refreshGeneration;
+        var cts = new CancellationTokenSource();
+        _refreshCts = cts;
         var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
-            GrokUsageFetcher.Outcome outcome;
             try
             {
-                outcome = await GrokUsageFetcher.Fetch();
+                var outcome = await GrokUsageFetcher.Fetch(cts.Token);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                await dispatcher.BeginInvoke(() =>
+                {
+                    if (cts.IsCancellationRequested || generation != _refreshGeneration
+                        || !ProviderVisibilityStore.Shared.GrokPanelShown) return;
+                    Apply(outcome);
+                });
             }
             catch (Exception error)
             {
-                // A faulted fetch must never leave Loading latched — that
-                // would freeze this row until the app relaunches.
-                outcome = new GrokUsageFetcher.Outcome.Failed(error.Message);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                try
+                {
+                    await dispatcher.BeginInvoke(() =>
+                    {
+                        if (generation != _refreshGeneration
+                            || !ProviderVisibilityStore.Shared.GrokPanelShown) return;
+                        Apply(new GrokUsageFetcher.Outcome.Failed(error.Message));
+                    });
+                }
+                catch { }
             }
-            await dispatcher.BeginInvoke(() => Apply(outcome));
+            finally
+            {
+                if (ReferenceEquals(_refreshCts, cts))
+                {
+                    _refreshCts = null;
+                    if (generation == _refreshGeneration)
+                    {
+                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                    }
+                }
+                cts.Dispose();
+            }
         });
     }
 
@@ -178,6 +223,15 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
         }
         AccountEmail = entry.Email;
         AuthModeBadge = entry.IsSuperGrok ? "SUPERGROK" : entry.AuthMode?.ToUpperInvariant();
+    }
+
+    private void RestoreCachedSnapshot()
+    {
+        if (Preferences.Get<GrokCachedSnapshot?>(CacheKey) is not { } cached
+            || cached.Snapshot is not { } restored
+            || DateTimeOffset.Now - cached.UpdatedAt > CacheMaxAge) return;
+        Snapshot = restored;
+        LastUpdated = cached.UpdatedAt;
     }
 
     private static void Persist(GrokBillingSnapshot fresh) => Preferences.Set(

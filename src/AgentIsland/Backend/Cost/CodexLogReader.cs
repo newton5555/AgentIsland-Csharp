@@ -15,7 +15,7 @@ public static class CodexLogReader
         TriggerTool.Codex,
         Path.Combine(IslandPaths.CacheDir, "codex-parse-cache.v2.json"));
 
-    public static List<TokenEvent> Scan(int lookbackDays)
+    public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default)
     {
         var cutoff = DateTimeOffset.Now.AddDays(-lookbackDays);
         var files = new List<string>();
@@ -24,8 +24,10 @@ public static class CodexLogReader
             if (Directory.Exists(root)) files.AddRange(SafeFileSystem.EnumerateFiles(root, "*.jsonl"));
         }
         if (files.Count == 0) return new List<TokenEvent>();
-        return Cache.Walk(files, cutoff, CodexLogParser.ParseFile);
+        return Cache.Walk(files, cutoff, CodexLogParser.ParseFile, cancellationToken);
     }
+
+    internal static void ClearMemoryCache() => Cache.ClearMemory();
 
     // Existing diagnostics and tests use this seam. It remains a host-level
     // forwarding method while the actual parser belongs to Providers.

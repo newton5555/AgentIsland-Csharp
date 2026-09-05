@@ -3,6 +3,7 @@ using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using AgentIsland.Core;
 using AgentIsland.UI.Localization;
+using AgentIsland.UI.Providers;
 
 namespace AgentIsland.Backend.Usage;
 
@@ -12,10 +13,22 @@ namespace AgentIsland.Backend.Usage;
 /// refresh-on-reconnect network monitor.
 public sealed class UsageStore : INotifyPropertyChanged
 {
-    public static UsageStore Shared { get; } = new();
-
     private const string CacheKey = "UsageStore.lastSuccessfulUsage.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
+    private static readonly DisplayProvider[] CoreProviders =
+    {
+        DisplayProvider.Claude,
+        DisplayProvider.Codex,
+    };
+
+    public static UsageStore Shared { get; } = new();
+
+    private sealed class RefreshSlot
+    {
+        public long Generation;
+        public CancellationTokenSource? Cancellation;
+        public Task<AppUsage>? Task;
+    }
 
     private AppUsage _claude = AppUsage.Empty;
     private AppUsage _codex = AppUsage.Empty;
@@ -26,6 +39,10 @@ public sealed class UsageStore : INotifyPropertyChanged
     private bool _codexReauthInProgress;
     private string? _claudeReauthFailureCaption;
     private string? _codexAutoSwitched;
+    private readonly HashSet<DisplayProvider> _enabledProviders = new();
+    private readonly Dictionary<DisplayProvider, DateTimeOffset> _providerUpdatedAt = new();
+    private readonly Dictionary<DisplayProvider, RefreshSlot> _refreshSlots =
+        CoreProviders.ToDictionary(provider => provider, _ => new RefreshSlot());
 
     /// Accounts tried since the current exhaustion episode began; cleared the
     /// moment a reading comes back under 100%, so each episode walks the pool
@@ -46,10 +63,9 @@ public sealed class UsageStore : INotifyPropertyChanged
     private DispatcherTimer? _pollTimer;
     private DispatcherTimer? _resetEdgeTimer;
     private DateTimeOffset _lastResetEdgeCheck = DateTimeOffset.Now;
-    private DateTimeOffset _refreshStartedAt;
-    private CancellationTokenSource? _refreshCts;
-    private Task? _refreshTask;
     private CancellationTokenSource? _codexReauthCts;
+    private PropertyChangedEventHandler? _visibilityChanged;
+    private bool _autoRefreshStarted;
     private bool _networkMonitorArmed;
     private bool _powerMonitorArmed;
     private bool _lastNetworkAvailable = true;
@@ -64,6 +80,10 @@ public sealed class UsageStore : INotifyPropertyChanged
             _claude = snapshot.Claude;
             _codex = snapshot.Codex;
             _lastUpdated = snapshot.UpdatedAt;
+            if (snapshot.ClaudeUpdatedAt is { } claudeAt)
+                _providerUpdatedAt[DisplayProvider.Claude] = claudeAt;
+            if (snapshot.CodexUpdatedAt is { } codexAt)
+                _providerUpdatedAt[DisplayProvider.Codex] = codexAt;
         }
     }
 
@@ -104,18 +124,25 @@ public sealed class UsageStore : INotifyPropertyChanged
     public void RefreshIfStale()
     {
         if (AppEnvironment.IsDemo) return;
+        SyncProviderMode();
         var interval = TimeSpan.FromSeconds(RefreshIntervalStore.Shared.Seconds);
-        if (LastUpdated is { } last && DateTimeOffset.Now - last < interval) return;
+        var staleCore = CoreProviders.Any(provider =>
+            _enabledProviders.Contains(provider)
+            && (!_providerUpdatedAt.TryGetValue(provider, out var last)
+                || DateTimeOffset.Now - last >= interval));
+        var hasGuest = _enabledProviders.Any(provider => DisplayProviders.Guests.Contains(provider));
+        if (!staleCore && !hasGuest) return;
         Refresh();
     }
 
     public void Refresh()
     {
-        // Self-heal instead of early-return when a refresh has been "in
-        // flight" for minutes: a wedged one (faulted task, socket dead after
-        // sleep) used to latch Loading forever, freezing usage — and with it
-        // reset detection and auto-resume — until the app was relaunched.
-        if (Loading && DateTimeOffset.Now - _refreshStartedAt < TimeSpan.FromMinutes(2)) return;
+        SyncProviderMode();
+        if (_enabledProviders.Count == 0)
+        {
+            Loading = false;
+            return;
+        }
 
         // Guests re-probe every refresh cycle (macOS redetectGuests):
         // signing into agy/grok/Cursor while the app runs claims the slot
@@ -127,13 +154,13 @@ public sealed class UsageStore : INotifyPropertyChanged
         // so the countdowns tick down naturally on camera.
         if (AppEnvironment.IsDemo)
         {
-            var now = DateTimeOffset.Now;
+            var demoNow = DateTimeOffset.Now;
             Claude = new AppUsage(
                 new WindowUsage(
                     DemoDouble("AGENTISLAND_DEMO_CLAUDE_5H", 0.73),
-                    now.AddMinutes(DemoMinutes("AGENTISLAND_DEMO_CLAUDE_RESET_MINUTES", 107)),
+                    demoNow.AddMinutes(DemoMinutes("AGENTISLAND_DEMO_CLAUDE_RESET_MINUTES", 107)),
                     null),
-                new WindowUsage(0.0 + DemoDouble("AGENTISLAND_DEMO_CLAUDE_WEEKLY", 0.81), now.AddSeconds(4 * 86400 + 11 * 3600), null),
+                new WindowUsage(0.0 + DemoDouble("AGENTISLAND_DEMO_CLAUDE_WEEKLY", 0.81), demoNow.AddSeconds(4 * 86400 + 11 * 3600), null),
                 "max");
             // AGENTISLAND_DEMO_CODEX_SINGLE=1 shows Codex's primary-only shape:
             // one weekly window, secondary gone, plus banked reset cards.
@@ -142,7 +169,7 @@ public sealed class UsageStore : INotifyPropertyChanged
                 ? new AppUsage(
                     new WindowUsage(
                         DemoDouble("AGENTISLAND_DEMO_CODEX_5H", 0.67),
-                        now.AddSeconds(5 * 86400 + 4 * 3600),
+                        demoNow.AddSeconds(5 * 86400 + 4 * 3600),
                         null,
                         PeriodSeconds: 604800),
                     WindowUsage.Unknown,
@@ -150,81 +177,265 @@ public sealed class UsageStore : INotifyPropertyChanged
                     ResetCards: 2,
                     ResetCardDetails: new[]
                     {
-                        new ResetCard("demo-1", "Full reset", now.AddDays(9)),
-                        new ResetCard("demo-2", "Full reset", now.AddDays(23)),
+                        new ResetCard("demo-1", "Full reset", demoNow.AddDays(9)),
+                        new ResetCard("demo-2", "Full reset", demoNow.AddDays(23)),
                     })
                 : new AppUsage(
                     new WindowUsage(
                         DemoDouble("AGENTISLAND_DEMO_CODEX_5H", 0.67),
-                        now.AddMinutes(DemoMinutes("AGENTISLAND_DEMO_CODEX_RESET_MINUTES", 143)),
+                        demoNow.AddMinutes(DemoMinutes("AGENTISLAND_DEMO_CODEX_RESET_MINUTES", 143)),
                         null),
-                    new WindowUsage(DemoDouble("AGENTISLAND_DEMO_CODEX_WEEKLY", 0.76), now.AddSeconds(4 * 86400 + 18 * 3600), null),
+                    new WindowUsage(DemoDouble("AGENTISLAND_DEMO_CODEX_WEEKLY", 0.76), demoNow.AddSeconds(4 * 86400 + 18 * 3600), null),
                     "pro");
-            LastUpdated = now;
+            LastUpdated = demoNow;
             RefreshWarning = null;
             return;
         }
 
-        Loading = true;
-        _refreshStartedAt = DateTimeOffset.Now;
+        // Each core provider owns its request and generation. A slow or
+        // disabled Codex request must not hold Claude's value hostage.
         // Grok, Gemini and Cursor ride this exact cadence (poll / wake /
         // unlock / network / manual) instead of owning timers; their stores
         // no-op when the provider is undetected or when kicked again inside
         // their own attempt floors.
-        GrokUsageStore.Shared.KickRefresh();
-        AntigravityUsageStore.Shared.KickRefresh();
-        CursorUsageStore.Shared.KickRefresh();
-        DeepSeekBalanceStore.Shared.KickRefresh();
-        _refreshCts?.Cancel();
-        var cts = new CancellationTokenSource();
-        _refreshCts = cts;
+        if (_enabledProviders.Contains(DisplayProvider.Grok)) GrokUsageStore.Shared.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.Antigravity)) AntigravityUsageStore.Shared.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.Cursor)) CursorUsageStore.Shared.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.DeepSeek)) DeepSeekBalanceStore.Shared.KickRefresh();
         var dispatcher = Dispatcher.CurrentDispatcher;
-        _refreshTask = Task.Run(async () =>
+        foreach (var provider in CoreProviders)
         {
-            try
-            {
-                // Thread the token into the HTTP calls so a superseding refresh
-                // (network-up mid-flight on a dead path) actually aborts the dead
-                // request instead of letting it run to its own timeout.
-                var codexTask = FetchWithRetry(UsageFetcher.FetchCodex, cts.Token);
-                var claudeTask = FetchWithRetry(UsageFetcher.FetchClaude, cts.Token);
-                var codexResult = await codexTask;
-                var claudeResult = await claudeTask;
+            if (!_enabledProviders.Contains(provider)) continue;
+            StartCoreRefresh(provider, dispatcher);
+        }
+        UpdateLoading();
+    }
 
-                await dispatcher.BeginInvoke(() =>
-                {
-                    // Cancellation = a superseding refresh took over (network
-                    // came up, or the watchdog replaced a wedged one). Only
-                    // the CURRENT refresh may touch Loading — a late loser
-                    // clearing it would let a third refresh start mid-flight.
-                    if (cts.IsCancellationRequested)
-                    {
-                        if (ReferenceEquals(_refreshCts, cts)) Loading = false;
-                        return;
-                    }
+    private bool SyncProviderMode()
+    {
+        var next = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToHashSet();
+        if (_enabledProviders.SetEquals(next)) return false;
 
-                    var codexFailed = IsErrorOnly(codexResult);
-                    var claudeFailed = IsErrorOnly(claudeResult);
-                    var mergedCodex = MergedUsage(Codex, codexResult);
-                    var mergedClaude = MergedUsage(Claude, claudeResult);
-                    Codex = mergedCodex;
-                    Claude = mergedClaude;
-                    SaveCachedSnapshot(mergedClaude, mergedCodex);
-                    RefreshWarning = WarningFor(codexFailed, claudeFailed);
-                    LastUpdated = DateTimeOffset.Now;
-                    Loading = false;
-                    MaybeAutoSwitchCodex(mergedCodex);
-                });
-            }
-            catch
+        var removed = _enabledProviders.Except(next).ToArray();
+        var added = next.Except(_enabledProviders).ToArray();
+        _enabledProviders.Clear();
+        foreach (var provider in next) _enabledProviders.Add(provider);
+
+        foreach (var provider in removed)
+        {
+            if (_refreshSlots.TryGetValue(provider, out var slot))
             {
-                // A faulted refresh must never leave Loading latched.
-                await dispatcher.BeginInvoke(() =>
-                {
-                    if (ReferenceEquals(_refreshCts, cts)) Loading = false;
-                });
+                slot.Generation++;
+                slot.Cancellation?.Cancel();
+                slot.Cancellation = null;
+                slot.Task = null;
             }
-        }, CancellationToken.None);
+
+            if (provider == DisplayProvider.Claude) Claude = AppUsage.Empty;
+            if (provider == DisplayProvider.Codex)
+            {
+                Codex = AppUsage.Empty;
+                _codexAutoSwitchTried.Clear();
+                _codexAutoSwitchPool = null;
+                CodexAutoSwitched = null;
+            }
+            _providerUpdatedAt.Remove(provider);
+            ClearGuestMemory(provider);
+        }
+
+        foreach (var provider in added)
+        {
+            RestoreCoreSnapshot(provider);
+        }
+
+        RefreshWarning = WarningFor(
+            IsErrorOnly(Claude),
+            IsErrorOnly(Codex));
+        UpdateLastUpdated();
+
+        if (_enabledProviders.Count == 0)
+        {
+            _pollTimer?.Stop();
+            _pollTimer = null;
+            _resetEdgeTimer?.Stop();
+            _resetEdgeTimer = null;
+            Loading = false;
+        }
+        else if (_autoRefreshStarted)
+        {
+            ArmTimer();
+            ArmResetEdgeTimer();
+        }
+        return true;
+    }
+
+    private void RestoreCoreSnapshot(DisplayProvider provider)
+    {
+        if (!CoreProviders.Contains(provider)) return;
+        var snapshot = LoadCachedSnapshot();
+        if (snapshot is null) return;
+        if (provider == DisplayProvider.Claude)
+        {
+            Claude = snapshot.Claude;
+            if (snapshot.ClaudeUpdatedAt is { } at) _providerUpdatedAt[provider] = at;
+        }
+        else if (provider == DisplayProvider.Codex)
+        {
+            Codex = snapshot.Codex;
+            if (snapshot.CodexUpdatedAt is { } at) _providerUpdatedAt[provider] = at;
+        }
+    }
+
+    private void StartCoreRefresh(
+        DisplayProvider provider,
+        Dispatcher dispatcher)
+    {
+        var slot = _refreshSlots[provider];
+        // Keep a completed task attached until its dispatcher completion has
+        // released it. This prevents a timer tick from attaching a duplicate
+        // observer in the small completion window.
+        if (slot.Task is not null) return;
+
+        var generation = slot.Generation;
+        var cts = new CancellationTokenSource();
+        var task = Task.Run(
+            () => FetchCore(provider, cts.Token),
+            CancellationToken.None);
+        slot.Cancellation = cts;
+        slot.Task = task;
+        _ = ObserveCoreRefresh(provider, generation, task, cts, dispatcher);
+    }
+
+    private static Task<AppUsage> FetchCore(
+        DisplayProvider provider,
+        CancellationToken cancellationToken) => provider switch
+        {
+            DisplayProvider.Claude => FetchWithRetry(UsageFetcher.FetchClaude, cancellationToken),
+            DisplayProvider.Codex => FetchWithRetry(UsageFetcher.FetchCodex, cancellationToken),
+            _ => Task.FromResult(AppUsage.Empty),
+        };
+
+    private async Task ObserveCoreRefresh(
+        DisplayProvider provider,
+        long generation,
+        Task<AppUsage> task,
+        CancellationTokenSource cts,
+        Dispatcher dispatcher)
+    {
+        AppUsage result;
+        try
+        {
+            result = await task.ConfigureAwait(false);
+        }
+        catch (Exception error)
+        {
+            result = AppUsage.ErrorPair(error.Message);
+        }
+
+        try
+        {
+            await dispatcher.BeginInvoke(() =>
+            {
+                var slot = _refreshSlots[provider];
+                if (!ReferenceEquals(slot.Task, task) || slot.Generation != generation)
+                {
+                    cts.Dispose();
+                    return;
+                }
+
+                slot.Task = null;
+                slot.Cancellation = null;
+                cts.Dispose();
+                if (!_enabledProviders.Contains(provider))
+                {
+                    UpdateLoading();
+                    return;
+                }
+
+                var failed = IsErrorOnly(result);
+                if (provider == DisplayProvider.Claude)
+                {
+                    var merged = MergedUsage(Claude, result);
+                    Claude = merged;
+                    SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
+                }
+                else
+                {
+                    var merged = MergedUsage(Codex, result);
+                    Codex = merged;
+                    SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
+                    if (!failed) MaybeAutoSwitchCodex(merged);
+                }
+
+                if (!failed) _providerUpdatedAt[provider] = DateTimeOffset.Now;
+                RefreshWarning = WarningFor(
+                    IsErrorOnly(Claude),
+                    IsErrorOnly(Codex));
+                UpdateLastUpdated();
+                UpdateLoading();
+            });
+        }
+        catch
+        {
+            var slot = _refreshSlots[provider];
+            if (ReferenceEquals(slot.Task, task))
+            {
+                slot.Task = null;
+                slot.Cancellation = null;
+                cts.Dispose();
+            }
+        }
+    }
+
+    private void UpdateLastUpdated()
+    {
+        DateTimeOffset? latest = null;
+        foreach (var provider in CoreProviders)
+        {
+            if (!_enabledProviders.Contains(provider)) continue;
+            if (!_providerUpdatedAt.TryGetValue(provider, out var at)) continue;
+            if (latest is null || at > latest) latest = at;
+        }
+        LastUpdated = latest;
+    }
+
+    private void UpdateLoading()
+    {
+        Loading = _enabledProviders.Any(provider =>
+            _refreshSlots.TryGetValue(provider, out var slot)
+            && slot.Task is not null);
+    }
+
+    private void CancelCoreRefreshes()
+    {
+        foreach (var provider in CoreProviders)
+        {
+            var slot = _refreshSlots[provider];
+            slot.Generation++;
+            slot.Cancellation?.Cancel();
+            slot.Cancellation = null;
+            slot.Task = null;
+        }
+        UpdateLoading();
+    }
+
+    private void ClearGuestMemory(DisplayProvider provider)
+    {
+        switch (provider)
+        {
+            case DisplayProvider.Grok:
+                GrokUsageStore.Shared.ClearMemory();
+                break;
+            case DisplayProvider.Antigravity:
+                AntigravityUsageStore.Shared.ClearMemory();
+                break;
+            case DisplayProvider.Cursor:
+                CursorUsageStore.Shared.ClearMemory();
+                break;
+            case DisplayProvider.DeepSeek:
+                DeepSeekBalanceStore.Shared.ClearMemory();
+                break;
+        }
     }
 
     /// AUTO mode of `CodexAccountSwitcher` (the codex-auto borrow, driven by
@@ -510,8 +721,20 @@ public sealed class UsageStore : INotifyPropertyChanged
     {
         StopAutoRefresh();
         Refresh();
-        ArmTimer();
-        ArmResetEdgeTimer();
+        _autoRefreshStarted = true;
+        _visibilityChanged = (_, args) =>
+        {
+            if (args.PropertyName is not (
+                nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)
+                or nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.SlotProviders))) return;
+            if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
+        };
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        if (_enabledProviders.Count > 0)
+        {
+            ArmTimer();
+            ArmResetEdgeTimer();
+        }
         RefreshIntervalStore.Shared.PropertyChanged += OnIntervalChanged;
         StartNetworkMonitor();
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
@@ -521,6 +744,13 @@ public sealed class UsageStore : INotifyPropertyChanged
 
     public void StopAutoRefresh()
     {
+        _autoRefreshStarted = false;
+        if (_visibilityChanged is not null)
+        {
+            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            _visibilityChanged = null;
+        }
+        CancelCoreRefreshes();
         _pollTimer?.Stop();
         _pollTimer = null;
         _resetEdgeTimer?.Stop();
@@ -561,7 +791,7 @@ public sealed class UsageStore : INotifyPropertyChanged
         {
             // The dead in-flight request would block Refresh's early-return
             // for up to 2 minutes — supersede it outright.
-            _refreshCts?.Cancel();
+            CancelCoreRefreshes();
             Loading = false;
             Refresh();
         });
@@ -637,11 +867,7 @@ public sealed class UsageStore : INotifyPropertyChanged
                 // Cancel any in-flight refresh — it was started on the dead
                 // path and will return an error. Wait for it to finalize so
                 // its loading=false lands before the replacement starts.
-                _refreshCts?.Cancel();
-                if (_refreshTask is { } task)
-                {
-                    try { await task; } catch { }
-                }
+                CancelCoreRefreshes();
                 Refresh();
             }
             catch

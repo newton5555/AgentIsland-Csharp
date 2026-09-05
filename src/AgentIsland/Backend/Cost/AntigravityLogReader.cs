@@ -11,5 +11,5 @@ namespace AgentIsland.Backend.Cost;
 /// cost pipeline lights up unchanged.
 public static class AntigravityLogReader
 {
-    public static List<TokenEvent> Scan(int lookbackDays) => new();
+    public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default) => new();
 }

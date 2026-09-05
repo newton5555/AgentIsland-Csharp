@@ -54,10 +54,22 @@ public static class IslandPaths
     public static string CursorGlobalStorageDatabase => Path.Combine(
         RoamingAppData, "Cursor", "User", "globalStorage", "state.vscdb");
 
-    public static string AppSupportDir => Path.Combine(RoamingAppData, "AgentIsland");
+    /// The normal app keeps preferences under Roaming. Tests and diagnostic
+    /// hosts can opt into a process-local root before any singleton is loaded;
+    /// keeping this lookup dynamic is important because the static stores are
+    /// intentionally shared for the life of the process.
+    public static string AppSupportDir => OverrideOrDefault(
+        "AGENTISLAND_DATA_DIR", Path.Combine(RoamingAppData, "AgentIsland"));
     public static string SettingsFile => Path.Combine(AppSupportDir, "settings.json");
     public static string TriggerRunsDir => Path.Combine(AppSupportDir, "trigger-runs");
-    public static string CacheDir => Path.Combine(LocalAppData, "AgentIsland", "cache");
+    public static string CacheDir => OverrideOrDefault(
+        "AGENTISLAND_CACHE_DIR", Path.Combine(LocalAppData, "AgentIsland", "cache"));
+
+    private static string OverrideOrDefault(string variable, string fallback)
+    {
+        var value = Environment.GetEnvironmentVariable(variable);
+        return string.IsNullOrWhiteSpace(value) ? fallback : Path.GetFullPath(value);
+    }
 
     private static IReadOnlyList<string> ResolveClaudeConfigRoots()
     {

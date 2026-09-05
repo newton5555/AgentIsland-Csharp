@@ -17,7 +17,7 @@ public static class DeepSeekLogReader
         TriggerTool.DeepSeek,
         Path.Combine(IslandPaths.CacheDir, "deepseek-harness-parse-cache.v2.json"));
 
-    public static List<TokenEvent> Scan(int lookbackDays)
+    public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default)
     {
         var cutoff = DateTimeOffset.Now.AddDays(-Math.Max(0, lookbackDays));
         var root = IslandPaths.DeepSeekSessionsRoot;
@@ -25,8 +25,10 @@ public static class DeepSeekLogReader
 
         var files = SafeFileSystem.EnumerateFiles(root, "session.jsonl.zstd");
         if (files.Count == 0) return new List<TokenEvent>();
-        return Cache.Walk(files, cutoff, DeepSeekLogParser.ParseFile);
+        return Cache.Walk(files, cutoff, DeepSeekLogParser.ParseFile, cancellationToken);
     }
+
+    internal static void ClearMemoryCache() => Cache.ClearMemory();
 
     /// Test/diagnostic seam that keeps the host reader's public surface in
     /// line with the other cost readers.

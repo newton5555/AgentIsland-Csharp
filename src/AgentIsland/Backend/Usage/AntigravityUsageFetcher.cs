@@ -25,15 +25,15 @@ public static class AntigravityUsageFetcher
         public sealed record Failed(string Message) : Outcome;
     }
 
-    public static async Task<Outcome> Fetch()
+    public static async Task<Outcome> Fetch(CancellationToken cancellationToken = default)
     {
         if (!AntigravityCredentials.Detected) return new Outcome.NotInstalled();
 
-        var port = await AntigravityLanguageServer.Discover().ConfigureAwait(false);
+        var port = await AntigravityLanguageServer.Discover(cancellationToken).ConfigureAwait(false);
         if (port is not { } livePort) return new Outcome.NotRunning();
 
         var summary = await CallWithCsrfRetry(
-            "RetrieveUserQuotaSummary", livePort, "{}").ConfigureAwait(false);
+            "RetrieveUserQuotaSummary", livePort, "{}", cancellationToken).ConfigureAwait(false);
         if (summary is null) return new Outcome.Failed("quota call failed");
         if (summary.Status != 200)
         {
@@ -47,7 +47,7 @@ public static class AntigravityUsageFetcher
         // Identity is garnish — a failed status call must not sink the
         // buckets that already arrived.
         AntigravityQuotaParser.UserProfile? profile = null;
-        if (await CallWithCsrfRetry("GetUserStatus", livePort, "{}").ConfigureAwait(false)
+        if (await CallWithCsrfRetry("GetUserStatus", livePort, "{}", cancellationToken).ConfigureAwait(false)
             is { Status: 200 } status)
         {
             profile = AntigravityQuotaParser.ParseUserStatus(status.Body);
@@ -67,15 +67,16 @@ public static class AntigravityUsageFetcher
     /// says the plain call was refused — a strictly additive retry on a path
     /// that already failed.
     private static async Task<AntigravityLanguageServer.Reply?> CallWithCsrfRetry(
-        string method, int port, string body)
+        string method, int port, string body, CancellationToken cancellationToken)
     {
-        var reply = await AntigravityLanguageServer.Call(method, port, body).ConfigureAwait(false);
+        var reply = await AntigravityLanguageServer.Call(
+            method, port, body, cancellationToken: cancellationToken).ConfigureAwait(false);
         if (reply is not { Status: 401 }) return reply;
         foreach (var pid in AntigravityLanguageServer.AntigravityProcessIds())
         {
             if (AntigravityLanguageServer.CsrfToken(pid) is not { Length: > 0 } token) continue;
             var retried = await AntigravityLanguageServer
-                .Call(method, port, body, token).ConfigureAwait(false);
+                .Call(method, port, body, token, cancellationToken: cancellationToken).ConfigureAwait(false);
             if (retried is { Status: 200 }) return retried;
         }
         return reply;

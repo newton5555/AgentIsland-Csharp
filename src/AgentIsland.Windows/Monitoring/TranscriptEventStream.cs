@@ -1,4 +1,5 @@
 using System.IO;
+using AgentIsland.Core;
 using AgentIsland.Windows;
 
 namespace AgentIsland.Windows.Monitoring;
@@ -18,14 +19,20 @@ public sealed class TranscriptEventStream : IDisposable
         _onChange = onChange;
     }
 
-    public void Start()
+    public void Start(IReadOnlySet<TriggerTool>? providers = null)
     {
         if (_watchers.Count > 0) return;
         var roots = new List<string>();
-        roots.AddRange(IslandPaths.ClaudeProjectRoots);
-        roots.Add(IslandPaths.CodexSessionsRoot);
-        roots.Add(IslandPaths.ClaudeDesktopSessionsRoot);
-        roots.Add(IslandPaths.DeepSeekSessionsRoot);
+        bool IsEnabled(TriggerTool provider) => providers is null || providers.Contains(provider);
+        if (IsEnabled(TriggerTool.Claude))
+        {
+            roots.AddRange(IslandPaths.ClaudeProjectRoots);
+            roots.Add(IslandPaths.ClaudeDesktopSessionsRoot);
+        }
+        if (IsEnabled(TriggerTool.Codex))
+            roots.Add(IslandPaths.CodexSessionsRoot);
+        if (IsEnabled(TriggerTool.DeepSeek))
+            roots.Add(IslandPaths.DeepSeekSessionsRoot);
         foreach (var root in roots.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase))
         {
             try

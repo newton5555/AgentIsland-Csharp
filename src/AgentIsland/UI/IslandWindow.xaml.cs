@@ -11,6 +11,57 @@ using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI;
 
+internal readonly record struct SilhouetteScreenBounds(
+    double Width,
+    double Height,
+    Point TopLeft,
+    double ScreenWidth,
+    double ScreenHeight,
+    double Radius,
+    bool IsFloating)
+{
+    public bool IsPointInside(Point screenPoint)
+    {
+        if (Width <= 0 || Height <= 0 || ScreenWidth <= 0 || ScreenHeight <= 0)
+            return false;
+
+        // Normalize the native screen point into the silhouette's local
+        // coordinates. This avoids a second screen-to-DIP conversion and
+        // keeps the corner test aligned with Border's CornerRadius.
+        var point = new Point(
+            (screenPoint.X - TopLeft.X) / ScreenWidth * Width,
+            (screenPoint.Y - TopLeft.Y) / ScreenHeight * Height);
+        if (point.X < 0 || point.Y < 0 || point.X > Width || point.Y > Height)
+        {
+            return false;
+        }
+
+        if (Radius <= 0) return true;
+
+        // Top-bar mode has square top corners and rounded bottom corners;
+        // floating mode rounds all four corners just like the Border.
+        if (IsFloating)
+        {
+            if (point.X < Radius && point.Y < Radius
+                && !InsideCorner(point, Radius, Radius, Radius)) return false;
+            if (point.X > Width - Radius && point.Y < Radius
+                && !InsideCorner(point, Width - Radius, Radius, Radius)) return false;
+        }
+        if (point.X < Radius && point.Y > Height - Radius
+            && !InsideCorner(point, Radius, Height - Radius, Radius)) return false;
+        if (point.X > Width - Radius && point.Y > Height - Radius
+            && !InsideCorner(point, Width - Radius, Height - Radius, Radius)) return false;
+        return true;
+    }
+
+    private static bool InsideCorner(Point point, double centerX, double centerY, double radius)
+    {
+        var dx = point.X - centerX;
+        var dy = point.Y - centerY;
+        return dx * dx + dy * dy <= radius * radius;
+    }
+}
+
 /// The island itself: a borderless, topmost, per-pixel-transparent window
 /// docked to an edge of the chosen screen (top-center by default). Fully
 /// transparent pixels pass clicks through to whatever is behind, so only the
@@ -23,8 +74,10 @@ public partial class IslandWindow : Window
     private System.Windows.Interop.HwndSource? _windowSource;
     private DispatcherTimer? _mouseHitTestTimer;
     private bool _mouseClickThrough;
+    private SilhouetteScreenBounds? _cachedSilhouetteBounds;
 
     private const int WmNcHitTest = 0x0084;
+    private const int WmDpiChanged = 0x02E0;
     private const int HtTransparent = -1;
 
     // Unsubscribe actions for the singleton-store handlers, run on Closed —
@@ -46,9 +99,28 @@ public partial class IslandWindow : Window
     private TriggerTool? _leftTool = TriggerTool.Claude;
     private TriggerTool? _rightTool = TriggerTool.Codex;
 
+    // Several singleton stores can publish together at the end of one poll.
+    // Coalesce their visual work into one render-priority dispatcher callback;
+    // this only removes duplicate layout/brush setup and does not touch the
+    // animation clocks or their timing.
+    [Flags]
+    private enum VisualUpdateFlags
+    {
+        None = 0,
+        Activity = 1,
+        Usage = 2,
+        Alert = 4,
+        AlertPulse = 8,
+    }
+
+    private int _visualUpdateFlags;
+    private int _visualUpdateQueued;
+    private bool _closed;
+
     public IslandWindow()
     {
         InitializeComponent();
+        ConfigureTransparencyExperiment();
         LeftLogo.Tool = TriggerTool.Claude;
         RightLogo.Tool = TriggerTool.Codex;
         LeftPill.Tool = TriggerTool.Claude;
@@ -56,7 +128,15 @@ public partial class IslandWindow : Window
         RightPill.Tool = TriggerTool.Codex;
         RightPill.Mirrored = true;
         Loaded += OnLoaded;
+        LocationChanged += OnLocationChanged;
+        SizeChanged += OnWindowSizeChanged;
     }
+
+    private void OnLocationChanged(object? sender, EventArgs e) =>
+        InvalidateSilhouetteBounds();
+
+    private void OnWindowSizeChanged(object sender, SizeChangedEventArgs e) =>
+        InvalidateSilhouetteBounds();
 
     /// A transparent layered WPF window can keep the mouse over the visual
     /// bounds of an effect (the halo) even when the effect itself is marked
@@ -72,6 +152,8 @@ public partial class IslandWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _closed = true;
+        Interlocked.Exchange(ref _visualUpdateFlags, 0);
         _mouseHitTestTimer?.Stop();
         _mouseHitTestTimer = null;
         SetMouseClickThrough(false);
@@ -87,6 +169,14 @@ public partial class IslandWindow : Window
         IntPtr lParam,
         ref bool handled)
     {
+        if (message == WmDpiChanged)
+        {
+            InvalidateSilhouetteBounds();
+        }
+
+        if (PreserveExperimentalLayeredStyle(message, wParam, lParam, ref handled))
+            return IntPtr.Zero;
+
         if (message != WmNcHitTest || IsPointInsideSilhouette(lParam))
         {
             return IntPtr.Zero;
@@ -107,58 +197,6 @@ public partial class IslandWindow : Window
         var screenX = unchecked((short)(raw & 0xFFFF));
         var screenY = unchecked((short)((raw >> 16) & 0xFFFF));
         return IsPointInsideSilhouette(new Point(screenX, screenY));
-    }
-
-    private bool IsPointInsideSilhouette(Point screenPoint)
-    {
-        try
-        {
-            var width = Silhouette.ActualWidth;
-            var height = Silhouette.ActualHeight;
-            if (width <= 0 || height <= 0) return false;
-
-            var topLeft = Silhouette.PointToScreen(new Point(0, 0));
-            var bottomRight = Silhouette.PointToScreen(new Point(width, height));
-            var screenWidth = bottomRight.X - topLeft.X;
-            var screenHeight = bottomRight.Y - topLeft.Y;
-            if (screenWidth <= 0 || screenHeight <= 0) return false;
-
-            // Normalize the native screen point into the silhouette's local
-            // coordinates. This avoids a second screen-to-DIP conversion and
-            // keeps the corner test aligned with Border's CornerRadius.
-            var point = new Point(
-                (screenPoint.X - topLeft.X) / screenWidth * width,
-                (screenPoint.Y - topLeft.Y) / screenHeight * height);
-            if (point.X < 0 || point.Y < 0 || point.X > width || point.Y > height)
-            {
-                return false;
-            }
-
-            var radius = Math.Min(_model.CornerRadius, Math.Min(width, height) / 2);
-            if (radius <= 0) return true;
-
-            // Top-bar mode has square top corners and rounded bottom corners;
-            // floating mode rounds all four corners just like the Border.
-            if (IsFloating)
-            {
-                if (point.X < radius && point.Y < radius
-                    && !InsideCorner(point, radius, radius, radius)) return false;
-                if (point.X > width - radius && point.Y < radius
-                    && !InsideCorner(point, width - radius, radius, radius)) return false;
-            }
-            if (point.X < radius && point.Y > height - radius
-                && !InsideCorner(point, radius, height - radius, radius)) return false;
-            if (point.X > width - radius && point.Y > height - radius
-                && !InsideCorner(point, width - radius, height - radius, radius)) return false;
-            return true;
-        }
-        catch (InvalidOperationException)
-        {
-            // The handle can receive a message while WPF is tearing down or
-            // before the visual has joined a presentation source. Let the
-            // underlying window receive that point.
-            return false;
-        }
     }
 
     /// HTTRANSPARENT is only forwarded to windows on the same GUI thread.
@@ -220,13 +258,6 @@ public partial class IslandWindow : Window
         _mouseClickThrough = clickThrough;
     }
 
-    private static bool InsideCorner(Point point, double centerX, double centerY, double radius)
-    {
-        var dx = point.X - centerX;
-        var dy = point.Y - centerY;
-        return dx * dx + dy * dy <= radius * radius;
-    }
-
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplyEdgeLayout();
@@ -239,6 +270,7 @@ public partial class IslandWindow : Window
         // (+4 so half its stroke rides outside the edge).
         Silhouette.SizeChanged += (_, args) =>
         {
+            InvalidateSilhouetteBounds();
             Sweep.Width = args.NewSize.Width + 4;
             Sweep.Height = args.NewSize.Height + 4;
         };
@@ -301,16 +333,12 @@ public partial class IslandWindow : Window
         BuildExpandedChrome();
 
         System.ComponentModel.PropertyChangedEventHandler onActivity =
-            (_, _) => Dispatcher.BeginInvoke(UpdateActivityVisuals);
+            (_, _) => QueueVisualUpdate(VisualUpdateFlags.Activity);
         ActivityMonitor.Shared.PropertyChanged += onActivity;
         _teardown.Add(() => ActivityMonitor.Shared.PropertyChanged -= onActivity);
 
-        System.ComponentModel.PropertyChangedEventHandler onUsage = (_, _) => Dispatcher.BeginInvoke(() =>
-        {
-            UpdatePlanChips();
-            UpdatePills();
-            UpdateHalo();
-        });
+        System.ComponentModel.PropertyChangedEventHandler onUsage =
+            (_, _) => QueueVisualUpdate(VisualUpdateFlags.Usage);
         UsageStore.Shared.PropertyChanged += onUsage;
         _teardown.Add(() => UsageStore.Shared.PropertyChanged -= onUsage);
         AntigravityUsageStore.Shared.PropertyChanged += onUsage;
@@ -322,12 +350,12 @@ public partial class IslandWindow : Window
         AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.PropertyChanged += onUsage;
         _teardown.Add(() => AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.PropertyChanged -= onUsage);
 
-        System.ComponentModel.PropertyChangedEventHandler onAlert = (_, args) => Dispatcher.BeginInvoke(() =>
-        {
-            if (args.PropertyName == nameof(AgentIsland.Backend.Settings.AlertEngine.Pulse)) HandleAlertPulse();
-            UpdateHalo();
-            UpdatePills();
-        });
+        System.ComponentModel.PropertyChangedEventHandler onAlert = (_, args) =>
+            QueueVisualUpdate(
+                VisualUpdateFlags.Alert
+                | (args.PropertyName == nameof(AgentIsland.Backend.Settings.AlertEngine.Pulse)
+                    ? VisualUpdateFlags.AlertPulse
+                    : VisualUpdateFlags.None));
         AgentIsland.Backend.Settings.AlertEngine.Shared.PropertyChanged += onAlert;
         _teardown.Add(() => AgentIsland.Backend.Settings.AlertEngine.Shared.PropertyChanged -= onAlert);
 
@@ -519,11 +547,7 @@ public partial class IslandWindow : Window
         TopStrip.Children.Add(_rightTitle);
 
         System.ComponentModel.PropertyChangedEventHandler onPlanChips =
-            (_, _) => Dispatcher.BeginInvoke(() =>
-            {
-                UpdatePlanChips();
-                UpdatePills();
-            });
+            (_, _) => QueueVisualUpdate(VisualUpdateFlags.Usage);
         UsageStore.Shared.PropertyChanged += onPlanChips;
         _teardown.Add(() => UsageStore.Shared.PropertyChanged -= onPlanChips);
         AntigravityUsageStore.Shared.PropertyChanged += onPlanChips;
@@ -691,6 +715,8 @@ public partial class IslandWindow : Window
             Left = area.Left + (area.Width - Width) / 2;
             Top = area.Top;
         }
+
+        InvalidateSilhouetteBounds();
     }
 
     /// The chosen monitor's work area (taskbar excluded, so a top-docked
@@ -805,6 +831,7 @@ public partial class IslandWindow : Window
     {
         Silhouette.CornerRadius = ShapeRadius(_model.CornerRadius);
         Sweep.CornerRadius = ShapeRadius(_model.CornerRadius + 2);
+        InvalidateSilhouetteBounds();
         if (_model.State != IslandState.Expanded)
         {
             ContentSlide.BeginAnimation(TranslateTransform.YProperty, null);
@@ -1002,6 +1029,7 @@ public partial class IslandWindow : Window
         AnimateTabColumns(open);
         Silhouette.CornerRadius = ShapeRadius(_model.CornerRadius);
         Sweep.CornerRadius = ShapeRadius(_model.CornerRadius + 2);
+        InvalidateSilhouetteBounds();
 
         // Expanded panel gains the hairline stroke and grounding shadow of
         // the macOS GlowLayer; both drop on collapse.
@@ -1103,6 +1131,7 @@ public partial class IslandWindow : Window
         Silhouette.Height = size.Height;
         Silhouette.CornerRadius = ShapeRadius(_model.CornerRadius);
         Sweep.CornerRadius = ShapeRadius(_model.CornerRadius + 2);
+        InvalidateSilhouetteBounds();
         SetColumnInstant(LeftPillColumn, PillSlotTarget());
         SetColumnInstant(RightPillColumn, PillSlotTarget());
         SetColumnInstant(LeftTabColumn, IslandModel.TabWidth);
@@ -1361,6 +1390,112 @@ public partial class IslandWindow : Window
 
     // MARK: - Live state visuals
 
+    private void QueueVisualUpdate(VisualUpdateFlags flags)
+    {
+        if (_closed || flags == VisualUpdateFlags.None) return;
+        Interlocked.Or(ref _visualUpdateFlags, (int)flags);
+        ScheduleVisualUpdate();
+    }
+
+    private void ScheduleVisualUpdate()
+    {
+        if (_closed || Volatile.Read(ref _visualUpdateFlags) == 0) return;
+        if (Interlocked.Exchange(ref _visualUpdateQueued, 1) != 0) return;
+        try
+        {
+            _ = Dispatcher.BeginInvoke(
+                DispatcherPriority.Render,
+                new Action(FlushVisualUpdates));
+        }
+        catch (InvalidOperationException)
+        {
+            // The dispatcher can close between the event and the enqueue.
+            // There is no visual work left to deliver once the window is gone.
+            Interlocked.Exchange(ref _visualUpdateQueued, 0);
+        }
+    }
+
+    internal void InvalidateSilhouetteBounds()
+    {
+        _cachedSilhouetteBounds = null;
+    }
+
+    private SilhouetteScreenBounds? GetSilhouetteBounds()
+    {
+        if (_cachedSilhouetteBounds is { } cached)
+        {
+            return cached;
+        }
+
+        try
+        {
+            var width = Silhouette.ActualWidth;
+            var height = Silhouette.ActualHeight;
+            if (width <= 0 || height <= 0) return null;
+
+            var topLeft = Silhouette.PointToScreen(new Point(0, 0));
+            var bottomRight = Silhouette.PointToScreen(new Point(width, height));
+            var screenWidth = bottomRight.X - topLeft.X;
+            var screenHeight = bottomRight.Y - topLeft.Y;
+            if (screenWidth <= 0 || screenHeight <= 0) return null;
+
+            var radius = Math.Min(_model.CornerRadius, Math.Min(width, height) / 2);
+            var bounds = new SilhouetteScreenBounds(
+                width,
+                height,
+                topLeft,
+                screenWidth,
+                screenHeight,
+                radius,
+                IsFloating);
+            _cachedSilhouetteBounds = bounds;
+            return bounds;
+        }
+        catch (InvalidOperationException)
+        {
+            // The handle can receive a message while WPF is tearing down or
+            // before the visual has joined a presentation source. Let the
+            // underlying window receive that point.
+            return null;
+        }
+    }
+
+    private bool IsPointInsideSilhouette(Point screenPoint)
+    {
+        var bounds = GetSilhouetteBounds();
+        return bounds?.IsPointInside(screenPoint) ?? false;
+    }
+
+    private void FlushVisualUpdates()
+    {
+        var flags = (VisualUpdateFlags)Interlocked.Exchange(ref _visualUpdateFlags, 0);
+        try
+        {
+            if (_closed) return;
+            if ((flags & VisualUpdateFlags.Activity) != 0)
+            {
+                UpdateActivityVisuals();
+            }
+            if ((flags & VisualUpdateFlags.Usage) != 0)
+            {
+                UpdatePlanChips();
+                UpdatePills();
+                UpdateHalo();
+            }
+            if ((flags & VisualUpdateFlags.Alert) != 0)
+            {
+                if ((flags & VisualUpdateFlags.AlertPulse) != 0) HandleAlertPulse();
+                UpdateHalo();
+                UpdatePills();
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _visualUpdateQueued, 0);
+            ScheduleVisualUpdate();
+        }
+    }
+
     private void UpdateActivityVisuals()
     {
         var monitor = ActivityMonitor.Shared;
@@ -1404,6 +1539,7 @@ public partial class IslandWindow : Window
             : new ScaleTransform(scale, scale);
         Width = 900 * scale;
         Height = 360 * scale;
+        InvalidateSilhouetteBounds();
     }
 
     private static bool AttentionShown()
@@ -1586,11 +1722,10 @@ public partial class IslandWindow : Window
         {
             _sweepSpinning = true;
             // 100°/s like the macOS TimelineView sweep — but stepped at
-            // 15fps by a timer, not a smooth 60fps animation. Every frame
-            // recomposites the whole layered window in software (measured:
-            // the smooth spin held 47% of a core); at 15 steps/s the comet
-            // is a soft blur whose 6.7° hops read as motion, and the cost
-            // drops to roughly a quarter. macOS spins free on Metal.
+            // 15fps by a timer, not a smooth 60fps animation. Historical
+            // profiling of the per-pixel renderer motivated this cap; keep
+            // it identical in the WindowChrome experiment so the comparison
+            // isolates the renderer. Re-measure before raising the rate.
             if (_sweepTimer is null)
             {
                 _sweepTimer = new DispatcherTimer(DispatcherPriority.Render)

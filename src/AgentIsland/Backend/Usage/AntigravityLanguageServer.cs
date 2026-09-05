@@ -46,7 +46,8 @@ public static class AntigravityLanguageServer
         int port,
         string body = "{}",
         string? csrfToken = null,
-        double timeoutSeconds = 6)
+        double timeoutSeconds = 6,
+        CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(
             HttpMethod.Post,
@@ -64,7 +65,8 @@ public static class AntigravityLanguageServer
         }
         try
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            cts.CancelAfter(TimeSpan.FromSeconds(timeoutSeconds));
             using var response = await Client.SendAsync(request, cts.Token).ConfigureAwait(false);
             var data = await response.Content.ReadAsByteArrayAsync(cts.Token).ConfigureAwait(false);
             return new Reply((int)response.StatusCode, data);
@@ -79,16 +81,17 @@ public static class AntigravityLanguageServer
     /// by walking the running Antigravity processes' listening sockets —
     /// GetExtendedTcpTable in-process; shelling out to netstat on every
     /// refresh tick would fork twice a minute for the life of the app.
-    public static async Task<int?> Discover()
+    public static async Task<int?> Discover(CancellationToken cancellationToken = default)
     {
         var cached = _cachedPort;
-        if (cached > 0 && await IsAlive(cached).ConfigureAwait(false)) return cached;
+        if (cached > 0 && await IsAlive(cached, cancellationToken).ConfigureAwait(false)) return cached;
         foreach (var pid in AntigravityProcessIds())
         {
+            cancellationToken.ThrowIfCancellationRequested();
             foreach (var port in ListeningPorts(pid))
             {
                 if (port == cached) continue;
-                if (await IsAlive(port).ConfigureAwait(false))
+                if (await IsAlive(port, cancellationToken).ConfigureAwait(false))
                 {
                     _cachedPort = port;
                     return port;
@@ -102,10 +105,11 @@ public static class AntigravityLanguageServer
     /// `GetUnleashData` is the cheapest method that proves this is the RPC
     /// port rather than a sibling plain-HTTP port the process also opens.
     /// 401 counts as alive: the port is right and only the token is missing.
-    private static async Task<bool> IsAlive(int port)
+    private static async Task<bool> IsAlive(int port, CancellationToken cancellationToken)
     {
         var reply = await Call(
-            "GetUnleashData", port, "{\"wrapper_data\":{}}", timeoutSeconds: 2)
+            "GetUnleashData", port, "{\"wrapper_data\":{}}", timeoutSeconds: 2,
+            cancellationToken: cancellationToken)
             .ConfigureAwait(false);
         return reply is { Status: 200 or 401 };
     }

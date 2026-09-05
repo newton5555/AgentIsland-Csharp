@@ -10,6 +10,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		.github\workflows\windows.yml = .github\workflows\windows.yml
 		.gitignore = .gitignore
 		build.ps1 = build.ps1
+		scripts\Measure-ProcessResources.ps1 = scripts\Measure-ProcessResources.ps1
 		LICENSE = LICENSE
 		README.md = README.md
 		VERSION = VERSION
@@ -57,6 +58,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "docs", "docs", "{05057336-D
 	ProjectSection(SolutionItems) = preProject
 		docs\architecture.md = docs\architecture.md
 		docs\migration.md = docs\migration.md
+		docs\performance.md = docs\performance.md
 	EndProjectSection
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentIsland.Core", "src\AgentIsland.Core\AgentIsland.Core.csproj", "{97FD873B-C623-407D-B1E6-4851D2C8FF58}"

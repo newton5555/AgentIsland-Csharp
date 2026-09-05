@@ -26,6 +26,8 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
     private string? _accountEmail;
     private bool _loading;
     private DateTimeOffset? _lastAttempt;
+    private long _refreshGeneration;
+    private CancellationTokenSource? _refreshCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -57,12 +59,7 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
 
         Detected = AntigravityCredentials.Detected;
         if (!Detected) return;
-        if (Preferences.Get<CachedSnapshot?>(CacheKey) is not { } cached) return;
-        if (cached.Snapshot is not { } stored) return;
-        if (DateTimeOffset.Now - cached.UpdatedAt > CacheMaxAge) return;
-        _snapshot = stored;
-        _lastUpdated = cached.UpdatedAt;
-        _accountEmail = cached.Email;
+        RestoreCachedSnapshot();
     }
 
     public AntigravityQuotaSnapshot? Snapshot
@@ -97,6 +94,22 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    /// Drop only the in-process quota/identity state. The persisted snapshot
+    /// remains available for the next enable, while the generation check keeps
+    /// a disabled in-flight fetch from publishing after it returns.
+    public void ClearMemory()
+    {
+        _refreshGeneration++;
+        _refreshCts?.Cancel();
+        _refreshCts = null;
+        Snapshot = null;
+        StatusCaption = null;
+        LastUpdated = null;
+        AccountEmail = null;
+        _lastAttempt = null;
+        Loading = false;
+    }
+
     /// Tier chip for the Settings row / strip. Google's tier names are
     /// sentences ("Antigravity Starter Quota"); the compactor keeps the part
     /// that identifies the plan ("STARTER").
@@ -111,23 +124,52 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
+        RestoreCachedSnapshot();
         _lastAttempt = DateTimeOffset.Now;
         Loading = true;
+        var generation = ++_refreshGeneration;
+        var cts = new CancellationTokenSource();
+        _refreshCts = cts;
         var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
-            AntigravityUsageFetcher.Outcome outcome;
             try
             {
-                outcome = await AntigravityUsageFetcher.Fetch();
+                var outcome = await AntigravityUsageFetcher.Fetch(cts.Token);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                await dispatcher.BeginInvoke(() =>
+                {
+                    if (cts.IsCancellationRequested || generation != _refreshGeneration
+                        || !ProviderVisibilityStore.Shared.AntigravityPanelShown) return;
+                    Apply(outcome);
+                });
             }
             catch (Exception error)
             {
-                // A faulted fetch must never leave Loading latched — that
-                // would freeze the strip until the app is relaunched.
-                outcome = new AntigravityUsageFetcher.Outcome.Failed(error.Message);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                try
+                {
+                    await dispatcher.BeginInvoke(() =>
+                    {
+                        if (generation != _refreshGeneration
+                            || !ProviderVisibilityStore.Shared.AntigravityPanelShown) return;
+                        Apply(new AntigravityUsageFetcher.Outcome.Failed(error.Message));
+                    });
+                }
+                catch { }
             }
-            await dispatcher.BeginInvoke(() => Apply(outcome));
+            finally
+            {
+                if (ReferenceEquals(_refreshCts, cts))
+                {
+                    _refreshCts = null;
+                    if (generation == _refreshGeneration)
+                    {
+                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                    }
+                }
+                cts.Dispose();
+            }
         });
     }
 
@@ -164,6 +206,16 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
 
     private static void Persist(AntigravityQuotaSnapshot fresh, string? email) =>
         Preferences.Set(CacheKey, new CachedSnapshot(fresh, DateTimeOffset.Now, email));
+
+    private void RestoreCachedSnapshot()
+    {
+        if (Preferences.Get<CachedSnapshot?>(CacheKey) is not { } cached
+            || cached.Snapshot is not { } stored
+            || DateTimeOffset.Now - cached.UpdatedAt > CacheMaxAge) return;
+        Snapshot = stored;
+        LastUpdated = cached.UpdatedAt;
+        AccountEmail = cached.Email;
+    }
 
     /// The guest fixtures only exist for the recording rig; a plain demo run
     /// still shows the classic Claude/Codex island.

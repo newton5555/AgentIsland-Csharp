@@ -116,6 +116,49 @@ public sealed class AgentReminderCenter
         PersistAcknowledgedKeys();
     }
 
+    /// Forget live alarm state when a provider leaves the enabled set. The
+    /// long-lived acknowledged history intentionally remains persisted, but
+    /// pending confirmations, held windows, and active keys must not survive
+    /// a provider being switched off and later deliver a stale notification.
+    public void ClearProvider(TriggerTool provider)
+    {
+        var providerKey = provider.RawValue();
+        var prefix = providerKey + "-";
+        if (_activeNeedsYouKeys.Remove(providerKey, out var activeKeys))
+        {
+            foreach (var key in activeKeys)
+            {
+                CancelPending(key);
+                _heldAlarms.Remove(key);
+                TurnAlarmWindowController.Shared.AutoDismiss(provider, key);
+            }
+        }
+
+        // These are process-local delivery guards, not user history. Remove
+        // every matching key as a second line of defence in case a pending or
+        // held alarm outlived the active-session map during a provider toggle.
+        foreach (var key in _pendingNeedsYouTasks.Keys
+                     .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                     .ToList())
+        {
+            CancelPending(key);
+        }
+        foreach (var key in _heldAlarms.Keys
+                     .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                     .ToList())
+        {
+            _heldAlarms.Remove(key);
+            TurnAlarmWindowController.Shared.AutoDismiss(provider, key);
+        }
+        foreach (var key in _deliveredNeedsYouKeys.Keys
+                     .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
+                     .ToList())
+        {
+            _deliveredNeedsYouKeys.Remove(key);
+        }
+        _observedProviders.Remove(providerKey);
+    }
+
     private void PruneRememberedKeys()
     {
         var cutoff = DateTimeOffset.Now - RememberedKeyLifetime;

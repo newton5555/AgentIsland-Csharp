@@ -14,10 +14,14 @@ public sealed class CostStore : INotifyPropertyChanged
     public static CostStore Shared { get; } = new();
 
     private readonly Dictionary<DisplayProvider, ProviderCostSummary> _summaries = new();
+    private readonly HashSet<DisplayProvider> _activeProviders = new();
     private DateTimeOffset? _lastUpdated;
-    private bool _scanning;
-    private DateTimeOffset _scanStartedAt;
     private DispatcherTimer? _pollTimer;
+    private PropertyChangedEventHandler? _visibilityChanged;
+    private PropertyChangedEventHandler? _intervalChanged;
+    private bool _autoRefreshStarted;
+    private readonly Dictionary<DisplayProvider, long> _providerModeVersions = new();
+    private readonly Dictionary<DisplayProvider, Task<CostScanResult>> _inFlightProviders = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -53,7 +57,97 @@ public sealed class CostStore : INotifyPropertyChanged
 
     public void StartAutoRefresh()
     {
+        if (_autoRefreshStarted) return;
+        _autoRefreshStarted = true;
+        _visibilityChanged = OnProviderVisibilityChanged;
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        _intervalChanged = OnRefreshIntervalChanged;
+        RefreshIntervalStore.Shared.PropertyChanged += _intervalChanged;
+        ApplyProviderMode();
+    }
+
+    public void StopAutoRefresh()
+    {
+        if (!_autoRefreshStarted) return;
+        _autoRefreshStarted = false;
+        _pollTimer?.Stop();
+        _pollTimer = null;
+        if (_visibilityChanged is not null)
+        {
+            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            _visibilityChanged = null;
+        }
+        if (_intervalChanged is not null)
+        {
+            RefreshIntervalStore.Shared.PropertyChanged -= _intervalChanged;
+            _intervalChanged = null;
+        }
+        foreach (var provider in _activeProviders)
+        {
+            CostQueryService.Shared.Invalidate(provider);
+            ClearProviderMemory(provider);
+        }
+        _inFlightProviders.Clear();
+    }
+
+    private void OnRefreshIntervalChanged(object? sender, PropertyChangedEventArgs args) => ArmPollTimer();
+
+    private void OnProviderVisibilityChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)) return;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(ApplyProviderMode);
+            return;
+        }
+        ApplyProviderMode();
+    }
+
+    private void ApplyProviderMode()
+    {
+        var next = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToHashSet();
+        var changed = !_activeProviders.SetEquals(next);
+        var removed = _activeProviders.Except(next).ToArray();
+        var changedProviders = _activeProviders
+            .Concat(next)
+            .Distinct()
+            .Where(provider => _activeProviders.Contains(provider) != next.Contains(provider))
+            .ToArray();
+        _activeProviders.Clear();
+        foreach (var provider in next) _activeProviders.Add(provider);
+
+        if (changed)
+        {
+            foreach (var provider in changedProviders)
+            {
+                _providerModeVersions.TryGetValue(provider, out var version);
+                _providerModeVersions[provider] = version + 1;
+            }
+            foreach (var provider in removed)
+            {
+                SetSummary(provider, ProviderCostSummary.Empty);
+                CostQueryService.Shared.Invalidate(provider);
+                _inFlightProviders.Remove(provider);
+                ClearProviderMemory(provider);
+            }
+            if (_activeProviders.Count == 0) LastUpdated = null;
+        }
+
+        if (!_autoRefreshStarted) return;
+        if (_activeProviders.Count == 0)
+        {
+            _pollTimer?.Stop();
+            _pollTimer = null;
+            return;
+        }
+        ArmPollTimer();
         Refresh();
+    }
+
+    private void ArmPollTimer()
+    {
+        if (!_autoRefreshStarted || _activeProviders.Count == 0) return;
         _pollTimer?.Stop();
         _pollTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -61,13 +155,6 @@ public sealed class CostStore : INotifyPropertyChanged
         };
         _pollTimer.Tick += (_, _) => Refresh();
         _pollTimer.Start();
-        RefreshIntervalStore.Shared.PropertyChanged += (_, _) =>
-        {
-            if (_pollTimer is { } timer)
-            {
-                timer.Interval = TimeSpan.FromSeconds(RefreshIntervalStore.Shared.Seconds);
-            }
-        };
     }
 
     public void Refresh()
@@ -77,42 +164,101 @@ public sealed class CostStore : INotifyPropertyChanged
             InjectDemoData();
             return;
         }
-        // The in-flight latch gets a 10-minute wedge escape (macOS 28c9b4c):
-        // one scan that never completes must not freeze cost data for the
-        // process lifetime — panel numbers were observed stuck six hours
-        // behind a hung latch.
-        if (_scanning && DateTimeOffset.Now - _scanStartedAt < TimeSpan.FromMinutes(10)) return;
-        _scanning = true;
-        _scanStartedAt = DateTimeOffset.Now;
+        if (_activeProviders.Count == 0) return;
         var dispatcher = Dispatcher.CurrentDispatcher;
         var now = DateTimeOffset.Now;
         var lookback = CostSummarizer.YearHistoryDays(now);
-        // Six readers, one gate. Grok self-reports dollars, Claude/Codex are
-        // table-priced, Cursor yields token counts (no model → no price),
-        // DeepSeek reads the complete local Harness ledger across all routes
-        // (tokens only), and Gemini is an honest empty stub — each summarized
-        // off the UI thread and committed together so a slow scan never blocks
-        // a fast one twice.
-        var claudeTask = Task.Run(() => CostSummarizer.Summarize(ClaudeLogReader.Scan(lookback), now));
-        var codexTask = Task.Run(() => CostSummarizer.Summarize(CodexLogReader.Scan(lookback), now));
-        var antigravityTask = Task.Run(() => CostSummarizer.Summarize(AntigravityLogReader.Scan(lookback), now));
-        var grokTask = Task.Run(() => CostSummarizer.Summarize(GrokLogReader.Scan(lookback), now));
-        var cursorTask = Task.Run(() => CostSummarizer.Summarize(CursorLogReader.Scan(lookback), now));
-        var deepSeekTask = Task.Run(() => CostSummarizer.Summarize(DeepSeekLogReader.Scan(lookback), now));
-        _ = Task.WhenAll(claudeTask, codexTask, antigravityTask, grokTask, cursorTask, deepSeekTask).ContinueWith(_ =>
+        foreach (var provider in _activeProviders.ToArray())
         {
-            dispatcher.BeginInvoke(() =>
+            // CostQueryService coalesces with a report query already reading
+            // this provider. CostStore attaches only once, so one completion
+            // cannot publish the same summary repeatedly on every timer tick.
+            if (_inFlightProviders.ContainsKey(provider)) continue;
+            var providerModeVersion = _providerModeVersions.TryGetValue(provider, out var version)
+                ? version
+                : 0;
+            var task = CostQueryService.Shared.ScanAsync(provider, lookback, now);
+            _inFlightProviders[provider] = task;
+            _ = ObserveProviderScan(provider, providerModeVersion, task, dispatcher);
+        }
+    }
+
+    private async Task ObserveProviderScan(
+        DisplayProvider provider,
+        long providerModeVersion,
+        Task<CostScanResult> task,
+        Dispatcher dispatcher)
+    {
+        CostScanResult? result = null;
+        try
+        {
+            result = await task.ConfigureAwait(false);
+        }
+        catch
+        {
+            // Cancellation, a torn log, or a provider-specific fault leaves
+            // the prior good summary in place and releases the latch below.
+        }
+
+        try
+        {
+            await dispatcher.InvokeAsync(() =>
             {
-                if (claudeTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Claude, claudeTask.Result);
-                if (codexTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Codex, codexTask.Result);
-                if (antigravityTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Antigravity, antigravityTask.Result);
-                if (grokTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Grok, grokTask.Result);
-                if (cursorTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.Cursor, cursorTask.Result);
-                if (deepSeekTask.IsCompletedSuccessfully) SetSummary(DisplayProvider.DeepSeek, deepSeekTask.Result);
-                LastUpdated = DateTimeOffset.Now;
-                _scanning = false;
+                try
+                {
+                    if (result is not null
+                        && providerModeVersion == CurrentProviderModeVersion(provider)
+                        && _activeProviders.Contains(provider)
+                        && CostQueryService.Shared.IsCurrent(provider, result.ProviderVersion))
+                    {
+                        SetSummary(provider, result.Summary);
+                        LastUpdated = DateTimeOffset.Now;
+                    }
+                }
+                finally
+                {
+                    if (_inFlightProviders.TryGetValue(provider, out var current)
+                        && ReferenceEquals(current, task))
+                    {
+                        _inFlightProviders.Remove(provider);
+                    }
+                }
+                if (providerModeVersion != CurrentProviderModeVersion(provider)
+                    && _activeProviders.Contains(provider))
+                {
+                    Refresh();
+                }
             });
-        });
+        }
+        catch
+        {
+            // The app dispatcher may be shutting down. The task is already
+            // complete and no state needs to be published during exit.
+            if (_inFlightProviders.TryGetValue(provider, out var current)
+                && ReferenceEquals(current, task))
+            {
+                _inFlightProviders.Remove(provider);
+            }
+        }
+    }
+
+    private long CurrentProviderModeVersion(DisplayProvider provider) =>
+        _providerModeVersions.TryGetValue(provider, out var version) ? version : 0;
+
+    private static void ClearProviderMemory(DisplayProvider provider)
+    {
+        switch (provider)
+        {
+            case DisplayProvider.Claude:
+                ClaudeLogReader.ClearMemoryCache();
+                break;
+            case DisplayProvider.Codex:
+                CodexLogReader.ClearMemoryCache();
+                break;
+            case DisplayProvider.DeepSeek:
+                DeepSeekLogReader.ClearMemoryCache();
+                break;
+        }
     }
 
     /// Same hand-tuned April dataset the macOS demo ships: cache-heavy
@@ -120,11 +266,19 @@ public sealed class CostStore : INotifyPropertyChanged
     private void InjectDemoData()
     {
         var now = DateTimeOffset.Now;
-        SetSummary(DisplayProvider.Claude,
-            DemoSummary(now, 146.61, 211_240_000, 21_120_000, 1_510.80, 2_170_000_000, 217_100_000, seed: 7));
-        SetSummary(DisplayProvider.Codex,
-            DemoSummary(now, 136.50, 164_120_000, 32_820_000, 1_342.60, 1_610_000_000, 322_860_000, seed: 21));
-        LastUpdated = now;
+        foreach (var provider in DisplayProviders.All.Where(provider => !_activeProviders.Contains(provider)))
+            SetSummary(provider, ProviderCostSummary.Empty);
+        if (_activeProviders.Contains(DisplayProvider.Claude))
+        {
+            SetSummary(DisplayProvider.Claude,
+                DemoSummary(now, 146.61, 211_240_000, 21_120_000, 1_510.80, 2_170_000_000, 217_100_000, seed: 7));
+        }
+        if (_activeProviders.Contains(DisplayProvider.Codex))
+        {
+            SetSummary(DisplayProvider.Codex,
+                DemoSummary(now, 136.50, 164_120_000, 32_820_000, 1_342.60, 1_610_000_000, 322_860_000, seed: 21));
+        }
+        LastUpdated = _activeProviders.Count > 0 ? now : null;
     }
 
     private static ProviderCostSummary DemoSummary(

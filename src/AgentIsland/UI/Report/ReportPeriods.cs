@@ -79,27 +79,53 @@ public static class ReportPeriods
     /// Full-year rescan → per-provider slices for the interval, off the UI
     /// thread. The readers memoize per file (LogParseCache), so the
     /// steady-state cost is a cache walk + dedup pass, not a re-parse —
-    /// cheap enough to run per page flip. Never touches CostStore. Scans
-    /// ALL providers so a Grok-, Cursor-, or DeepSeek-only past period still
-    /// fills the report card.
-    public static Task<Dictionary<DisplayProvider, ReportSlice>> SlicesAsync(DateTime start, DateTime end)
+    /// cheap enough to run per page flip. Never touches CostStore. It uses a
+    /// snapshot of the enabled set, so a report cannot wake disabled-agent
+    /// readers or make the zero-agent state perform a hidden full scan.
+    public static Task<Dictionary<DisplayProvider, ReportSlice>> SlicesAsync(
+        DateTime start,
+        DateTime end,
+        CancellationToken cancellationToken = default)
     {
         var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
         var startOffset = new DateTimeOffset(start, DateTimeOffset.Now.Offset);
         var endOffset = new DateTimeOffset(end, DateTimeOffset.Now.Offset);
-        return Task.Run(() =>
+        var providers = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToArray();
+        return Task.Run(async () =>
         {
             ReportSlice Slice(IReadOnlyList<TokenEvent> events) =>
                 CostSummarizer.Slice(events, startOffset, endOffset);
-            return new Dictionary<DisplayProvider, ReportSlice>
+
+            cancellationToken.ThrowIfCancellationRequested();
+            var scans = providers.ToDictionary(
+                provider => provider,
+                provider => CostQueryService.Shared.ScanAsync(
+                    provider, lookback, DateTimeOffset.Now, cancellationToken));
+
+            var output = new Dictionary<DisplayProvider, ReportSlice>();
+            foreach (var provider in providers)
             {
-                [DisplayProvider.Claude] = Slice(ClaudeLogReader.Scan(lookback)),
-                [DisplayProvider.Codex] = Slice(CodexLogReader.Scan(lookback)),
-                [DisplayProvider.Antigravity] = Slice(AntigravityLogReader.Scan(lookback)),
-                [DisplayProvider.Grok] = Slice(GrokLogReader.Scan(lookback)),
-                [DisplayProvider.Cursor] = Slice(CursorLogReader.Scan(lookback)),
-                [DisplayProvider.DeepSeek] = Slice(DeepSeekLogReader.Scan(lookback)),
-            };
-        });
+                cancellationToken.ThrowIfCancellationRequested();
+                CostScanResult scan;
+                try
+                {
+                    // Await each already-started task independently. A provider
+                    // can be disabled after the enabled snapshot but before
+                    // the service entry gate; that provider is simply absent
+                    // from this page and must not discard other providers'
+                    // completed work.
+                    scan = await scans[provider].ConfigureAwait(false);
+                }
+                catch (CostQueryService.ProviderDisabledException)
+                {
+                    continue;
+                }
+                // A provider can be disabled and re-enabled while the report
+                // waits. The service generation rejects that stale result.
+                if (!CostQueryService.Shared.IsCurrent(provider, scan.ProviderVersion)) continue;
+                output[provider] = Slice(scan.Events);
+            }
+            return output;
+        }, cancellationToken);
     }
 }

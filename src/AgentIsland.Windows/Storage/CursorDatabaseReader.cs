@@ -37,7 +37,8 @@ public static class CursorDatabaseReader
 
     public static List<TokenEvent> Scan(
         int lookbackDays,
-        Func<string, DateTimeOffset, TokenEvent?> parse)
+        Func<string, DateTimeOffset, TokenEvent?> parse,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(parse);
 
@@ -70,6 +71,7 @@ public static class CursorDatabaseReader
 
             while (Step(statement) == SqliteRow)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var json = ReadColumnText(statement);
                 if (json is null || !json.Contains("tokenCount", StringComparison.Ordinal)) continue;
                 var tokenEvent = parse(json, fallback);

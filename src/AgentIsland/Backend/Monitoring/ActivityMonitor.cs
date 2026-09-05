@@ -37,6 +37,19 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     /// conversation-search.db that disqualified it earlier. Its turn
     /// detector is MtimeOnly, so it shows working/idle but can never raise a
     /// false "your turn".
+    private TriggerTool[] _availableProviders =
+    {
+        TriggerTool.Claude,
+        TriggerTool.Codex,
+        TriggerTool.Grok,
+        TriggerTool.Antigravity,
+        TriggerTool.Cursor,
+        TriggerTool.DeepSeek,
+    };
+
+    // Becomes the selected subset once Start() binds to the visibility store.
+    // Keeping the available catalog separate lets the demo hooks continue to
+    // work before startup while the live monitor stays strictly opt-in.
     private TriggerTool[] _monitoredProviders =
     {
         TriggerTool.Claude,
@@ -59,7 +72,8 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
             .OfType<TriggerTool>()
             .Distinct()
             .ToArray();
-        if (configured.Length > 0) _monitoredProviders = configured;
+        if (configured.Length > 0) _availableProviders = configured;
+        if (_started) ApplyProviderMode();
     }
 
     // Per-provider maps rather than per-provider fields: with fields, every
@@ -71,6 +85,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     private Dictionary<TriggerTool, ActiveThread> _threads = new();
     private Dictionary<TriggerTool, ActivityState> _demoStates = new();
     private Dictionary<string, DateTimeOffset> _lastWorking = new();
+    private Dictionary<string, TriggerTool> _lastWorkingProviders = new(StringComparer.OrdinalIgnoreCase);
 
     /// Visible state for every monitored provider. Raised as one change so
     /// provider surfaces refresh together.
@@ -116,31 +131,156 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     }
 
     private DispatcherTimer? _timer;
+    private DispatcherTimer? _trailingKickTimer;
     private TranscriptEventStream? _eventStream;
     private Dispatcher? _dispatcher;
+    private PropertyChangedEventHandler? _visibilityChanged;
+    private readonly HashSet<TriggerTool> _activeProviders = new();
+    private readonly HashSet<TriggerTool> _pendingCacheClears = new();
     private DateTimeOffset _lastEventKick = DateTimeOffset.MinValue;
     private bool _kickPending;
     private bool _scanInFlight;
     private bool _rescanQueued;
+    private long _scanGeneration;
+    private bool _started;
 
     public void Start()
     {
+        if (_started) return;
+        _started = true;
         _dispatcher = Dispatcher.CurrentDispatcher;
-        Tick();
-        _timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
-        {
-            Interval = TimeSpan.FromSeconds(6),
-        };
-        _timer.Tick += (_, _) => Tick();
-        _timer.Start();
+        _visibilityChanged = OnProviderVisibilityChanged;
+        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        ApplyProviderMode();
+    }
 
-        var stream = new TranscriptEventStream(() =>
+    public void Stop()
+    {
+        if (!_started) return;
+        _started = false;
+        if (_visibilityChanged is not null)
         {
-            // File events arrive on watcher threads; hop to the UI thread.
-            _dispatcher?.BeginInvoke(EventKick);
-        });
-        stream.Start();
-        _eventStream = stream;
+            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            _visibilityChanged = null;
+        }
+        _scanGeneration++;
+        _rescanQueued = false;
+        StopMonitoringResources();
+        foreach (var provider in _activeProviders) _pendingCacheClears.Add(provider);
+        if (!_scanInFlight) FlushPendingCacheClears();
+        _activeProviders.Clear();
+        _monitoredProviders = Array.Empty<TriggerTool>();
+        _lastWorking = new Dictionary<string, DateTimeOffset>(StringComparer.OrdinalIgnoreCase);
+        _lastWorkingProviders = new Dictionary<string, TriggerTool>(StringComparer.OrdinalIgnoreCase);
+        _states = new();
+        _rawStates = new();
+        _threads = new();
+        _demoStates = new();
+        RaiseAll();
+    }
+
+    private void OnProviderVisibilityChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName != nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)) return;
+        if (_dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(ApplyProviderMode);
+            return;
+        }
+        ApplyProviderMode();
+    }
+
+    private void ApplyProviderMode()
+    {
+        var selected = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled
+            .Select(provider => provider.ToTriggerTool())
+            .ToHashSet();
+        var next = _availableProviders
+            .Where(selected.Contains)
+            .Distinct()
+            .ToArray();
+        var changed = !_monitoredProviders.SequenceEqual(next);
+        var removed = _activeProviders.Except(next).ToArray();
+
+        _activeProviders.Clear();
+        foreach (var provider in next) _activeProviders.Add(provider);
+        _monitoredProviders = next;
+
+        if (changed)
+        {
+            _scanGeneration++;
+            _rescanQueued = false;
+            // A last-working stamp is only meaningful for the provider that
+            // produced it. Drop only disabled providers so an active sibling
+            // keeps its stall/turn baseline across a slot change.
+            ClearLastWorkingFor(removed);
+            _states = _states.Where(pair => _activeProviders.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            _rawStates = _rawStates.Where(pair => _activeProviders.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            _threads = _threads.Where(pair => _activeProviders.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            _demoStates = _demoStates.Where(pair => _activeProviders.Contains(pair.Key))
+                .ToDictionary(pair => pair.Key, pair => pair.Value);
+            foreach (var provider in removed)
+            {
+                _pendingCacheClears.Add(provider);
+                AgentReminderCenter.Shared.ClearProvider(provider);
+            }
+            if (!_scanInFlight) FlushPendingCacheClears();
+            RaiseAll();
+        }
+
+        var wasRunning = _timer is not null;
+        if (_monitoredProviders.Length == 0)
+        {
+            StopMonitoringResources();
+            return;
+        }
+
+        if (changed)
+        {
+            _eventStream?.Dispose();
+            _eventStream = null;
+        }
+        EnsureMonitoringResources();
+        if (changed || !wasRunning) Tick();
+    }
+
+    private void EnsureMonitoringResources()
+    {
+        if (_dispatcher is null) return;
+        if (_timer is null)
+        {
+            _timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+            {
+                Interval = TimeSpan.FromSeconds(6),
+            };
+            _timer.Tick += (_, _) => Tick();
+        }
+        if (!_timer.IsEnabled) _timer.Start();
+
+        if (_eventStream is null)
+        {
+            var stream = new TranscriptEventStream(() =>
+            {
+                // File events arrive on watcher threads; hop to the UI thread.
+                _dispatcher?.BeginInvoke(EventKick);
+            });
+            stream.Start(_activeProviders);
+            _eventStream = stream;
+        }
+    }
+
+    private void StopMonitoringResources()
+    {
+        _timer?.Stop();
+        _timer = null;
+        _trailingKickTimer?.Stop();
+        _trailingKickTimer = null;
+        _kickPending = false;
+        _eventStream?.Dispose();
+        _eventStream = null;
     }
 
     /// Minimum spacing between event-driven full scans. A marathon session
@@ -154,6 +294,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
 
     private void EventKick()
     {
+        if (_monitoredProviders.Length == 0) return;
         var now = DateTimeOffset.UtcNow;
         var elapsed = now - _lastEventKick;
         if (elapsed >= EventKickSpacing)
@@ -170,9 +311,11 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         {
             Interval = delay,
         };
+        _trailingKickTimer = trailing;
         trailing.Tick += (_, _) =>
         {
             trailing.Stop();
+            if (ReferenceEquals(_trailingKickTimer, trailing)) _trailingKickTimer = null;
             _kickPending = false;
             _lastEventKick = DateTimeOffset.UtcNow;
             Tick();
@@ -182,6 +325,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
 
     private void Tick()
     {
+        if (_monitoredProviders.Length == 0) return;
         // One scan at a time; a kick that lands mid-scan queues exactly one
         // follow-up so the trailing write of a turn is never dropped.
         if (_scanInFlight)
@@ -190,6 +334,8 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
             return;
         }
         _scanInFlight = true;
+        var scanGeneration = _scanGeneration;
+        var providersSnapshot = _monitoredProviders.ToHashSet();
         var now = DateTimeOffset.UtcNow;
         // The comparer has to be restated: the copy constructor takes the
         // entries but NOT the source's comparer, and the scanner looks these
@@ -198,7 +344,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         // last-working stamp and downgrade a stall to idle.
         var lastWorkingSnapshot = new Dictionary<string, DateTimeOffset>(
             _lastWorking, StringComparer.OrdinalIgnoreCase);
-        Task.Run(() => SessionScanner.MonitoringScan(now, lastWorkingSnapshot))
+        Task.Run(() => SessionScanner.MonitoringScan(now, lastWorkingSnapshot, providersSnapshot))
             .ContinueWith(task =>
             {
                 var sessions = task.IsCompletedSuccessfully ? task.Result : new List<ScannedSession>();
@@ -208,13 +354,29 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
                 // monitor would silently never scan again.
                 try
                 {
-                    Apply(sessions, now);
+                    if (scanGeneration == _scanGeneration
+                        && providersSnapshot.SetEquals(_activeProviders))
+                    {
+                        Apply(sessions, now);
+                    }
+                }
+                catch
+                {
+                    // A failed provider read must not latch the monitor off.
                 }
                 finally
                 {
                     _scanInFlight = false;
+                    FlushPendingCacheClears();
                 }
-                if (_rescanQueued)
+                var stale = scanGeneration != _scanGeneration
+                    || !providersSnapshot.SetEquals(_activeProviders);
+                if (stale)
+                {
+                    _rescanQueued = false;
+                    if (_monitoredProviders.Length > 0) Tick();
+                }
+                else if (_rescanQueued)
                 {
                     _rescanQueued = false;
                     Tick();
@@ -260,7 +422,10 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         foreach (var session in sessions)
         {
             if (session.Status == ActivityState.Working && session.TranscriptPath is { } path)
+            {
                 _lastWorking[path] = now;
+                _lastWorkingProviders[path] = session.Tool;
+            }
         }
         var livePaths = sessions
             .Where(s => s.TranscriptPath is not null)
@@ -268,6 +433,9 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         _lastWorking = _lastWorking
             .Where(kv => livePaths.Contains(kv.Key))
+            .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
+        _lastWorkingProviders = _lastWorkingProviders
+            .Where(kv => _lastWorking.ContainsKey(kv.Key))
             .ToDictionary(kv => kv.Key, kv => kv.Value, StringComparer.OrdinalIgnoreCase);
     }
 
@@ -383,4 +551,51 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
     }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+
+    private void ClearLastWorkingFor(IEnumerable<TriggerTool> providers)
+    {
+        var removed = providers.ToHashSet();
+        if (removed.Count == 0 || _lastWorkingProviders.Count == 0) return;
+
+        var removedPaths = _lastWorkingProviders
+            .Where(pair => removed.Contains(pair.Value))
+            .Select(pair => pair.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (removedPaths.Count == 0) return;
+
+        _lastWorking = _lastWorking
+            .Where(pair => !removedPaths.Contains(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        _lastWorkingProviders = _lastWorkingProviders
+            .Where(pair => !removedPaths.Contains(pair.Key))
+            .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+    }
+
+    private void FlushPendingCacheClears()
+    {
+        if (_pendingCacheClears.Count == 0) return;
+        foreach (var provider in _pendingCacheClears) ClearActivityCache(provider);
+        _pendingCacheClears.Clear();
+    }
+
+    private static void ClearActivityCache(TriggerTool provider)
+    {
+        switch (provider)
+        {
+            case TriggerTool.Claude:
+            case TriggerTool.Codex:
+            case TriggerTool.Grok:
+            case TriggerTool.Antigravity:
+                // These providers share SessionScanner's bounded turn cache;
+                // clear only the disabled provider's path entries.
+                SessionScanner.ClearTurnCache(provider);
+                break;
+            case TriggerTool.Cursor:
+                SessionScanner.ClearCursorCache();
+                break;
+            case TriggerTool.DeepSeek:
+                DeepSeekActivityReader.ClearCache();
+                break;
+        }
+    }
 }

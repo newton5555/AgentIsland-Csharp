@@ -11,6 +11,9 @@ public static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        // Must be the first executable action: ProviderVisibilityStore,
+        // UsageStore and the log readers are process-wide singletons.
+        TestIsolation.Initialize();
         if (args.Length == 2 && args[0] == "report-preview")
         {
             ReportPreview.Run(args[1]);
@@ -91,6 +94,7 @@ public static class Program
             CodexReplayGuardTests.RunAll();
             UpdateCheckerTests.RunAll();
             UsageCachePolicyTests.RunAll();
+            LogParseCacheTests.RunAll();
             ReminderDeliveryKeyTests.RunAll();
             SecurityGuardTests.RunAll();
             TurnAlarmNavigatorTests.RunAll();
@@ -101,6 +105,7 @@ public static class Program
             DeepSeekLogParserTests.RunAll();
             DeepSeekActivityTests.RunAll();
             DeepSeekBalanceTests.RunAll();
+            PerformanceOptimizationTests.RunAll();
             SteppedMeterTests.RunAll();
             ProviderLogoAnimationTests.RunAll();
             BrandGeometryTests.RunAll();

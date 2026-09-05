@@ -60,6 +60,20 @@ dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj
 .\build.ps1 -Runtime win-x64
 ```
 
+## 灵动岛透明渲染实验
+
+主窗口默认继续使用逐像素透明。退出已运行的 Agent Island 后，可用下面的命令启用 WindowChrome / DWM 实验（设置窗口和报告窗口不受影响）：
+
+```powershell
+dotnet run --project .\src\AgentIsland\AgentIsland.csproj -c Release -- --island-renderer=chrome
+```
+
+对照原方案时，退出程序，重新运行同一命令并去掉 `--island-renderer=chrome`。参数仅作用于本次进程，语言切换重建窗口后仍保留；不修改用户配置。DWM 不可用时，创建窗口前自动保留原方案。
+
+实验保持原有扫光约 15fps、阴影、窗口尺寸和鼠标检测间隔，以便先比较渲染路径。建议分别记录收起空闲、单/双 Agent 扫光、展开收起时的进程 CPU、GPU、内存和帧时间；两组使用相同数据、缩放、屏幕和采样时长。不能将构建通过或进程 CPU 降低直接视为视觉验收通过。
+
+启用为默认前需人工验收：透明留白和圆角可以点击到其他应用；快速移入后能点击胶囊；悬停展开、浮动拖动、隐藏再显示、语言切换正常；100%/150%/200% DPI 和跨屏位置正确；阴影无黑底或裁切。实验使用原生样式钩子保留 `WS_EX_LAYERED`，绕过 WPF 在非逐像素透明模式下移除该样式的行为，后续升级 WPF 时需要复验。若出现黑底或交互异常，退出并去掉参数即可回到原方案。
+
 ## 新 Agent 的扩展规则
 
 Agent 使用稳定的字符串 `AgentKey`，而不是继续扩展共享枚举。新增 Agent 先在 `AgentIsland.Providers/BuiltIn/BuiltInAgentCatalog.cs` 注册描述，再按能力增加自己的 Usage、Activity、Cost 或导航适配器。没有实现的能力不返回“伪造的 0”，由 UI 显示“不支持/暂无数据”。

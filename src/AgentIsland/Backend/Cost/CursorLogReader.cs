@@ -8,8 +8,8 @@ namespace AgentIsland.Backend.Cost;
 /// bubble parser and preserves the existing CostStore surface.
 public static class CursorLogReader
 {
-    public static List<TokenEvent> Scan(int lookbackDays) =>
-        CursorDatabaseReader.Scan(lookbackDays, CursorLogParser.ParseBubble);
+    public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default) =>
+        CursorDatabaseReader.Scan(lookbackDays, CursorLogParser.ParseBubble, cancellationToken);
 
     // Existing diagnostics can still exercise the app seam while the
     // provider payload parser lives in AgentIsland.Providers.

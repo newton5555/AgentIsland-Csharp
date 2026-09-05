@@ -31,6 +31,8 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
     private DateTimeOffset? _lastUpdated;
     private DateTimeOffset? _lastAttempt;
     private bool _loading;
+    private long _refreshGeneration;
+    private CancellationTokenSource? _refreshCts;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -82,6 +84,21 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    /// Release the in-process balance snapshot while retaining the persisted
+    /// value for a later enable. Generation checks prevent a late response
+    /// from reviving the disabled provider.
+    public void ClearMemory()
+    {
+        _refreshGeneration++;
+        _refreshCts?.Cancel();
+        _refreshCts = null;
+        Snapshot = null;
+        ErrorCaption = null;
+        LastUpdated = null;
+        _lastAttempt = null;
+        Loading = false;
+    }
+
     /// Whether an official key is currently available. Reading this property
     /// never exposes the secret; it is only used to choose the empty-state
     /// caption in the UI.
@@ -97,21 +114,52 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
         if (Loading) return;
         if (!force && _lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
+        RestoreCachedSnapshot();
         _lastAttempt = DateTimeOffset.Now;
         Loading = true;
+        var generation = ++_refreshGeneration;
+        var cts = new CancellationTokenSource();
+        _refreshCts = cts;
         var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
-            DeepSeekBalanceFetcher.Outcome outcome;
             try
             {
-                outcome = await DeepSeekBalanceFetcher.Fetch();
+                var outcome = await DeepSeekBalanceFetcher.Fetch(cts.Token);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                await dispatcher.BeginInvoke(() =>
+                {
+                    if (cts.IsCancellationRequested || generation != _refreshGeneration
+                        || !ProviderVisibilityStore.Shared.DeepSeekPanelShown) return;
+                    Apply(outcome);
+                });
             }
             catch (Exception error)
             {
-                outcome = new DeepSeekBalanceFetcher.Outcome.Failed(error.Message);
+                if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
+                try
+                {
+                    await dispatcher.BeginInvoke(() =>
+                    {
+                        if (generation != _refreshGeneration
+                            || !ProviderVisibilityStore.Shared.DeepSeekPanelShown) return;
+                        Apply(new DeepSeekBalanceFetcher.Outcome.Failed(error.Message));
+                    });
+                }
+                catch { }
             }
-            await dispatcher.BeginInvoke(() => Apply(outcome));
+            finally
+            {
+                if (ReferenceEquals(_refreshCts, cts))
+                {
+                    _refreshCts = null;
+                    if (generation == _refreshGeneration)
+                    {
+                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                    }
+                }
+                cts.Dispose();
+            }
         });
     }
 
@@ -143,6 +191,15 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
     private static void Persist(DeepSeekBalanceSnapshot fresh) => Preferences.Set(
         CacheKey,
         new DeepSeekCachedBalance { Snapshot = fresh, UpdatedAt = DateTimeOffset.Now });
+
+    private void RestoreCachedSnapshot()
+    {
+        if (Preferences.Get<DeepSeekCachedBalance?>(CacheKey) is not { } cached
+            || cached.Snapshot is not { } restored
+            || DateTimeOffset.Now - cached.UpdatedAt > CacheMaxAge) return;
+        Snapshot = restored;
+        LastUpdated = cached.UpdatedAt;
+    }
 
     private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

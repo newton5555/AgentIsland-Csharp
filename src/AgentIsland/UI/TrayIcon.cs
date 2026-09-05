@@ -18,6 +18,7 @@ public sealed class TrayIcon : IDisposable
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Windows.Threading.Dispatcher _dispatcher;
     private System.Drawing.Icon? _rendered;
+    private TrayIconRenderer.VisualStateKey? _lastVisualKey;
 
     public TrayIcon(Action showIsland, Action toggleIsland, Action openSettings, Action exit)
     {
@@ -93,18 +94,26 @@ public sealed class TrayIcon : IDisposable
             codexText = "Codex " + Percent(usage.Codex.FiveHour.UsedPercent);
         }
 
-        var next = TrayIconRenderer.Render(usage5h, worst);
-        _icon.Icon = next;
-        _rendered?.Dispose();
-        _rendered = next;
+        var visualKey = TrayIconRenderer.GetVisualStateKey(usage5h, worst);
+        if (_rendered is null || _lastVisualKey is not { } last || !last.Equals(visualKey))
+        {
+            var next = TrayIconRenderer.Render(usage5h, worst);
+            _icon.Icon = next;
+            _rendered?.Dispose();
+            _rendered = next;
+            _lastVisualKey = visualKey;
+        }
 
         var parts = new[] { claudeText, codexText }.Where(p => p is not null);
         var joined = string.Join(" · ", parts);
         var status = StatusWord(worst);
-        // NotifyIcon.Text is capped (~127 chars) — this line is always short.
-        _icon.Text = status is null
+        var nextText = status is null
             ? (joined.Length == 0 ? "Agent Island" : "Agent Island · " + joined)
             : $"Agent Island · {status}" + (joined.Length == 0 ? "" : " · " + joined);
+        if (!string.Equals(_icon.Text, nextText, StringComparison.Ordinal))
+        {
+            _icon.Text = nextText;
+        }
     }
 
     private static string Percent(double fraction) => $"{Core.Formatting.PercentInt(fraction)}%";
@@ -140,5 +149,7 @@ public sealed class TrayIcon : IDisposable
         _icon.Visible = false;
         _icon.Dispose();
         _rendered?.Dispose();
+        _rendered = null;
+        _lastVisualKey = null;
     }
 }
