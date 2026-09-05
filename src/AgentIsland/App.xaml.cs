@@ -1,9 +1,19 @@
 using System.Windows;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using AgentIsland.Core;
 using AgentIsland.Core.Agents;
+using AgentIsland.Core.Storage;
+using AgentIsland.Core.Threading;
+using AgentIsland.Core.Usage;
 using AgentIsland.Providers.BuiltIn;
 using AgentIsland.UI;
-using AgentIsland.Core.Usage;
+using AgentIsland.UI.Threading;
+using AgentIsland.Windows.Storage;
+using AgentIsland.Backend.Monitoring;
+using AgentIsland.Backend.Usage;
+using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Alarms;
 
 namespace AgentIsland;
 
@@ -11,12 +21,40 @@ public partial class App : System.Windows.Application
 {
     public static App Instance => (App)Current;
 
-    // Composition root for the independent Windows product. The legacy
-    // singletons still run during this migration, while new code gets its
-    // platform and Agent dependencies from these owned services.
-    public IAgentCatalog AgentCatalog { get; } = CreateDefaultCatalog();
-    public AgentIsland.Windows.Paths.IAppPaths AppPaths { get; } =
-        new AgentIsland.Windows.Paths.WindowsAppPaths();
+    public IHost Host { get; }
+    public IServiceProvider Services => Host.Services;
+
+    public IAgentCatalog AgentCatalog => Services.GetRequiredService<IAgentCatalog>();
+    public AgentIsland.Windows.Paths.IAppPaths AppPaths => Services.GetRequiredService<AgentIsland.Windows.Paths.IAppPaths>();
+    public ISettingsStorage SettingsStorage => Services.GetRequiredService<ISettingsStorage>();
+    public IUiDispatcher UiDispatcher => Services.GetRequiredService<IUiDispatcher>();
+
+    public App()
+    {
+        Host = Microsoft.Extensions.Hosting.Host.CreateDefaultBuilder()
+            .ConfigureServices((context, services) =>
+            {
+                services.AddSingleton<IAgentCatalog>(CreateDefaultCatalog());
+                services.AddSingleton<AgentIsland.Windows.Paths.IAppPaths, AgentIsland.Windows.Paths.WindowsAppPaths>();
+                services.AddSingleton<ISettingsStorage>(AtomicJsonSettingsStorage.Default);
+                services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
+                services.AddHttpClient();
+
+                services.AddSingleton(ActivityMonitor.Shared);
+                services.AddSingleton(UsageStore.Shared);
+                services.AddSingleton(CostStore.Shared);
+                services.AddSingleton(GrokUsageStore.Shared);
+                services.AddSingleton(CursorUsageStore.Shared);
+                services.AddSingleton(AntigravityUsageStore.Shared);
+                services.AddSingleton(DeepSeekBalanceStore.Shared);
+                services.AddSingleton(UsageExhaustionAlarm.Shared);
+                services.AddSingleton(UpdateChecker.Shared);
+                services.AddSingleton(AlertEngine.Shared);
+
+                services.AddHostedService<Backend.Host.AgentIslandHostedService>();
+            })
+            .Build();
+    }
 
     private static IAgentCatalog CreateDefaultCatalog()
     {
@@ -104,6 +142,14 @@ public partial class App : System.Windows.Application
             return;
         }
         InstallCrashLogger();
+
+        try
+        {
+            Host.StartAsync().GetAwaiter().GetResult();
+            Http.Configure(Services.GetRequiredService<System.Net.Http.IHttpClientFactory>());
+        }
+        catch { }
+
         ActivityMonitor.Shared.Configure(AgentCatalog);
         // Before any store singleton reads a key: settings written by pre-1.7
         // builds carry the MacIsland.* prefix and must land on AgentIsland.*.
@@ -304,6 +350,12 @@ public partial class App : System.Windows.Application
     protected override void OnExit(ExitEventArgs e)
     {
         _tray?.Dispose();
+        try
+        {
+            Host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
+            Host.Dispose();
+        }
+        catch { }
         base.OnExit(e);
     }
 
