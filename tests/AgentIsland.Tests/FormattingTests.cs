@@ -4,9 +4,12 @@ namespace AgentIsland.Tests;
 
 /// Pins CompactTokens, including the rounding-boundary rollover that used to
 /// print "1000k"/"1000M", plus the shared percent readout.
-public static class FormattingTests
+public class FormattingTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestFormatting() => RunAll();
+
+    internal static void RunAll()
     {
         RunCompactTokens();
         RunPercentInt();

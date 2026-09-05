@@ -7,9 +7,12 @@ namespace AgentIsland.Tests;
 /// total_token_usage (input, output) pair exactly matches the previous
 /// event is a replayed delta and must not double-bill; shrinking totals
 /// (compaction reset) and old lines without totals still count.
-public static class CodexReplayGuardTests
+public class CodexReplayGuardTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestCodexReplayGuard() => RunAll();
+
+    internal static void RunAll()
     {
         var path = Path.Combine(Path.GetTempPath(), $"agentisland-replay-{Guid.NewGuid():N}.jsonl");
         static string Event(long lastIn, long lastOut, long totalIn, long totalOut) =>

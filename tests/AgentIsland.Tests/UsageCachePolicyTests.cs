@@ -3,9 +3,12 @@ using AgentIsland.Core.Usage;
 namespace AgentIsland.Tests;
 
 /// 1:1 port of the macOS UsageCachePolicyTests.
-public static class UsageCachePolicyTests
+public class UsageCachePolicyTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestUsageCachePolicy() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

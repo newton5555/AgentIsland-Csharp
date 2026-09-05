@@ -8,9 +8,12 @@ namespace AgentIsland.Tests;
 /// toggle and its store are gone, and the scanner drops subagent transcripts
 /// unconditionally (macOS parity). The ClaudeAgent cases below still pin the
 /// classifier itself, which is what the scanner's skip rule is built on.
-public static class SubagentFilterTests
+public class SubagentFilterTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestSubagentFilters() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

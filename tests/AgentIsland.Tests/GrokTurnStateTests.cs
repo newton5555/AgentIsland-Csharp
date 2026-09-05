@@ -5,9 +5,12 @@ namespace AgentIsland.Tests;
 /// Pins Grok turn detection. Grok writes ACP-shaped update frames, so the
 /// turn boundary is `params.update.sessionUpdate == "turn_completed"` and
 /// nothing else — anything looser would raise "it's your turn" mid-run.
-public static class GrokTurnStateTests
+public class GrokTurnStateTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestGrokTurnState() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

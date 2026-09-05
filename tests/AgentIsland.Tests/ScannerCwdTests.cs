@@ -7,9 +7,12 @@ namespace AgentIsland.Tests;
 /// wrong directory" bug. A hyphenated project path (agent-island) must come
 /// from the transcript's authoritative "cwd" field, never the lossy
 /// un-munged folder name.
-public static class ScannerCwdTests
+public class ScannerCwdTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestScannerCwd() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

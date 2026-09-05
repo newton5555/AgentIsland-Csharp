@@ -12,9 +12,12 @@ namespace AgentIsland.Tests;
 /// the binding (latest) reset; and the two gates — the master reminder switch
 /// and the dedicated quota-alarm opt-out — suppress without consuming the
 /// cycle.
-public static class UsageExhaustionAlarmTests
+public class UsageExhaustionAlarmTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestUsageExhaustionAlarms() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

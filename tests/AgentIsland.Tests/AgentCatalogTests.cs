@@ -4,7 +4,7 @@ using AgentIsland.Providers.BuiltIn;
 
 namespace AgentIsland.Tests;
 
-public static class AgentCatalogTests
+public class AgentCatalogTests
 {
     private static void Expect(bool condition, string message)
     {
@@ -12,7 +12,13 @@ public static class AgentCatalogTests
         Console.WriteLine($"PASS {message}");
     }
 
-    public static void RunAll()
+    [Fact]
+    public void TestBuiltInAgentCatalog()
+    {
+        RunAll();
+    }
+
+    internal static void RunAll()
     {
         var catalog = new BuiltInAgentCatalog();
         var keys = catalog.Modules.Select(module => module.Descriptor.Key.Value).ToArray();

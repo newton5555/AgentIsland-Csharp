@@ -11,9 +11,12 @@ namespace AgentIsland.Tests;
 /// Contract tests for the DSH JSONL ledger: usage chunks and final messages
 /// replace by (turn, step), cache-write maps to creation tokens, reasoning is
 /// not double-counted, and concatenated zstd frames are readable.
-public static class DeepSeekLogParserTests
+public class DeepSeekLogParserTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestDeepSeekLogParser() => RunAll();
+
+    internal static void RunAll()
     {
         TestUsageReplacement();
         TestMalformedAndFallbacks();

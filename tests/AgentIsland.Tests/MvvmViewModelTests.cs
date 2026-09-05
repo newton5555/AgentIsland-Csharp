@@ -4,9 +4,12 @@ using AgentIsland.UI.Providers;
 
 namespace AgentIsland.Tests;
 
-public static class MvvmViewModelTests
+public class MvvmViewModelTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestAll() => RunAll();
+
+    internal static void RunAll()
     {
         TestIslandViewModel();
         TestUsagePageViewModel();
@@ -15,7 +18,8 @@ public static class MvvmViewModelTests
         Console.WriteLine("MvvmViewModelTests GREEN");
     }
 
-    private static void TestIslandViewModel()
+    [WpfFact]
+    public static void TestIslandViewModel()
     {
         using var vm = new IslandViewModel();
         Assert(vm.State == IslandState.Compact || vm.State == IslandState.Expanded, "IslandViewModel should have valid state");
@@ -33,7 +37,8 @@ public static class MvvmViewModelTests
         Console.WriteLine("PASS IslandViewModel state and toggle binding");
     }
 
-    private static void TestUsagePageViewModel()
+    [WpfFact]
+    public static void TestUsagePageViewModel()
     {
         using var vm = new UsagePageViewModel();
         Assert(vm.RefreshCommand != null, "RefreshCommand must exist");
@@ -44,13 +49,14 @@ public static class MvvmViewModelTests
         if (slots.Count > 0)
         {
             Assert(vm.LeftSlot != null, "LeftSlot should be populated if slots exist");
-            Assert(vm.LeftSlot.Provider == slots[0], "LeftSlot provider should match Slot0");
+            Assert(vm.LeftSlot!.Provider == slots[0], "LeftSlot provider should match Slot0");
         }
 
         Console.WriteLine("PASS UsagePageViewModel slot projection and commands");
     }
 
-    private static void TestCostPageViewModel()
+    [WpfFact]
+    public static void TestCostPageViewModel()
     {
         using var vm = new CostPageViewModel();
         Assert(vm.RefreshCommand != null, "RefreshCommand must exist");
@@ -59,13 +65,14 @@ public static class MvvmViewModelTests
         if (slots.Count > 0)
         {
             Assert(vm.LeftSlot != null, "LeftSlot should be populated if slots exist");
-            Assert(vm.LeftSlot.Provider == slots[0], "LeftSlot provider should match Slot0");
+            Assert(vm.LeftSlot!.Provider == slots[0], "LeftSlot provider should match Slot0");
         }
 
         Console.WriteLine("PASS CostPageViewModel slot projection and commands");
     }
 
-    private static void TestSettingsViewModel()
+    [WpfFact]
+    public static void TestSettingsViewModel()
     {
         var vm = new SettingsViewModel();
         vm.SelectTabCommand.Execute("Display");

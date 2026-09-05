@@ -8,9 +8,12 @@ namespace AgentIsland.Tests;
 /// never narrows the bar — the full symmetric width stays.
 /// SoloProvider reports which tool is alone; both-visible and both-hidden report null.
 /// A single pick is always left-justified.
-public static class SoloCenterLayoutTests
+public class SoloCenterLayoutTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestSoloCenterLayout() => RunAll();
+
+    internal static void RunAll()
     {
         var visibility = ProviderVisibilityStore.Shared;
         var position = IslandPositionStore.Shared;

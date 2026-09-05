@@ -6,9 +6,12 @@ namespace AgentIsland.Tests;
 /// Pins the shell-safety guards that stand between attacker-plantable
 /// on-disk session metadata and cmd.exe: a bad session id or resume message
 /// must be rejected, never executed or silently mangled.
-public static class SecurityGuardTests
+public class SecurityGuardTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestSecurityGuards() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

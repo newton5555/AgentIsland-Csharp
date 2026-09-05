@@ -9,9 +9,12 @@ namespace AgentIsland.Tests;
 /// Contract tests for the official DeepSeek account-balance response and the
 /// small DSH credentials reader. These tests never make a network request and
 /// never print a secret.
-public static class DeepSeekBalanceTests
+public class DeepSeekBalanceTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestDeepSeekBalance() => RunAll();
+
+    internal static void RunAll()
     {
         TestOfficialResponse();
         TestDebtResponse();

@@ -8,9 +8,12 @@ using AgentIsland.UI.Theme;
 
 namespace AgentIsland.Tests;
 
-public static class BrandGeometryTests
+public class BrandGeometryTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestBrandGeometry() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- BrandGeometryTests ---");
 

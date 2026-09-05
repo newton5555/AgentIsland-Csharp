@@ -5,9 +5,12 @@ using AgentIsland.Core.Cost;
 
 namespace AgentIsland.Tests;
 
-public static class LogParseCacheTests
+public class LogParseCacheTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestLogParseCache() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

@@ -6,9 +6,12 @@ namespace AgentIsland.Tests;
 /// tabs and two pills, so a third pick must be REFUSED rather than silently
 /// evicting an earlier one, and a persisted list must survive an unknown or
 /// duplicated entry without ever handing back more than two providers.
-public static class ProviderSelectionTests
+public class ProviderSelectionTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestProviderSelection() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

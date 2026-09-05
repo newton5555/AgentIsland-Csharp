@@ -7,9 +7,12 @@ using AgentIsland.Windows.Memory;
 
 namespace AgentIsland.Tests;
 
-public static class PerformanceOptimizationTests
+public class PerformanceOptimizationTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestPerformanceOptimizations() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- PerformanceOptimizationTests ---");
         TestCodexMetaReadsAFullFirstLineWithoutReadingTheTail();

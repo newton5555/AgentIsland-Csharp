@@ -3,9 +3,12 @@ using AgentIsland.UI.Report;
 
 namespace AgentIsland.Tests;
 
-public static class ReportDuelTests
+public class ReportDuelTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestReportDuel() => RunAll();
+
+    internal static void RunAll()
     {
         foreach (var opponent in new[] { DisplayProvider.Codex, DisplayProvider.Claude })
         foreach (var tokens in new long[] { 20, 50, 80 })

@@ -9,9 +9,12 @@ using AgentIsland.Windows;
 
 namespace AgentIsland.Tests;
 
-public static class SettingsXamlTests
+public class SettingsXamlTests
 {
-    public static void RunAll()
+    [WpfFact]
+    public void TestSettingsXaml() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- SettingsXamlTests ---");
 

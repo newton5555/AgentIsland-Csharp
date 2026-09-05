@@ -2,9 +2,12 @@ using AgentIsland.Backend.Alarms;
 
 namespace AgentIsland.Tests;
 
-public static class TurnAlarmNavigatorTests
+public class TurnAlarmNavigatorTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestTurnAlarmNavigator() => RunAll();
+
+    internal static void RunAll()
     {
         if (TurnAlarmNavigator.ClaudeDesktopUri(null) != "claude://")
             throw new Exception("hidden Claude Desktop must use the registered app URI");

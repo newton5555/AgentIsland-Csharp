@@ -589,6 +589,8 @@ public static class ReportCards
                 return true;
             }
             catch (System.IO.IOException) { }
+            catch (UriFormatException) { }
+            catch (InvalidOperationException) { }
         }
         return false;
     }

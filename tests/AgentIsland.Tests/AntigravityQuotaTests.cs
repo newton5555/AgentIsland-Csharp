@@ -6,18 +6,20 @@ using AgentIsland.UI.Charts;
 
 namespace AgentIsland.Tests;
 
-public static class AntigravityQuotaTests
+public class AntigravityQuotaTests
 {
     private static void Expect(bool condition, string message)
     {
         if (!condition)
         {
-            Console.WriteLine($"FAIL: {message}");
-            Environment.Exit(1);
+            throw new InvalidOperationException($"FAIL: {message}");
         }
     }
 
-    public static void RunAll()
+    [Fact]
+    public void TestAntigravityQuota() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- AntigravityQuotaTests ---");
         TestDualQuotaParsing();

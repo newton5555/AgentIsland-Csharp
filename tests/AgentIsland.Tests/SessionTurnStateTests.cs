@@ -6,9 +6,12 @@ namespace AgentIsland.Tests;
 
 /// 1:1 port of the macOS SessionTurnStateTests — the behavioral contract for
 /// turn detection, delivery keys, and the desktop bookkeeping grace.
-public static class SessionTurnStateTests
+public class SessionTurnStateTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestSessionTurnState() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

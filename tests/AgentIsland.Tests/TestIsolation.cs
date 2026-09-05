@@ -10,6 +10,9 @@ internal static class TestIsolation
 {
     private static string? _root;
 
+    [System.Runtime.CompilerServices.ModuleInitializer]
+    internal static void ModuleInit() => Initialize();
+
     public static void Initialize()
     {
         if (_root is not null) return;
@@ -25,6 +28,15 @@ internal static class TestIsolation
         Environment.SetEnvironmentVariable("AGENTISLAND_DATA_DIR", data);
         Environment.SetEnvironmentVariable("AGENTISLAND_CACHE_DIR", cache);
         _root = root;
+
+        try
+        {
+            if (!UriParser.IsKnownScheme("pack"))
+            {
+                _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
+            }
+        }
+        catch { }
 
         AppDomain.CurrentDomain.ProcessExit += (_, _) => Cleanup();
     }

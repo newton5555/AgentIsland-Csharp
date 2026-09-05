@@ -11,18 +11,20 @@ using AgentIsland.UI.Theme;
 
 namespace AgentIsland.Tests;
 
-public static class ProviderLogoAnimationTests
+public class ProviderLogoAnimationTests
 {
     private static void Expect(bool condition, string message)
     {
         if (!condition)
         {
-            Console.WriteLine($"FAIL: {message}");
-            Environment.Exit(1);
+            throw new InvalidOperationException($"FAIL: {message}");
         }
     }
 
-    public static void RunAll()
+    [WpfFact]
+    public void TestProviderLogoAnimation() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- ProviderLogoAnimationTests ---");
         if (System.Threading.Thread.CurrentThread.GetApartmentState() != System.Threading.ApartmentState.STA)

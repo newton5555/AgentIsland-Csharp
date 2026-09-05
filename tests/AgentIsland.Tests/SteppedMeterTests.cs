@@ -11,25 +11,37 @@ using AgentIsland.Core.Usage;
 
 namespace AgentIsland.Tests;
 
-public static class SteppedMeterTests
+public class SteppedMeterTests
 {
     private static void Expect(bool condition, string message)
     {
         if (!condition)
         {
-            Console.WriteLine($"FAIL: {message}");
-            Environment.Exit(1);
+            throw new InvalidOperationException($"FAIL: {message}");
         }
     }
 
-    public static void RunAll()
+    [WpfFact]
+    public void TestSteppedMeter() => RunAll();
+
+    internal static void RunAll()
     {
         Console.WriteLine("--- SteppedMeterTests ---");
-        var app = Application.Current;
-        app ??= new Application();
-        // Closing the temporary host must not shut down the shared WPF
-        // dispatcher before the animation tests that follow this suite.
-        app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+        try
+        {
+            if (Application.Current is { } app)
+            {
+                if (app.Dispatcher.CheckAccess())
+                {
+                    app.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+                }
+            }
+            else
+            {
+                _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            }
+        }
+        catch { }
 
         var meter = new SteppedMeter(Colors.DeepSkyBlue);
         var usage = new WindowUsage(

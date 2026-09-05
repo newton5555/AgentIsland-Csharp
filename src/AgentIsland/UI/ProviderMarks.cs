@@ -129,13 +129,17 @@ public static class ProviderMarks
     {
         try
         {
-            return new BitmapImage(new Uri($"pack://application:,,,/AgentIsland;component/Assets/{name}"));
+            var bmp = new BitmapImage(new Uri($"pack://application:,,,/AgentIsland;component/Assets/{name}"));
+            if (bmp.CanFreeze) bmp.Freeze();
+            return bmp;
         }
         catch
         {
             try
             {
-                return new BitmapImage(new Uri($"pack://application:,,,/Assets/{name}"));
+                var bmp = new BitmapImage(new Uri($"pack://application:,,,/Assets/{name}"));
+                if (bmp.CanFreeze) bmp.Freeze();
+                return bmp;
             }
             catch
             {

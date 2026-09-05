@@ -3,9 +3,12 @@ using AgentIsland.Backend.Alarms;
 namespace AgentIsland.Tests;
 
 /// 1:1 port of the macOS ReminderDeliveryKeyTests.
-public static class ReminderDeliveryKeyTests
+public class ReminderDeliveryKeyTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestReminderDeliveryKeys() => RunAll();
+
+    internal static void RunAll()
     {
         var tests = new (string Name, Action Test)[]
         {

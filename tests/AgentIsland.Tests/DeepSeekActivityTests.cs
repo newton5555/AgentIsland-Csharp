@@ -9,9 +9,12 @@ namespace AgentIsland.Tests;
 /// Activity is deliberately separate from token accounting: any streaming
 /// event makes a session Working, while a final assistant message/turn
 /// boundary makes it complete, and the latest route wins for mixed sessions.
-public static class DeepSeekActivityTests
+public class DeepSeekActivityTests
 {
-    public static void RunAll()
+    [Fact]
+    public void TestDeepSeekActivity() => RunAll();
+
+    internal static void RunAll()
     {
         TestOfficialActiveStream();
         TestOfficialCompletedTurn();

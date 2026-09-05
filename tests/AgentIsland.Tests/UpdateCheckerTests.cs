@@ -9,7 +9,7 @@ namespace AgentIsland.Tests;
 /// a release without one still reports its version, and junk JSON is
 /// ignored. Swap planning: the .old/.new names sit next to the exe so both
 /// renames stay on one volume.
-public static class UpdateCheckerTests
+public class UpdateCheckerTests
 {
     // Shape-faithful trim of a real unified release: DMG + appcast from the
     // macOS job, the Windows zip attached by the windows-release workflow.
@@ -39,7 +39,10 @@ public static class UpdateCheckerTests
         }
         """;
 
-    public static void RunAll()
+    [Fact]
+    public void TestUpdateChecker() => RunAll();
+
+    internal static void RunAll()
     {
         Expect(UpdateChecker.ParseTag("v1.5.4") == new Version(1, 5, 4), "v-prefixed tag parses");
         Expect(UpdateChecker.ParseTag("1.5.4") == new Version(1, 5, 4), "bare tag parses");
