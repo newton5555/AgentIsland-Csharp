@@ -4,7 +4,7 @@
 
 本仓库是基于 Agent Island 2.1.2 的独立 Windows fork。2.1.2 提供产品交互、状态语义、报告结构和视觉方向的参考；本仓库没有继续携带 macOS 的 Xcode、SwiftUI、Sparkle 或 Keychain 运行时，而是在同一产品目标下重做 Windows 宿主。
 
-相对 2.1.2，当前 1.0.0 的重要变化是：
+相对 2.1.2，当前 1.0.1 的重要变化是：
 
 1. **平台替换**：SwiftUI/macOS 宿主替换为 .NET 8/WPF；路径、托盘、开机启动、Win32 窗口跳转和 SQLite 访问均由 Windows 层负责。
 2. **模块化**：跨平台模型、聚合和规则进入 `AgentIsland.Core`，Provider 解析进入 `AgentIsland.Providers`，Windows 能力进入 `AgentIsland.Windows`，WPF 只负责界面和组合。

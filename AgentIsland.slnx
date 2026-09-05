@@ -54,6 +54,5 @@
     <File Path="scripts/Measure-ProcessResources.ps1" />
     <File Path="LICENSE" />
     <File Path="README.md" />
-    <File Path="VERSION" />
   </Folder>
 </Solution>

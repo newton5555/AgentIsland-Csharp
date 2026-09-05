@@ -13,7 +13,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 		scripts\Measure-ProcessResources.ps1 = scripts\Measure-ProcessResources.ps1
 		LICENSE = LICENSE
 		README.md = README.md
-		VERSION = VERSION
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{042B673C-62A0-4512-AB17-805B03C7A47C}"
