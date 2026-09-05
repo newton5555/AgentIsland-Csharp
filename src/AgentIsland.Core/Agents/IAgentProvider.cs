@@ -27,7 +27,7 @@ public interface IUsageFetcher
 /// </summary>
 public interface ICostLedgerReader
 {
-    ValueTask<IReadOnlyList<TokenEvent>> ReadCostEventsAsync(CancellationToken ct = default);
+    ValueTask<IReadOnlyList<TokenEvent>> ReadCostEventsAsync(int lookbackDays = 30, CancellationToken ct = default);
 }
 
 /// <summary>

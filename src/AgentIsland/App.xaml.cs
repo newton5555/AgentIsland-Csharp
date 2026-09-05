@@ -30,12 +30,33 @@ public partial class App : System.Windows.Application
             ["cursor"] = new Backend.Monitoring.Sensors.CursorSessionSensor(),
             ["deepseek"] = new Backend.Monitoring.Sensors.DeepSeekSessionSensor(),
         };
+        var usageFetchers = new Dictionary<string, IUsageFetcher>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["claude"] = new Backend.Usage.Adapters.ClaudeUsageFetcherAdapter(),
+            ["codex"] = new Backend.Usage.Adapters.CodexUsageFetcherAdapter(),
+        };
+        var costReaders = new Dictionary<string, ICostLedgerReader>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["claude"] = new Backend.Cost.Adapters.ClaudeCostLedgerReader(),
+            ["codex"] = new Backend.Cost.Adapters.CodexCostLedgerReader(),
+            ["antigravity"] = new Backend.Cost.Adapters.AntigravityCostLedgerReader(),
+            ["grok"] = new Backend.Cost.Adapters.GrokCostLedgerReader(),
+            ["cursor"] = new Backend.Cost.Adapters.CursorCostLedgerReader(),
+            ["deepseek"] = new Backend.Cost.Adapters.DeepSeekCostLedgerReader(),
+        };
+
         foreach (var module in catalog.Modules.ToList())
         {
-            sensors.TryGetValue(module.Descriptor.Key.Value, out var sensor);
+            var key = module.Descriptor.Key.Value;
+            sensors.TryGetValue(key, out var sensor);
+            usageFetchers.TryGetValue(key, out var usageFetcher);
+            costReaders.TryGetValue(key, out var costReader);
+
             catalog.Register(new BuiltInAgentModule(
                 module.Descriptor,
-                SessionSensor: sensor
+                SessionSensor: sensor,
+                UsageFetcher: usageFetcher,
+                CostLedgerReader: costReader
             ));
         }
         return catalog;
