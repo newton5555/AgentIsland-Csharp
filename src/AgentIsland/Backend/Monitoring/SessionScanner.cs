@@ -3,6 +3,7 @@ using System.IO;
 using System.Text;
 using AgentIsland.Core;
 using AgentIsland.Providers.Sessions;
+using AgentIsland.Backend.Monitoring.Sensors;
 
 namespace AgentIsland.Backend.Monitoring;
 
@@ -97,719 +98,80 @@ public static class SessionScanner
         return output;
     }
 
-    /// DeepSeek Harness owns its compressed event protocol in the Providers
-    /// project; this thin wrapper keeps all session discovery behind the same
-    /// scanner surface as the other providers.
+    // MARK: - Sensor Delegations
+
     public static List<ScannedSession> ScanDeepSeek(
         DateTimeOffset now,
         IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
-        DeepSeekActivityReader.Scan(now, lastWorking);
-
-    // MARK: - Claude: desktop session store (titles + archived flag)
+        DeepSeekSessionSensor.Scan(now, lastWorking);
 
     private static List<ScannedSession> ScanClaudeFromDesktopStore(
         DateTimeOffset now,
-        IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var output = new List<ScannedSession>();
-        var transcripts = ClaudeTranscriptIndex();
-        foreach (var entry in EnumerateDesktopSessionFiles())
-        {
-            var parsed = ParseDesktopSessionFile(entry);
-            if (parsed is not { } session) continue;
-            if (session.IsArchived) continue;
-            if (string.IsNullOrEmpty(session.CliSessionId)) continue;
-            transcripts.TryGetValue(session.CliSessionId, out var transcript);
-            var state = SessionState(
-                transcript,
-                now,
-                lastWorking,
-                session.LastActivityAt,
-                SessionTurnState.Claude);
-            output.Add(new ScannedSession(
-                TriggerTool.Claude,
-                session.CliSessionId,
-                session.Cwd,
-                string.IsNullOrEmpty(session.Title) ? Fallback(session.Cwd, session.CliSessionId) : session.Title,
-                state.Modified,
-                state.Status,
-                transcript,
-                state.TurnKey,
-                SessionLaunchTarget.ClaudeDesktop));
-        }
-        return output;
-    }
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
+        ClaudeSessionSensor.ScanClaudeFromDesktopStore(now, lastWorking);
 
-    // MARK: - Claude: all transcripts (monitoring)
-
-    private static List<ScannedSession> ScanClaudeTranscripts(
+    public static List<ScannedSession> ScanClaudeTranscripts(
         DateTimeOffset now,
         IReadOnlyDictionary<string, DateTimeOffset> lastWorking,
-        bool excludeArchived = false)
-    {
-        var desktopSessions = ClaudeDesktopIndex();
-        var output = new List<ScannedSession>();
-        foreach (var (sid, path) in ClaudeTranscriptIndex())
-        {
-            desktopSessions.TryGetValue(sid, out var desktop);
-            if (excludeArchived && desktop is { IsArchived: true }) continue;
-            var cwd = desktop?.Cwd is { Length: > 0 } dc ? dc : CwdFromClaudeTranscript(path);
-            var title = desktop?.Title ?? "";
-            var state = SessionState(
-                path,
-                now,
-                lastWorking,
-                desktop?.LastActivityAt,
-                SessionTurnState.Claude);
-            output.Add(new ScannedSession(
-                TriggerTool.Claude,
-                sid,
-                cwd,
-                string.IsNullOrEmpty(title) ? Fallback(cwd, sid) : title,
-                state.Modified,
-                state.Status,
-                path,
-                state.TurnKey,
-                desktop is null ? SessionLaunchTarget.Cli : SessionLaunchTarget.ClaudeDesktop));
-        }
-        return output;
-    }
+        bool excludeArchived = false) =>
+        ClaudeSessionSensor.ScanClaudeTranscripts(now, lastWorking, excludeArchived);
 
-    /// True when a transcript belongs to an orchestrated subagent rather
-    /// than a user conversation: nested under a subagents/ directory (the
-    /// current layout) or named agent-*.jsonl (flat layouts). Main session
-    /// files are always UUID-named.
-    internal static bool IsClaudeSubagentTranscript(string path)
-    {
-        var segments = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (segments.Contains("subagents", StringComparer.OrdinalIgnoreCase)) return true;
-        return segments[^1].StartsWith("agent-", StringComparison.OrdinalIgnoreCase);
-    }
-
-    // MARK: - Codex: %USERPROFILE%\.codex\sessions (CODEX_HOME overrides)
+    internal static bool IsClaudeSubagentTranscript(string path) =>
+        ClaudeSessionSensor.IsClaudeSubagentTranscript(path);
 
     public static List<ScannedSession> ScanCodex(
         DateTimeOffset now,
         IReadOnlyDictionary<string, DateTimeOffset> lastWorking,
         int limit = 30,
-        bool dedupeProjects = true)
-    {
-        var root = IslandPaths.CodexSessionsRoot;
-        if (!Directory.Exists(root)) return new List<ScannedSession>();
-
-        var files = SafeFileSystem.EnumerateFiles(root, "*.jsonl");
-        // Precompute mtimes once — calling LastWriteTime() inside the comparator issues
-        // O(n log n) GetLastWriteTime syscalls over a full recursive tree.
-        var mtimes = new Dictionary<string, DateTimeOffset>(files.Count, StringComparer.Ordinal);
-        foreach (var f in files) mtimes[f] = SafeFileSystem.LastWriteTime(f);
-        files.Sort((a, b) => mtimes[b].CompareTo(mtimes[a]));
-
-        var titles = CodexTitleIndex();
-        var output = new List<ScannedSession>();
-        var seenProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var path in files)
-        {
-            if (CodexMeta(path) is not { } meta || string.IsNullOrEmpty(meta.Sid)) continue;
-            var (sid, cwd, kind) = meta;
-            // Neither machine tier ever surfaces: automation runs have no
-            // human in them at all, and subagent fan-out finishes constantly
-            // without anyone's turn coming up.
-            if (kind is CodexRolloutKind.Automation or CodexRolloutKind.Subagent) continue;
-            var projectKey = string.IsNullOrEmpty(cwd) ? sid : cwd;
-            if (dedupeProjects && !seenProjects.Add(projectKey)) continue;
-            var state = SessionState(path, now, lastWorking, null, SessionTurnState.Codex);
-            output.Add(new ScannedSession(
-                TriggerTool.Codex,
-                sid,
-                cwd,
-                titles.TryGetValue(sid, out var title) ? title : Fallback(cwd, sid),
-                state.Modified,
-                state.Status,
-                path,
-                state.TurnKey,
-                SessionLaunchTarget.Cli));
-            if (output.Count >= limit) break;
-        }
-        return output;
-    }
+        bool dedupeProjects = true) =>
+        CodexSessionSensor.Scan(now, lastWorking, limit, dedupeProjects);
 
     internal enum CodexRolloutKind
     {
-        Interactive,
-        Subagent,
-        Automation,
+        Interactive = CodexSessionSensor.CodexRolloutKind.Interactive,
+        Subagent = CodexSessionSensor.CodexRolloutKind.Subagent,
+        Automation = CodexSessionSensor.CodexRolloutKind.Automation,
     }
 
-    private const int MaxCodexFirstLineBytes = 2_000_000;
-    private const int CodexInitialBufferSize = 65_536;
-
-    private static readonly Dictionary<string, (long Ticks, long Size, (string Sid, string Cwd, CodexRolloutKind Kind)? Meta)>
-        CodexMetaCache = new(StringComparer.Ordinal);
-    private static readonly object CodexMetaCacheGate = new();
-
-    /// Reads the first JSONL line in full. Codex's `session_meta` is line 1
-    /// but can be tens of KB (it embeds the full base instructions), so keep
-    /// pulling chunks until the first newline.
     internal static (string Sid, string Cwd, CodexRolloutKind Kind)? CodexMeta(string path)
     {
-        long ticks = 0;
-        long size = 0;
-        try
-        {
-            var info = new FileInfo(path);
-            if (!info.Exists) return null;
-            ticks = info.LastWriteTimeUtc.Ticks;
-            size = info.Length;
-            lock (CodexMetaCacheGate)
-            {
-                if (CodexMetaCache.TryGetValue(path, out var cached)
-                    && cached.Ticks == ticks && cached.Size == size)
-                {
-                    return cached.Meta;
-                }
-            }
-        }
-        catch
-        {
-            return null;
-        }
-
-        var meta = ReadCodexMetaDirect(path);
-        lock (CodexMetaCacheGate)
-        {
-            if (CodexMetaCache.Count > 5000) CodexMetaCache.Clear();
-            CodexMetaCache[path] = (ticks, size, meta);
-        }
-        return meta;
+        var meta = CodexSessionSensor.CodexMeta(path);
+        if (meta is null) return null;
+        return (meta.Value.Sid, meta.Value.Cwd, (CodexRolloutKind)(int)meta.Value.Kind);
     }
 
-    private static (string Sid, string Cwd, CodexRolloutKind Kind)? ReadCodexMetaDirect(string path)
-    {
-        var rented = ArrayPool<byte>.Shared.Rent(CodexInitialBufferSize);
-        try
-        {
-            var totalRead = 0;
-            var lineLength = -1;
-            using (var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete))
-            {
-                while (true)
-                {
-                    if (totalRead >= MaxCodexFirstLineBytes)
-                    {
-                        break;
-                    }
-
-                    if (totalRead >= rented.Length)
-                    {
-                        var nextCapacity = Math.Min(rented.Length * 2, MaxCodexFirstLineBytes);
-                        if (nextCapacity <= rented.Length)
-                        {
-                            nextCapacity = MaxCodexFirstLineBytes;
-                        }
-                        var newRented = ArrayPool<byte>.Shared.Rent(nextCapacity);
-                        Buffer.BlockCopy(rented, 0, newRented, 0, totalRead);
-                        ArrayPool<byte>.Shared.Return(rented);
-                        rented = newRented;
-                    }
-
-                    var toRead = Math.Min(rented.Length - totalRead, MaxCodexFirstLineBytes - totalRead);
-                    if (toRead <= 0)
-                    {
-                        break;
-                    }
-
-                    var read = stream.Read(rented, totalRead, toRead);
-                    if (read <= 0)
-                    {
-                        break;
-                    }
-
-                    var chunkSpan = rented.AsSpan(totalRead, read);
-                    var newlineRel = chunkSpan.IndexOf((byte)'\n');
-                    if (newlineRel >= 0)
-                    {
-                        lineLength = totalRead + newlineRel;
-                        break;
-                    }
-
-                    totalRead += read;
-                }
-            }
-
-            var length = lineLength >= 0 ? lineLength : totalRead;
-            return ParseCodexMeta(Encoding.UTF8.GetString(rented.AsSpan(0, length)));
-        }
-        catch
-        {
-            return null;
-        }
-        finally
-        {
-            ArrayPool<byte>.Shared.Return(rented);
-        }
-    }
-
-    /// Classifies a rollout from its session_meta line. `payload.source` is
-    /// a plain string for direct sessions ("cli", "vscode", "exec", "mcp")
-    /// and an object for machine-driven ones: {"subagent": …} for spawned /
-    /// review / compact threads, {"internal": …} for probes. Subagent
-    /// threads share the interactive codex originator, so the source field
-    /// is the only thing separating a fan-out worker from the user's own
-    /// thread — without it every finished subagent raises a turn AgentIsland.Backend.Alarms.
     internal static (string Sid, string Cwd, CodexRolloutKind Kind)? ParseCodexMeta(string firstLine)
     {
-        using var doc = Jsonl.TryParseLine(firstLine);
-        if (doc is null) return null;
-        var root = doc.RootElement;
-        if (Jsonl.GetString(root, "type") != "session_meta") return null;
-        if (Jsonl.GetObject(root, "payload") is not { } payload) return null;
-
-        var kind = CodexRolloutKind.Interactive;
-        if (payload.TryGetProperty("source", out var source))
-        {
-            if (source.ValueKind == System.Text.Json.JsonValueKind.String)
-            {
-                if (source.GetString() is "exec" or "mcp") kind = CodexRolloutKind.Automation;
-            }
-            else if (source.ValueKind == System.Text.Json.JsonValueKind.Object)
-            {
-                if (source.TryGetProperty("subagent", out _)) kind = CodexRolloutKind.Subagent;
-                else if (source.TryGetProperty("internal", out _)) kind = CodexRolloutKind.Automation;
-            }
-        }
-
-        // Automation rollouts (orchestrator-driven runs, probes, and
-        // `codex exec`) finish constantly; a human is never "up" in them,
-        // so they must not raise turn alarms or drive the logo. Interactive
-        // sessions carry a codex-family originator; missing originator =
-        // old CLI, treat as interactive. The prefix check is
-        // case-insensitive: the Windows desktop app stamps "Codex Desktop".
-        var originator = Jsonl.GetString(payload, "originator") ?? "";
-        if (originator.Length > 0
-            && (!originator.StartsWith("codex", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(originator, "codex_exec", StringComparison.OrdinalIgnoreCase)))
-        {
-            kind = CodexRolloutKind.Automation;
-        }
-
-        return (Jsonl.GetString(payload, "id") ?? "", Jsonl.GetString(payload, "cwd") ?? "", kind);
+        var meta = CodexSessionSensor.ParseCodexMeta(firstLine);
+        if (meta is null) return null;
+        return (meta.Value.Sid, meta.Value.Cwd, (CodexRolloutKind)(int)meta.Value.Kind);
     }
 
-    // MARK: - Grok: %USERPROFILE%\.grok\sessions\<url-encoded cwd>\<uuid>\
-
-    /// Grok mirrors Claude's layout almost exactly — one directory per
-    /// percent-encoded cwd, one directory per session inside it.
-    /// `summary.json` carries identity + title; `updates.jsonl` is the live
-    /// event stream the turn detector reads, with `chat_history.jsonl` as the
-    /// fallback for sessions that predate the updates stream.
     public static List<ScannedSession> ScanGrok(
         DateTimeOffset now,
-        IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var output = new List<ScannedSession>();
-        foreach (var projectDir in SafeFileSystem.EnumerateDirectories(GrokSessionsRoot))
-        {
-            var cwd = DecodePathSegment(Path.GetFileName(projectDir));
-            foreach (var sessionDir in SafeFileSystem.EnumerateDirectories(projectDir))
-            {
-                var summary = Path.Combine(sessionDir, "summary.json");
-                if (!File.Exists(summary)) continue;
-                var sid = Path.GetFileName(sessionDir);
-                var title = GrokTitle(summary);
-                var updates = Path.Combine(sessionDir, "updates.jsonl");
-                var transcript = File.Exists(updates)
-                    ? updates
-                    : Path.Combine(sessionDir, "chat_history.jsonl");
-                var state = SessionState(transcript, now, lastWorking, null, SessionTurnState.Grok);
-                output.Add(new ScannedSession(
-                    TriggerTool.Grok,
-                    sid,
-                    cwd,
-                    string.IsNullOrEmpty(title) ? Fallback(cwd, sid) : title,
-                    state.Modified,
-                    state.Status,
-                    transcript,
-                    state.TurnKey,
-                    SessionLaunchTarget.Cli));
-            }
-        }
-        return output;
-    }
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
+        GrokSessionSensor.Scan(now, lastWorking);
 
-    private static string GrokTitle(string summaryPath)
-    {
-        try
-        {
-            using var stream = OpenShared(summaryPath);
-            using var doc = System.Text.Json.JsonDocument.Parse(stream);
-            return (Jsonl.GetString(doc.RootElement, "session_summary") ?? "").Trim();
-        }
-        catch
-        {
-            return "";
-        }
-    }
-
-    // MARK: - Gemini: %USERPROFILE%\.gemini\tmp\<project>\chats\session-*.jsonl
-
-    /// Gemini's chat files are a `$set` checkpoint stream with no verified
-    /// turn boundary, so status is recency-only (MtimeOnly — working while
-    /// the file moves, idle after, never a "your turn" alarm). The session id
-    /// lives in the first line's header; the filename stem is the fallback.
-    /// Cursor's conversation-search.db is a batch cache and can not drive
-    /// live status; what does move in real time is each workspace's
-    /// state.vscdb (+ -wal journal) under
-    /// %APPDATA%\Cursor\User\workspaceStorage. That is an honest recency
-    /// signal — working / idle, no turn boundary — so like Gemini it rides
-    /// MtimeOnly and never claims "your turn".
-    /// Cursor conversations, read from the same globalStorage db the cost
-    /// reader opens through winsqlite3. Rows keyed `composerData:&lt;id&gt;` are
-    /// the conversations; `bubbleId:&lt;composerId&gt;:&lt;bubbleId&gt;` rows are the
-    /// messages, and a bubble's `type` is a REAL turn boundary — 1 user,
-    /// 2 assistant. Same rule Claude gets: assistant spoke last and has gone
-    /// quiet means it is your turn.
-    ///
-    /// Skipped entirely when the db has not been written since the last
-    /// scan — this runs every 6 s against a file that can be hundreds of MB.
     public static List<ScannedSession> ScanCursor(
         DateTimeOffset now,
-        IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var path = IslandPaths.CursorGlobalStorageDatabase;
-        if (!File.Exists(path)) return new List<ScannedSession>();
-        var modified = SafeFileSystem.LastWriteTime(path);
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
+        CursorSessionSensor.Scan(now, lastWorking);
 
-        List<CursorConversation>? cached = null;
-        lock (CursorGate)
-        {
-            if (modified == _cursorStamp) cached = _cursorCache;
-        }
-        if (cached is not null)
-        {
-            // Status is NEVER cached — only the parsed conversation is. A
-            // finished turn becomes "your turn" purely by the clock moving
-            // past the quiet gap, and the db stops changing the moment the
-            // assistant stops writing, so a cached status would freeze at
-            // "working" and the alarm would never fire.
-            return cached.ConvertAll(c => CursorSession(c, now, lastWorking));
-        }
-
-        var parsed = new List<CursorConversation>();
-        foreach (var (composerId, json) in CursorConversations.NewestBubblePerConversation(path))
-        {
-            var turn = SessionTurnState.Cursor(new[] { json });
-            // No usable bubble timestamp means we cannot say WHEN this
-            // conversation last moved. Falling back to the db mtime was the
-            // bug behind a permanently spinning logo: Cursor rewrites that
-            // file continuously while it is merely open.
-            if (turn.ActivityDate is not { } stamp) continue;
-            parsed.Add(new CursorConversation(
-                composerId,
-                CursorConversations.Title(json) ?? composerId[..Math.Min(8, composerId.Length)],
-                turn.IsDone,
-                turn.Key,
-                stamp));
-        }
-        parsed.Sort((a, b) => b.Stamp.CompareTo(a.Stamp));
-
-        lock (CursorGate)
-        {
-            _cursorStamp = modified;
-            _cursorCache = parsed;
-        }
-        return parsed.ConvertAll(c => CursorSession(c, now, lastWorking));
-    }
-
-    private static readonly object CursorGate = new();
-    private static DateTimeOffset _cursorStamp = DateTimeOffset.MinValue;
-    private static List<CursorConversation> _cursorCache = new();
-
-    /// One parsed conversation. Deliberately holds no status: status is a
-    /// function of the CURRENT clock and is recomputed on every scan.
-    private readonly record struct CursorConversation(
-        string Id, string Label, bool IsDone, string? TurnKey, DateTimeOffset Stamp);
-
-    private static ScannedSession CursorSession(
-        CursorConversation conversation,
-        DateTimeOffset now,
-        IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var key = "cursor:" + conversation.Id;
-        var turn = new SessionTurnStatus(conversation.IsDone, conversation.TurnKey, conversation.Stamp);
-        return new ScannedSession(
-            TriggerTool.Cursor,
-            conversation.Id,
-            string.Empty,
-            conversation.Label,
-            conversation.Stamp,
-            CursorStatus(turn, conversation.Stamp, now, key, lastWorking),
-            key,
-            conversation.TurnKey,
-            SessionLaunchTarget.Cli);
-    }
-
-    /// Assistant-last plus a quiet gap means the turn finished; assistant-last
-    /// while still streaming reads as working. A user bubble last means the
-    /// agent is thinking.
-    private static ActivityState CursorStatus(
-        SessionTurnStatus turn, DateTimeOffset stamp, DateTimeOffset now,
-        string key, IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var age = now - stamp;
-        if (turn.IsDone)
-        {
-            if (age.TotalSeconds <= GuestQuietAfterSeconds) return ActivityState.Working;
-            return age < NeedsYouCap ? ActivityState.NeedsYou : ActivityState.Idle;
-        }
-        if (age < StallAfter) return ActivityState.Working;
-        if (lastWorking.TryGetValue(key, out var seen)
-            && (now - seen) < StallCap && age < StallCap)
-        {
-            return ActivityState.Stalled;
-        }
-        return ActivityState.Idle;
-    }
-
-
-    /// Antigravity keeps a readable transcript per conversation at
-    /// `<root>/brain/<conversation-id>/.system_generated/logs/transcript_full.jsonl`
-    /// — the desktop IDE and the `agy` CLI write the same shape into their
-    /// own roots. Always `transcript_full`, never `transcript` (truncated).
     public static List<ScannedSession> ScanAntigravity(
         DateTimeOffset now,
-        IReadOnlyDictionary<string, DateTimeOffset> lastWorking)
-    {
-        var output = new List<ScannedSession>();
-        var home = Path.Combine(IslandPaths.Home, ".gemini");
-        foreach (var rootName in AntigravityRootNames)
-        {
-            var root = Path.Combine(home, rootName);
-            var brain = Path.Combine(root, "brain");
-            if (!Directory.Exists(brain)) continue;
-            var summaries = AntigravitySummaries(root);
-            foreach (var conversationDir in SafeFileSystem.EnumerateDirectories(brain))
-            {
-                var conversation = Path.GetFileName(conversationDir);
-                var path = Path.Combine(
-                    conversationDir, ".system_generated", "logs", "transcript_full.jsonl");
-                if (!File.Exists(path)) continue;
-                var state = SessionState(
-                    path, now, lastWorking, null, SessionTurnState.Antigravity, quietMeansDone: true);
-                var summary = summaries.TryGetValue(conversation, out var s) ? s : default;
-                var cwd = summary.Workspace
-                    ?? AntigravityWorkspace(root, conversation) ?? "";
-                var label = summary.Title
-                    ?? AntigravityTitle(path)
-                    ?? (conversation.Length > 8 ? conversation[..8] : conversation);
-                output.Add(new ScannedSession(
-                    TriggerTool.Antigravity,
-                    conversation,
-                    cwd,
-                    label,
-                    state.Modified,
-                    state.Status,
-                    path,
-                    state.TurnKey,
-                    SessionLaunchTarget.Cli));
-            }
-        }
-        return output;
-    }
+        IReadOnlyDictionary<string, DateTimeOffset> lastWorking) =>
+        AntigravitySessionSensor.Scan(now, lastWorking);
 
-    /// One row per conversation in `conversation_summaries.db`, the plain
-    /// SQLite index the CLI keeps beside `brain/`. The db is WAL-mode: a
-    /// read-only open needs the -shm file, which only exists while agy
-    /// holds the db open — with agy closed the plain open fails, so the
-    /// immutable URI (which skips the WAL entirely) is the fallback. Safe:
-    /// a cleanly closed db is fully checkpointed, and a stale miss only
-    /// costs a nicer label.
-    private static Dictionary<string, (string? Title, string? Workspace)> AntigravitySummaries(string root)
-    {
-        var dbPath = Path.Combine(root, "conversation_summaries.db");
-        if (!File.Exists(dbPath)) return new();
-        return AntigravitySummaryRows($"Data Source={dbPath};Mode=ReadOnly")
-            ?? AntigravitySummaryRows(
-                $"Data Source=file:{Uri.EscapeDataString(dbPath).Replace("%5C", "/").Replace("%3A", ":")}?immutable=1;Mode=ReadOnly")
-            ?? new();
-    }
+    internal static string? AntigravityRequestText(string content) =>
+        AntigravitySessionSensor.AntigravityRequestText(content);
 
-    /// null means this open failed and the caller should try the other
-    /// mode; an empty dictionary means the table really had nothing.
-    private static Dictionary<string, (string? Title, string? Workspace)>? AntigravitySummaryRows(
-        string connectionString)
-    {
-        try
-        {
-            using var connection = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText =
-                "SELECT conversation_id, title, preview, workspace_uris FROM conversation_summaries";
-            using var reader = command.ExecuteReader();
-            var output = new Dictionary<string, (string?, string?)>(StringComparer.Ordinal);
-            while (reader.Read())
-            {
-                var id = reader.IsDBNull(0) ? null : reader.GetString(0);
-                if (string.IsNullOrEmpty(id)) continue;
-                // title is usually blank; preview carries the generated name.
-                var title = NonEmpty(reader.IsDBNull(1) ? null : reader.GetString(1))
-                    ?? NonEmpty(reader.IsDBNull(2) ? null : reader.GetString(2));
-                if (title is { Length: > 48 }) title = title[..48];
-                var workspace = NonEmpty(reader.IsDBNull(3) ? null : reader.GetString(3)) is { } uris
-                    ? AntigravityWorkspaceUri(uris)
-                    : null;
-                output[id] = (title, workspace);
-            }
-            return output;
-        }
-        catch
-        {
-            return null;
-        }
+    public static Dictionary<string, string> ClaudeTranscriptIndex() =>
+        ClaudeSessionSensor.ClaudeTranscriptIndex();
 
-        static string? NonEmpty(string? raw)
-        {
-            var trimmed = raw?.Trim();
-            return string.IsNullOrEmpty(trimmed) ? null : trimmed;
-        }
-    }
+    public static Dictionary<string, string> CodexTitleIndex() =>
+        CodexSessionSensor.CodexTitleIndex();
 
-    /// `workspace_uris` is a JSON array of file:// URIs; the first one is
-    /// the session's directory. Empty for sessions started outside a
-    /// project.
-    private static string? AntigravityWorkspaceUri(string raw)
-    {
-        try
-        {
-            using var doc = System.Text.Json.JsonDocument.Parse(raw);
-            if (doc.RootElement.ValueKind != System.Text.Json.JsonValueKind.Array) return null;
-            foreach (var entry in doc.RootElement.EnumerateArray())
-            {
-                if (entry.ValueKind != System.Text.Json.JsonValueKind.String) continue;
-                var text = entry.GetString();
-                if (string.IsNullOrEmpty(text)) continue;
-                if (Uri.TryCreate(text, UriKind.Absolute, out var uri) && uri.IsFile)
-                {
-                    return uri.LocalPath;
-                }
-                return text;
-            }
-        }
-        catch
-        {
-            // Malformed JSON only costs the cwd nicety.
-        }
-        return null;
-    }
-
-    /// The first user message, unwrapped from the `<USER_REQUEST>` envelope
-    /// the CLI writes — the fallback when the summaries table has no row
-    /// yet (it is written asynchronously).
-    private static string? AntigravityTitle(string path)
-    {
-        try
-        {
-            using var stream = new FileStream(
-                path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            for (var i = 0; i < 40 && reader.ReadLine() is { } line; i++)
-            {
-                using var doc = Jsonl.TryParseLine(line);
-                if (doc is null) continue;
-                if (Jsonl.GetString(doc.RootElement, "type") != "USER_INPUT") continue;
-                if (Jsonl.GetString(doc.RootElement, "content") is not { Length: > 0 } content) continue;
-                return AntigravityRequestText(content);
-            }
-        }
-        catch
-        {
-            // Unreadable transcript — the id-prefix fallback covers it.
-        }
-        return null;
-    }
-
-    internal static string? AntigravityRequestText(string content)
-    {
-        var body = content;
-        var start = content.IndexOf("<USER_REQUEST>", StringComparison.Ordinal);
-        var end = content.IndexOf("</USER_REQUEST>", StringComparison.Ordinal);
-        if (start >= 0 && end > start)
-        {
-            body = content[(start + "<USER_REQUEST>".Length)..end];
-        }
-        var first = body.Trim().Split('\n').FirstOrDefault()?.Trim() ?? "";
-        if (first.Length == 0) return null;
-        return first.Length > 48 ? first[..48] : first;
-    }
-
-    /// `history.jsonl` maps conversationId to its workspace.
-    private static string? AntigravityWorkspace(string root, string conversation)
-    {
-        try
-        {
-            var historyPath = Path.Combine(root, "history.jsonl");
-            if (!File.Exists(historyPath)) return null;
-            foreach (var line in File.ReadLines(historyPath))
-            {
-                using var doc = Jsonl.TryParseLine(line);
-                if (doc is null) continue;
-                if (Jsonl.GetString(doc.RootElement, "conversationId") != conversation) continue;
-                if (Jsonl.GetString(doc.RootElement, "workspace") is { Length: > 0 } workspace)
-                {
-                    return workspace;
-                }
-            }
-        }
-        catch
-        {
-            // A torn history file only costs the cwd nicety.
-        }
-        return null;
-    }
-
-    // MARK: - Indexes
-
-    public static Dictionary<string, string> ClaudeTranscriptIndex()
-    {
-        var output = new Dictionary<string, string>(StringComparer.Ordinal);
-        foreach (var root in IslandPaths.ClaudeProjectRoots)
-        {
-            if (!Directory.Exists(root)) continue;
-            foreach (var path in SafeFileSystem.EnumerateFiles(root, "*.jsonl"))
-            {
-                // Subagent transcripts (subagents/ dirs, agent-*.jsonl) are
-                // machine fan-out, not user conversations, and never surface.
-                // Matched on the path RELATIVE to the root: an absolute path
-                // can carry an "agent-…" segment from the user's own folder
-                // names (this repo lives in one).
-                if (IsClaudeSubagentTranscript(Path.GetRelativePath(root, path)))
-                {
-                    continue;
-                }
-                var sid = Path.GetFileNameWithoutExtension(path);
-                output.TryAdd(sid, path);
-            }
-        }
-        return output;
-    }
-
-    private sealed record DesktopSession(
-        string CliSessionId, string Title, string Cwd, bool IsArchived, DateTimeOffset? LastActivityAt);
-
-    private static IEnumerable<string> EnumerateDesktopSessionFiles()
-    {
-        var root = IslandPaths.ClaudeDesktopSessionsRoot;
-        if (!Directory.Exists(root)) return Array.Empty<string>();
-        return SafeFileSystem.EnumerateFiles(root, "local_*.json");
-    }
-
-    /// Grok's per-cwd folder name is percent-encoded, the same trick Claude's
-    /// projects folder uses. Decoding is best-effort: a name that is not
-    /// valid percent-encoding — or that decodes to nothing — keeps its raw
-    /// form rather than leaving the session with an empty cwd.
-    private static string DecodePathSegment(string name)
+    internal static string DecodePathSegment(string name)
     {
         if (name.Length == 0) return name;
         try
@@ -821,67 +183,6 @@ public static class SessionScanner
         {
             return name;
         }
-    }
-
-    private static DesktopSession? ParseDesktopSessionFile(string path)
-    {
-        try
-        {
-            using var stream = OpenShared(path);
-            using var doc = System.Text.Json.JsonDocument.Parse(stream);
-            var root = doc.RootElement;
-            var cliSessionId = Jsonl.GetString(root, "cliSessionId") ?? "";
-            var ms = Jsonl.GetDouble(root, "lastActivityAt") ?? Jsonl.GetDouble(root, "createdAt");
-            return new DesktopSession(
-                cliSessionId,
-                Jsonl.GetString(root, "title") ?? "",
-                Jsonl.GetString(root, "cwd") ?? "",
-                Jsonl.GetBool(root, "isArchived") ?? false,
-                ms is { } m ? DateTimeOffset.FromUnixTimeMilliseconds((long)m) : null);
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static Dictionary<string, DesktopSession> ClaudeDesktopIndex()
-    {
-        var output = new Dictionary<string, DesktopSession>(StringComparer.Ordinal);
-        foreach (var path in EnumerateDesktopSessionFiles())
-        {
-            if (ParseDesktopSessionFile(path) is not { } session) continue;
-            if (string.IsNullOrEmpty(session.CliSessionId)) continue;
-            output[session.CliSessionId] = session;
-        }
-        return output;
-    }
-
-    private static Dictionary<string, string> CodexTitleIndex()
-    {
-        var output = new Dictionary<string, string>(StringComparer.Ordinal);
-        var path = IslandPaths.CodexSessionIndexFile;
-        if (!File.Exists(path)) return output;
-        string[] lines;
-        try
-        {
-            using var stream = OpenShared(path);
-            using var reader = new StreamReader(stream, Encoding.UTF8);
-            lines = reader.ReadToEnd().Split('\n');
-        }
-        catch
-        {
-            return output;
-        }
-        foreach (var line in lines)
-        {
-            using var doc = Jsonl.TryParseLine(line);
-            if (doc is null) continue;
-            var id = Jsonl.GetString(doc.RootElement, "id");
-            var title = Jsonl.GetString(doc.RootElement, "thread_name")?.Trim();
-            if (!string.IsNullOrEmpty(id) && !string.IsNullOrEmpty(title)) output[id!] = title!;
-        }
-        return output;
     }
 
     // MARK: - State machine
@@ -1024,7 +325,7 @@ public static class SessionScanner
     internal static void ClearTurnCache()
     {
         lock (TurnCacheGate) TurnCache.Clear();
-        lock (CodexMetaCacheGate) CodexMetaCache.Clear();
+        CodexSessionSensor.ClearCache();
     }
 
     /// Drop only one provider's entries when a slot is disabled. The activity
@@ -1034,7 +335,7 @@ public static class SessionScanner
     {
         if (provider == TriggerTool.Codex)
         {
-            lock (CodexMetaCacheGate) CodexMetaCache.Clear();
+            CodexSessionSensor.ClearCache();
         }
 
         IEnumerable<string> roots = provider switch
@@ -1084,11 +385,7 @@ public static class SessionScanner
     /// fresh read even when Cursor has not changed the database meanwhile.
     internal static void ClearCursorCache()
     {
-        lock (CursorGate)
-        {
-            _cursorStamp = DateTimeOffset.MinValue;
-            _cursorCache = new();
-        }
+        CursorSessionSensor.ClearCache();
     }
 
     // MARK: - Helpers
@@ -1167,7 +464,7 @@ public static class SessionScanner
     /// Grok's summary. The default File.ReadAll* share mode throws a sharing
     /// violation against an open writer, which would silently drop that
     /// session (or every Codex title) from the scan.
-    private static FileStream OpenShared(string path) => new(
+    internal static FileStream OpenShared(string path) => new(
         path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
 
     public static List<string> TailLines(string path, long bytes = 131_072, int keep = 200)

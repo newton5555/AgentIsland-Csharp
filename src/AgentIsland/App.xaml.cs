@@ -14,9 +14,32 @@ public partial class App : System.Windows.Application
     // Composition root for the independent Windows product. The legacy
     // singletons still run during this migration, while new code gets its
     // platform and Agent dependencies from these owned services.
-    public IAgentCatalog AgentCatalog { get; } = new BuiltInAgentCatalog();
+    public IAgentCatalog AgentCatalog { get; } = CreateDefaultCatalog();
     public AgentIsland.Windows.Paths.IAppPaths AppPaths { get; } =
         new AgentIsland.Windows.Paths.WindowsAppPaths();
+
+    private static IAgentCatalog CreateDefaultCatalog()
+    {
+        var catalog = new BuiltInAgentCatalog();
+        var sensors = new Dictionary<string, ISessionSensor>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["claude"] = new Backend.Monitoring.Sensors.ClaudeSessionSensor(),
+            ["codex"] = new Backend.Monitoring.Sensors.CodexSessionSensor(),
+            ["antigravity"] = new Backend.Monitoring.Sensors.AntigravitySessionSensor(),
+            ["grok"] = new Backend.Monitoring.Sensors.GrokSessionSensor(),
+            ["cursor"] = new Backend.Monitoring.Sensors.CursorSessionSensor(),
+            ["deepseek"] = new Backend.Monitoring.Sensors.DeepSeekSessionSensor(),
+        };
+        foreach (var module in catalog.Modules.ToList())
+        {
+            sensors.TryGetValue(module.Descriptor.Key.Value, out var sensor);
+            catalog.Register(new BuiltInAgentModule(
+                module.Descriptor,
+                SessionSensor: sensor
+            ));
+        }
+        return catalog;
+    }
 
     private IslandWindow? _island;
     private TrayIcon? _tray;

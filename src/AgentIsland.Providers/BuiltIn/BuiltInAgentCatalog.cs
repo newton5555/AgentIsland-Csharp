@@ -8,17 +8,34 @@ namespace AgentIsland.Providers.BuiltIn;
 public sealed class BuiltInAgentCatalog : IAgentCatalog
 {
     private readonly Dictionary<AgentKey, IAgentModule> _byKey;
+    private readonly List<IAgentModule> _modules;
 
-    public BuiltInAgentCatalog()
+    public BuiltInAgentCatalog(IEnumerable<IAgentModule>? modules = null)
     {
-        Modules = CreateModules();
-        _byKey = Modules.ToDictionary(module => module.Descriptor.Key);
+        _modules = modules?.ToList() ?? CreateModules().ToList();
+        _byKey = _modules.ToDictionary(module => module.Descriptor.Key);
     }
 
-    public IReadOnlyList<IAgentModule> Modules { get; }
+    public IReadOnlyList<IAgentModule> Modules => _modules;
 
     public IAgentModule? Find(AgentKey key) =>
         _byKey.TryGetValue(key, out var module) ? module : null;
+
+    public void Register(IAgentModule module)
+    {
+        ArgumentNullException.ThrowIfNull(module);
+        _byKey[module.Descriptor.Key] = module;
+        var existingIndex = _modules.FindIndex(m => m.Descriptor.Key == module.Descriptor.Key);
+        if (existingIndex >= 0)
+        {
+            _modules[existingIndex] = module;
+        }
+        else
+        {
+            _modules.Add(module);
+        }
+    }
+
 
     private static IReadOnlyList<IAgentModule> CreateModules() =>
     [

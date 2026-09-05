@@ -2,4 +2,11 @@ using AgentIsland.Core.Agents;
 
 namespace AgentIsland.Providers.BuiltIn;
 
-internal sealed record BuiltInAgentModule(AgentDescriptor Descriptor) : IAgentModule;
+public sealed record BuiltInAgentModule(
+    AgentDescriptor Descriptor,
+    ISessionSensor? SessionSensor = null,
+    IUsageFetcher? UsageFetcher = null,
+    ICostLedgerReader? CostLedgerReader = null,
+    ISessionLauncher? SessionLauncher = null,
+    IReauthHandler? ReauthHandler = null) : IAgentProvider;
+

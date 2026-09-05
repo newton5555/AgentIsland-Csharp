@@ -55,3 +55,13 @@ public interface IAgentCatalog
 
     IAgentModule? Find(AgentKey key);
 }
+
+public static class AgentCatalogExtensions
+{
+    public static IEnumerable<IAgentProvider> Providers(this IAgentCatalog catalog) =>
+        catalog.Modules.OfType<IAgentProvider>();
+
+    public static IAgentProvider? FindProvider(this IAgentCatalog catalog, AgentKey key) =>
+        catalog.Find(key) as IAgentProvider;
+}
+

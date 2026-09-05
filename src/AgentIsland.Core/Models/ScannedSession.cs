@@ -1,3 +1,5 @@
+using AgentIsland.Core.Agents;
+
 namespace AgentIsland.Core;
 
 public enum SessionLaunchTarget
@@ -19,5 +21,32 @@ public sealed record ScannedSession(
     string? TurnKey,
     SessionLaunchTarget LaunchTarget)
 {
-    public string Id => Tool.RawValue() + ":" + SessionId;
+    public AgentKey AgentKey { get; init; } = new(Tool.RawValue());
+
+    public string Id => (AgentKey.Value.Length > 0 ? AgentKey.Value : Tool.RawValue()) + ":" + SessionId;
+
+    public ScannedSession(
+        AgentKey agentKey,
+        string sessionId,
+        string cwd,
+        string label,
+        DateTimeOffset modified,
+        ActivityState status,
+        string? transcriptPath,
+        string? turnKey,
+        SessionLaunchTarget launchTarget)
+        : this(
+            TriggerToolExtensions.FromRawValue(agentKey.Value) ?? TriggerTool.Claude,
+            sessionId,
+            cwd,
+            label,
+            modified,
+            status,
+            transcriptPath,
+            turnKey,
+            launchTarget)
+    {
+        AgentKey = agentKey;
+    }
 }
+
