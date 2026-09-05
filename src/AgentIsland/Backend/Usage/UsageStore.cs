@@ -11,7 +11,7 @@ namespace AgentIsland.Backend.Usage;
 /// port of the macOS UsageStore: parallel fetch, error-merge that never
 /// clobbers good values, 24h provider-stamped cache, re-auth polling, and a
 /// refresh-on-reconnect network monitor.
-public sealed class UsageStore : INotifyPropertyChanged
+public sealed class UsageStore : IUsageStore
 {
     private const string CacheKey = "UsageStore.lastSuccessfulUsage.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
@@ -21,6 +21,7 @@ public sealed class UsageStore : INotifyPropertyChanged
         DisplayProvider.Codex,
     };
 
+    [Obsolete("Inject IUsageStore via DI instead")]
     public static UsageStore Shared { get; } = new();
 
     private sealed class RefreshSlot
@@ -72,7 +73,7 @@ public sealed class UsageStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private UsageStore()
+    public UsageStore()
     {
         if (AppEnvironment.IsDemo) return;
         if (LoadCachedSnapshot() is { } snapshot)

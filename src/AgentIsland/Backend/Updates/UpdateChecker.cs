@@ -19,10 +19,11 @@ public sealed record UpdateInfo(
 /// dismissing it stays dismissed until an even newer version appears. The
 /// macOS app gets the same job done by Sparkle; this mirrors that contract
 /// with one HTTP call a day.
-public sealed class UpdateChecker
+public sealed class UpdateChecker : IUpdateChecker
 {
+    [Obsolete("Inject IUpdateChecker via DI instead")]
     public static UpdateChecker Shared { get; } = new();
-    private UpdateChecker() { }
+    public UpdateChecker() { }
 
     private const string LatestApi =
         "https://api.github.com/repos/newton5555/AgentIsland-Csharp/releases/latest";
@@ -44,6 +45,8 @@ public sealed class UpdateChecker
 
     public static Version CurrentVersion =>
         typeof(UpdateChecker).Assembly.GetName().Version ?? new Version(0, 0, 0);
+
+    public Version Version => CurrentVersion;
 
     /// "1.5.5" — the three-part form the dialogs show, matching the tag
     /// scheme (assembly versions carry a fourth .0 nobody prints).

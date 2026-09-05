@@ -23,17 +23,30 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private ProviderCostViewModel? _rightSlot;
 
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly ICostStore _costStore;
     private readonly Dictionary<DisplayProvider, ProviderCostViewModel> _providerModels = new();
 
-    public CostPageViewModel()
+    public CostPageViewModel() : this(
+        ProviderVisibilityStore.Shared,
+        CostStore.Shared)
     {
+    }
+
+    public CostPageViewModel(
+        IProviderVisibilityStore visibilityStore,
+        ICostStore costStore)
+    {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _costStore = costStore ?? throw new ArgumentNullException(nameof(costStore));
+
         foreach (var provider in DisplayProviders.All)
         {
             _providerModels[provider] = new ProviderCostViewModel(provider);
         }
 
-        ProviderVisibilityStore.Shared.PropertyChanged += OnVisibilityChanged;
-        CostStore.Shared.PropertyChanged += OnCostChanged;
+        _visibilityStore.PropertyChanged += OnVisibilityChanged;
+        _costStore.PropertyChanged += OnCostChanged;
 
         UpdateLayout();
     }
@@ -50,7 +63,7 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
 
     public void UpdateLayout()
     {
-        var slots = ProviderVisibilityStore.Shared.SlotProviders;
+        var slots = _visibilityStore.SlotProviders;
         var s0 = slots.Count > 0 ? slots[0] : (DisplayProvider?)null;
         var s1 = slots.Count > 1 ? slots[1] : (DisplayProvider?)null;
 
@@ -87,12 +100,12 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Refresh()
     {
-        CostStore.Shared.Refresh();
+        _costStore.Refresh();
     }
 
     public void Dispose()
     {
-        ProviderVisibilityStore.Shared.PropertyChanged -= OnVisibilityChanged;
-        CostStore.Shared.PropertyChanged -= OnCostChanged;
+        _visibilityStore.PropertyChanged -= OnVisibilityChanged;
+        _costStore.PropertyChanged -= OnCostChanged;
     }
 }

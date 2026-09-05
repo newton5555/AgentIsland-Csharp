@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using AgentIsland.Core;
+using AgentIsland.Core.Storage;
 using AgentIsland.Core.Usage;
 
 namespace AgentIsland.Backend.Settings;
@@ -13,18 +14,7 @@ namespace AgentIsland.Backend.Settings;
 /// choice BINDS providers to those slots and never adds a third: turning a
 /// third one on is refused outright — never a silent eviction of an older
 /// pick.
-///
-/// Two layers, mirroring macOS:
-///   - the manual selection (Toggle / ClaudeVisible / CodexVisible);
-///   - machine detection, probed once at launch. A claude/codex with no CLI
-///     footprint auto-yields its half of the island so single-subscription
-///     users get the solo layout without hunting for a Settings toggle.
-///     Manual wins once touched: flipping a toggle records intent, and
-///     detection stops second-guessing that provider.
-///   - gemini/grok/cursor/deepseek are zero-intrusion: no local footprint on
-///     this machine means no slot and no panel row, whatever the selection
-///     says.
-public sealed class ProviderVisibilityStore : INotifyPropertyChanged
+public sealed class ProviderVisibilityStore : IProviderVisibilityStore
 {
     private const string EnabledKey = "AgentIsland.enabledProviders.v1";
     private const string OrderKey = "AgentIsland.providerOrder.v1";
@@ -33,8 +23,10 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
     private const string ClaudeTouchedKey = "AgentIsland.claudeVisibleTouched";
     private const string CodexTouchedKey = "AgentIsland.codexVisibleTouched";
 
+    [Obsolete("Inject IProviderVisibilityStore via DI instead")]
     public static ProviderVisibilityStore Shared { get; } = new();
 
+    private readonly ISettingsStorage _storage;
     private readonly Dictionary<DisplayProvider, bool> _detected = new();
     private List<DisplayProvider> _enabled;
     private IReadOnlyList<DisplayProvider> _order;
@@ -44,10 +36,13 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private ProviderVisibilityStore()
+    public ProviderVisibilityStore() : this(Preferences.Storage) { }
+
+    public ProviderVisibilityStore(ISettingsStorage storage)
     {
-        _claudeTouched = Preferences.Get<bool?>(ClaudeTouchedKey) == true;
-        _codexTouched = Preferences.Get<bool?>(CodexTouchedKey) == true;
+        _storage = storage ?? Preferences.Storage;
+        _claudeTouched = _storage.Get<bool?>(ClaudeTouchedKey) == true;
+        _codexTouched = _storage.Get<bool?>(CodexTouchedKey) == true;
 
         if (AppEnvironment.IsDemo)
         {
@@ -60,8 +55,8 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
         }
         else
         {
-            var storedOrder = Preferences.Get<List<string>?>(OrderKey);
-            var storedEnabled = Preferences.Get<List<string>?>(EnabledKey);
+            var storedOrder = _storage.Get<List<string>?>(OrderKey);
+            var storedEnabled = _storage.Get<List<string>?>(EnabledKey);
 
             if (storedOrder == null && storedEnabled != null)
             {
@@ -83,8 +78,8 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
             {
                 // First run on the slot model
                 var migratedEnabled = ProviderSelection.Migrated(
-                    Preferences.Get<bool?>(ClaudeKey) ?? true,
-                    Preferences.Get<bool?>(CodexKey) ?? true);
+                    _storage.Get<bool?>(ClaudeKey) ?? true,
+                    _storage.Get<bool?>(CodexKey) ?? true);
                 _order = ProviderSelection.SanitizeOrder(migratedEnabled.Select(p => p.RawValue()));
                 _enabled = ProviderSelection.SanitizeEnabled(migratedEnabled.Select(p => p.RawValue()), _order);
             }
@@ -287,11 +282,11 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
         {
             case DisplayProvider.Claude:
                 _claudeTouched = true;
-                Preferences.Set(ClaudeTouchedKey, true);
+                _storage.Set(ClaudeTouchedKey, true);
                 break;
             case DisplayProvider.Codex:
                 _codexTouched = true;
-                Preferences.Set(CodexTouchedKey, true);
+                _storage.Set(CodexTouchedKey, true);
                 break;
             default:
                 break;
@@ -301,7 +296,7 @@ public sealed class ProviderVisibilityStore : INotifyPropertyChanged
     private void Persist()
     {
         if (AppEnvironment.IsDemo) return;
-        Preferences.SetBatch(values =>
+        _storage.SetBatch(values =>
         {
             values[OrderKey] = JsonSerializer.SerializeToElement(_order.Select(p => p.RawValue()).ToList());
             values[EnabledKey] = JsonSerializer.SerializeToElement(_enabled.Select(p => p.RawValue()).ToList());

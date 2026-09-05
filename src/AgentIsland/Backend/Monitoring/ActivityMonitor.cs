@@ -14,10 +14,11 @@ namespace AgentIsland.Backend.Monitoring;
 /// throttled to ~2/s with a guaranteed trailing scan: a streaming transcript
 /// writes many times per second, but the LAST write of a turn (end_turn /
 /// task_complete) must never wait for the fallback poll.
-public sealed class ActivityMonitor : INotifyPropertyChanged
+public sealed class ActivityMonitor : IActivityMonitor
 {
+    [Obsolete("Inject IActivityMonitor via DI instead")]
     public static ActivityMonitor Shared { get; } = new();
-    private ActivityMonitor() { }
+    public ActivityMonitor() { }
 
     public sealed record ActiveThread(
         string SessionId,

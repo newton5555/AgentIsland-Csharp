@@ -26,17 +26,30 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private ProviderUsageViewModel? _rightSlot;
 
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly IUsageStore _usageStore;
     private readonly Dictionary<DisplayProvider, ProviderUsageViewModel> _providerModels = new();
 
-    public UsagePageViewModel()
+    public UsagePageViewModel() : this(
+        ProviderVisibilityStore.Shared,
+        UsageStore.Shared)
     {
+    }
+
+    public UsagePageViewModel(
+        IProviderVisibilityStore visibilityStore,
+        IUsageStore usageStore)
+    {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _usageStore = usageStore ?? throw new ArgumentNullException(nameof(usageStore));
+
         foreach (var provider in DisplayProviders.All)
         {
             _providerModels[provider] = new ProviderUsageViewModel(provider);
         }
 
-        ProviderVisibilityStore.Shared.PropertyChanged += OnVisibilityChanged;
-        UsageStore.Shared.PropertyChanged += OnUsageChanged;
+        _visibilityStore.PropertyChanged += OnVisibilityChanged;
+        _usageStore.PropertyChanged += OnUsageChanged;
 
         UpdateLayout();
     }
@@ -53,7 +66,7 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
 
     public void UpdateLayout()
     {
-        var slots = ProviderVisibilityStore.Shared.SlotProviders;
+        var slots = _visibilityStore.SlotProviders;
         var s0 = slots.Count > 0 ? slots[0] : (DisplayProvider?)null;
         var s1 = slots.Count > 1 ? slots[1] : (DisplayProvider?)null;
 
@@ -80,8 +93,8 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
 
     private void UpdateUsageData()
     {
-        var claudeUsage = UsageStore.Shared.Claude;
-        var codexUsage = UsageStore.Shared.Codex;
+        var claudeUsage = _usageStore.Claude;
+        var codexUsage = _usageStore.Codex;
 
         var claudeUnhealthy = claudeUsage.FiveHour.Error is not null || claudeUsage.Weekly.Error is not null;
         var codexUnhealthy = codexUsage.FiveHour.Error is not null || codexUsage.Weekly.Error is not null;
@@ -105,7 +118,7 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void Refresh()
     {
-        UsageStore.Shared.Refresh();
+        _usageStore.Refresh();
     }
 
     [RelayCommand]
@@ -116,7 +129,7 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        ProviderVisibilityStore.Shared.PropertyChanged -= OnVisibilityChanged;
-        UsageStore.Shared.PropertyChanged -= OnUsageChanged;
+        _visibilityStore.PropertyChanged -= OnVisibilityChanged;
+        _usageStore.PropertyChanged -= OnUsageChanged;
     }
 }

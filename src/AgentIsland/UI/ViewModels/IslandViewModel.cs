@@ -40,21 +40,39 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
     [ObservableProperty]
     private bool _hasNeedsYou;
 
-    public IslandViewModel()
-    {
-        ProviderVisibilityStore.Shared.PropertyChanged += OnVisibilityChanged;
-        ActivityMonitor.Shared.PropertyChanged += OnActivityChanged;
-        IslandModel.Shared.PropertyChanged += OnIslandModelChanged;
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly IActivityMonitor _activityMonitor;
+    private readonly IIslandModel _islandModel;
 
-        State = IslandModel.Shared.State;
+    public IslandViewModel() : this(
+        ProviderVisibilityStore.Shared,
+        ActivityMonitor.Shared,
+        IslandModel.Shared)
+    {
+    }
+
+    public IslandViewModel(
+        IProviderVisibilityStore visibilityStore,
+        IActivityMonitor activityMonitor,
+        IIslandModel islandModel)
+    {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _activityMonitor = activityMonitor ?? throw new ArgumentNullException(nameof(activityMonitor));
+        _islandModel = islandModel ?? throw new ArgumentNullException(nameof(islandModel));
+
+        _visibilityStore.PropertyChanged += OnVisibilityChanged;
+        _activityMonitor.PropertyChanged += OnActivityChanged;
+        _islandModel.PropertyChanged += OnIslandModelChanged;
+
+        State = _islandModel.State;
         RefreshState();
     }
 
     private void OnIslandModelChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(IslandModel.State))
+        if (e.PropertyName == nameof(IIslandModel.State))
         {
-            State = IslandModel.Shared.State;
+            State = _islandModel.State;
         }
     }
 
@@ -70,15 +88,15 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     public void RefreshState()
     {
-        var slots = ProviderVisibilityStore.Shared.SlotProviders;
+        var slots = _visibilityStore.SlotProviders;
         LeftProvider = slots.Count > 0 ? slots[0] : null;
         RightProvider = slots.Count > 1 ? slots[1] : null;
 
         if (LeftProvider is { } p0)
         {
             var t0 = p0.ToTriggerTool();
-            LeftActivity = ActivityMonitor.Shared.StateFor(t0);
-            LeftThreadTitle = ActivityMonitor.Shared.ThreadFor(t0)?.Label;
+            LeftActivity = _activityMonitor.StateFor(t0);
+            LeftThreadTitle = _activityMonitor.ThreadFor(t0)?.Label;
         }
         else
         {
@@ -89,8 +107,8 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
         if (RightProvider is { } p1)
         {
             var t1 = p1.ToTriggerTool();
-            RightActivity = ActivityMonitor.Shared.StateFor(t1);
-            RightThreadTitle = ActivityMonitor.Shared.ThreadFor(t1)?.Label;
+            RightActivity = _activityMonitor.StateFor(t1);
+            RightThreadTitle = _activityMonitor.ThreadFor(t1)?.Label;
         }
         else
         {
@@ -106,7 +124,7 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
     {
         var newState = State == IslandState.Expanded ? IslandState.Compact : IslandState.Expanded;
         State = newState;
-        IslandModel.Shared.State = newState;
+        _islandModel.State = newState;
     }
 
     [RelayCommand]
@@ -117,8 +135,8 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
 
     public void Dispose()
     {
-        ProviderVisibilityStore.Shared.PropertyChanged -= OnVisibilityChanged;
-        ActivityMonitor.Shared.PropertyChanged -= OnActivityChanged;
-        IslandModel.Shared.PropertyChanged -= OnIslandModelChanged;
+        _visibilityStore.PropertyChanged -= OnVisibilityChanged;
+        _activityMonitor.PropertyChanged -= OnActivityChanged;
+        _islandModel.PropertyChanged -= OnIslandModelChanged;
     }
 }

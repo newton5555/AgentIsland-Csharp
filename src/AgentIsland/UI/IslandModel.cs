@@ -25,8 +25,9 @@ public enum IslandSpacingMode
 /// State machine + geometry for the island silhouette. Sizes are the shipped
 /// macOS constants: tab 38, peek pill slot 104 per side, expanded panel 800
 /// wide with 188/244pt content pages.
-public sealed class IslandModel : INotifyPropertyChanged
+public sealed class IslandModel : IIslandModel
 {
+    [Obsolete("Inject IIslandModel via DI instead")]
     public static IslandModel Shared { get; } = new();
 
     public const double TabWidth = 38;
@@ -47,7 +48,7 @@ public sealed class IslandModel : INotifyPropertyChanged
     private IslandSpacingMode _spacingMode;
     private double _expandedContentHeight = UsageContentHeight;
 
-    private IslandModel()
+    public IslandModel()
     {
         // Windows displays have no notch, so the macOS Compact/Notched-Mac
         // bar-style choice is gone: the bar is always the wide layout

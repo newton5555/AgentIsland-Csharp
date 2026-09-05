@@ -10,8 +10,9 @@ namespace AgentIsland.Backend.Cost;
 /// Publishes per-provider cost rollups from the local logs. Scans run in
 /// parallel off the UI thread on the shared poll cadence; demo mode injects
 /// the same screenshot-friendly April numbers as macOS.
-public sealed class CostStore : INotifyPropertyChanged
+public sealed class CostStore : ICostStore
 {
+    [Obsolete("Inject ICostStore via DI instead")]
     public static CostStore Shared { get; } = new();
 
     private readonly Dictionary<DisplayProvider, ProviderCostSummary> _summaries = new();
@@ -26,7 +27,7 @@ public sealed class CostStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private CostStore()
+    public CostStore()
     {
         foreach (var provider in DisplayProviders.All)
         {

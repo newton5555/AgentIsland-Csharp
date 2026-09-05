@@ -14,6 +14,9 @@ using AgentIsland.Backend.Monitoring;
 using AgentIsland.Backend.Usage;
 using AgentIsland.Backend.Cost;
 using AgentIsland.Backend.Alarms;
+using AgentIsland.Backend.Settings;
+using AgentIsland.Backend.Updates;
+using AgentIsland.UI.ViewModels;
 
 namespace AgentIsland;
 
@@ -28,6 +31,12 @@ public partial class App : System.Windows.Application
     public AgentIsland.Windows.Paths.IAppPaths AppPaths => Services.GetRequiredService<AgentIsland.Windows.Paths.IAppPaths>();
     public ISettingsStorage SettingsStorage => Services.GetRequiredService<ISettingsStorage>();
     public IUiDispatcher UiDispatcher => Services.GetRequiredService<IUiDispatcher>();
+    public IProviderVisibilityStore ProviderVisibility => Services.GetRequiredService<IProviderVisibilityStore>();
+    public IUsageStore Usage => Services.GetRequiredService<IUsageStore>();
+    public ICostStore Cost => Services.GetRequiredService<ICostStore>();
+    public IActivityMonitor Activity => Services.GetRequiredService<IActivityMonitor>();
+    public IIslandModel IslandModel => Services.GetRequiredService<IIslandModel>();
+    public IUpdateChecker Updates => Services.GetRequiredService<IUpdateChecker>();
 
     public App()
     {
@@ -40,16 +49,24 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
                 services.AddHttpClient();
 
-                services.AddSingleton(ActivityMonitor.Shared);
-                services.AddSingleton(UsageStore.Shared);
-                services.AddSingleton(CostStore.Shared);
+                services.AddSingleton<IProviderVisibilityStore, ProviderVisibilityStore>();
+                services.AddSingleton<IUsageStore, UsageStore>();
+                services.AddSingleton<ICostStore, CostStore>();
+                services.AddSingleton<IActivityMonitor, ActivityMonitor>();
+                services.AddSingleton<IIslandModel, IslandModel>();
+                services.AddSingleton<IUpdateChecker, UpdateChecker>();
+
                 services.AddSingleton(GrokUsageStore.Shared);
                 services.AddSingleton(CursorUsageStore.Shared);
                 services.AddSingleton(AntigravityUsageStore.Shared);
                 services.AddSingleton(DeepSeekBalanceStore.Shared);
                 services.AddSingleton(UsageExhaustionAlarm.Shared);
-                services.AddSingleton(UpdateChecker.Shared);
                 services.AddSingleton(AlertEngine.Shared);
+
+                services.AddTransient<IslandViewModel>();
+                services.AddTransient<UsagePageViewModel>();
+                services.AddTransient<CostPageViewModel>();
+                services.AddTransient<SettingsViewModel>();
 
                 services.AddHostedService<Backend.Host.AgentIslandHostedService>();
             })
