@@ -99,7 +99,6 @@ public sealed class TrayIcon : IDisposable
         {
             var next = TrayIconRenderer.Render(usage5h, worst);
             _icon.Icon = next;
-            _rendered?.Dispose();
             _rendered = next;
             _lastVisualKey = visualKey;
         }
@@ -148,7 +147,6 @@ public sealed class TrayIcon : IDisposable
         ProviderVisibilityStore.Shared.PropertyChanged -= OnDataChanged;
         _icon.Visible = false;
         _icon.Dispose();
-        _rendered?.Dispose();
         _rendered = null;
         _lastVisualKey = null;
     }

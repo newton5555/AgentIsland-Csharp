@@ -3,6 +3,7 @@ using System.Windows.Threading;
 using AgentIsland.Core;
 using AgentIsland.UI.Providers;
 using AgentIsland.Core.Usage;
+using AgentIsland.Windows.Memory;
 
 namespace AgentIsland.Backend.Cost;
 
@@ -88,6 +89,7 @@ public sealed class CostStore : INotifyPropertyChanged
             ClearProviderMemory(provider);
         }
         _inFlightProviders.Clear();
+        MemoryReclaimer.ScheduleReclaim();
     }
 
     private void OnRefreshIntervalChanged(object? sender, PropertyChangedEventArgs args) => ArmPollTimer();
@@ -130,6 +132,10 @@ public sealed class CostStore : INotifyPropertyChanged
                 CostQueryService.Shared.Invalidate(provider);
                 _inFlightProviders.Remove(provider);
                 ClearProviderMemory(provider);
+            }
+            if (removed.Length > 0)
+            {
+                MemoryReclaimer.ScheduleReclaim();
             }
             if (_activeProviders.Count == 0) LastUpdated = null;
         }

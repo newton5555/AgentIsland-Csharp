@@ -243,10 +243,47 @@ public static class SessionScanner
     private const int MaxCodexFirstLineBytes = 2_000_000;
     private const int CodexInitialBufferSize = 65_536;
 
+    private static readonly Dictionary<string, (long Ticks, long Size, (string Sid, string Cwd, CodexRolloutKind Kind)? Meta)>
+        CodexMetaCache = new(StringComparer.Ordinal);
+    private static readonly object CodexMetaCacheGate = new();
+
     /// Reads the first JSONL line in full. Codex's `session_meta` is line 1
     /// but can be tens of KB (it embeds the full base instructions), so keep
     /// pulling chunks until the first newline.
     internal static (string Sid, string Cwd, CodexRolloutKind Kind)? CodexMeta(string path)
+    {
+        long ticks = 0;
+        long size = 0;
+        try
+        {
+            var info = new FileInfo(path);
+            if (!info.Exists) return null;
+            ticks = info.LastWriteTimeUtc.Ticks;
+            size = info.Length;
+            lock (CodexMetaCacheGate)
+            {
+                if (CodexMetaCache.TryGetValue(path, out var cached)
+                    && cached.Ticks == ticks && cached.Size == size)
+                {
+                    return cached.Meta;
+                }
+            }
+        }
+        catch
+        {
+            return null;
+        }
+
+        var meta = ReadCodexMetaDirect(path);
+        lock (CodexMetaCacheGate)
+        {
+            if (CodexMetaCache.Count > 5000) CodexMetaCache.Clear();
+            CodexMetaCache[path] = (ticks, size, meta);
+        }
+        return meta;
+    }
+
+    private static (string Sid, string Cwd, CodexRolloutKind Kind)? ReadCodexMetaDirect(string path)
     {
         var rented = ArrayPool<byte>.Shared.Rent(CodexInitialBufferSize);
         try
@@ -987,6 +1024,7 @@ public static class SessionScanner
     internal static void ClearTurnCache()
     {
         lock (TurnCacheGate) TurnCache.Clear();
+        lock (CodexMetaCacheGate) CodexMetaCache.Clear();
     }
 
     /// Drop only one provider's entries when a slot is disabled. The activity
@@ -994,6 +1032,11 @@ public static class SessionScanner
     /// make an enabled sibling pay the parse cost again on its next tick.
     internal static void ClearTurnCache(TriggerTool provider)
     {
+        if (provider == TriggerTool.Codex)
+        {
+            lock (CodexMetaCacheGate) CodexMetaCache.Clear();
+        }
+
         IEnumerable<string> roots = provider switch
         {
             TriggerTool.Claude => IslandPaths.ClaudeProjectRoots,
@@ -1129,31 +1172,73 @@ public static class SessionScanner
 
     public static List<string> TailLines(string path, long bytes = 131_072, int keep = 200)
     {
-        byte[] data;
+        var output = new List<string>(Math.Min(keep, 64));
+        byte[]? rented = null;
         try
         {
-            using var stream = new FileStream(
+            int totalRead = 0;
+            using (var stream = new FileStream(
                 path, FileMode.Open, FileAccess.Read,
-                FileShare.ReadWrite | FileShare.Delete);
-            var size = stream.Length;
-            if (size > bytes) stream.Seek(size - bytes, SeekOrigin.Begin);
-            using var memory = new MemoryStream();
-            stream.CopyTo(memory);
-            data = memory.ToArray();
+                FileShare.ReadWrite | FileShare.Delete))
+            {
+                var size = stream.Length;
+                if (size <= 0) return output;
+
+                var toRead = (int)Math.Min(bytes, size);
+                if (size > bytes) stream.Seek(size - toRead, SeekOrigin.Begin);
+
+                rented = ArrayPool<byte>.Shared.Rent(toRead);
+                while (totalRead < toRead)
+                {
+                    var read = stream.Read(rented, totalRead, toRead - totalRead);
+                    if (read <= 0) break;
+                    totalRead += read;
+                }
+            }
+
+            if (totalRead <= 0) return output;
+
+            var span = rented.AsSpan(0, totalRead);
+
+            // Scan backwards to count up to `keep` newline bytes without allocating strings
+            var newlineCount = 0;
+            var startIndex = 0;
+            for (var i = span.Length - 1; i >= 0; i--)
+            {
+                if (span[i] == (byte)'\n')
+                {
+                    newlineCount++;
+                    if (newlineCount > keep)
+                    {
+                        startIndex = i + 1;
+                        break;
+                    }
+                }
+            }
+
+            // Only decode the small slice containing the trailing lines (avoids LOH allocations)
+            var tailSpan = span.Slice(startIndex);
+            var text = Encoding.UTF8.GetString(tailSpan);
+            var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            var start = Math.Max(0, lines.Length - keep);
+            for (var i = start; i < lines.Length; i++)
+            {
+                var line = lines[i].TrimEnd('\r');
+                if (line.Length > 0)
+                {
+                    output.Add(line);
+                }
+            }
+            return output;
         }
         catch
         {
-            return new List<string>();
+            return output;
         }
-        var text = Encoding.UTF8.GetString(data);
-        var lines = text.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        var start = Math.Max(0, lines.Length - keep);
-        var output = new List<string>(Math.Min(keep, lines.Length));
-        for (var i = start; i < lines.Length; i++)
+        finally
         {
-            output.Add(lines[i].TrimEnd('\r'));
+            if (rented is not null) ArrayPool<byte>.Shared.Return(rented);
         }
-        return output;
     }
 
     private static DateTimeOffset? LatestDate(DateTimeOffset? lhs, DateTimeOffset? rhs)

@@ -38,6 +38,22 @@ internal static class TrayIconRenderer
         }
     });
 
+    private static readonly Lazy<Bitmap?> BaseLogo32 = new(() =>
+    {
+        if (Logo.Value is not { } logo) return null;
+        const int s = 32;
+        var bmp = new Bitmap(s, s);
+        using var g = Graphics.FromImage(bmp);
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.Clear(Color.Transparent);
+        g.DrawImage(logo, new Rectangle(0, 0, s, s), 96, 96, 832, 832, GraphicsUnit.Pixel);
+        return bmp;
+    });
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<VisualStateKey, Icon> IconCache = new();
+
     internal readonly record struct VisualStateKey(Color? BadgeColor);
 
     internal static VisualStateKey GetVisualStateKey(double usage5h, ActivityState state) =>
@@ -55,20 +71,23 @@ internal static class TrayIconRenderer
 
     public static Icon Render(double usage5h, ActivityState state)
     {
+        var key = GetVisualStateKey(usage5h, state);
+        return IconCache.GetOrAdd(key, k => RenderCore(k.BadgeColor));
+    }
+
+    private static Icon RenderCore(Color? badge)
+    {
         const int s = 32;
         using var bmp = new Bitmap(s, s);
         using (var g = Graphics.FromImage(bmp))
         {
             g.SmoothingMode = SmoothingMode.AntiAlias;
-            g.InterpolationMode = InterpolationMode.HighQualityBicubic;
             g.PixelOffsetMode = PixelOffsetMode.HighQuality;
             g.Clear(Color.Transparent);
 
-            if (Logo.Value is { } logo)
+            if (BaseLogo32.Value is { } baseLogo)
             {
-                // The 1024px source keeps ~15% transparent padding around the
-                // starburst; crop to the mark's square so it fills the tile.
-                g.DrawImage(logo, new Rectangle(0, 0, s, s), 96, 96, 832, 832, GraphicsUnit.Pixel);
+                g.DrawImageUnscaled(baseLogo, 0, 0);
             }
             else
             {
@@ -76,7 +95,7 @@ internal static class TrayIconRenderer
                 g.FillEllipse(disc, 1, 1, s - 2, s - 2);
             }
 
-            if (BadgeColor(state, usage5h) is { } badge)
+            if (badge is { } color)
             {
                 // Dark backing keeps the dot legible over the rays and on
                 // both light and dark taskbars.
@@ -85,7 +104,7 @@ internal static class TrayIconRenderer
                 const float y = s - d - 0.5f;
                 using var backing = new SolidBrush(Color.FromArgb(230, 0x14, 0x14, 0x18));
                 g.FillEllipse(backing, x, y, d, d);
-                using var dot = new SolidBrush(badge);
+                using var dot = new SolidBrush(color);
                 g.FillEllipse(dot, x + 2.5f, y + 2.5f, d - 5f, d - 5f);
             }
         }

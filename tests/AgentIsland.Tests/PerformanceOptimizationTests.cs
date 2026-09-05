@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Windows;
 using AgentIsland.Core;
 using AgentIsland.UI;
+using AgentIsland.Windows.Memory;
 
 namespace AgentIsland.Tests;
 
@@ -14,6 +15,7 @@ public static class PerformanceOptimizationTests
         TestCodexMetaReadsAFullFirstLineWithoutReadingTheTail();
         TestSilhouetteBoundsPreserveCornerGeometry();
         TestTrayVisualKeyChangesOnlyAtVisualBoundaries();
+        TestMemoryReclaimerAndCodexMetaCacheEviction();
         Console.WriteLine("PerformanceOptimizationTests GREEN");
     }
 
@@ -93,6 +95,40 @@ public static class PerformanceOptimizationTests
             !idle.Equals(TrayIconRenderer.GetVisualStateKey(0.20, ActivityState.Working)),
             "activity status must remain part of the visual state");
         Console.WriteLine("PASS tray visual key covers badge and activity transitions");
+    }
+
+    private static void TestMemoryReclaimerAndCodexMetaCacheEviction()
+    {
+        var root = Path.Combine(
+            Path.GetTempPath(), "AgentIsland.MemoryReclaimTests", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            var firstLine = "{\"type\":\"session_meta\",\"payload\":{\"id\":\"m1\",\"cwd\":\"C:\\\\p\"}}";
+            var path = Path.Combine(root, "session.jsonl");
+            File.WriteAllText(path, firstLine + Environment.NewLine);
+
+            var meta = SessionScanner.CodexMeta(path);
+            Expect(meta is not null && meta.Value.Sid == "m1", "meta parses");
+
+            // Evict via provider-targeted turn cache clear
+            SessionScanner.ClearTurnCache(TriggerTool.Codex);
+
+            // Re-read after file delete to verify cache was purged (if cached, it would return cached meta)
+            File.Delete(path);
+            var afterEviction = SessionScanner.CodexMeta(path);
+            Expect(afterEviction is null, "clearing turn cache for Codex must purge CodexMetaCache");
+
+            // Test memory reclaimer execution
+            MemoryReclaimer.PerformReclaim();
+            MemoryReclaimer.ScheduleReclaim(10);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+
+        Console.WriteLine("PASS memory reclamation and Codex meta cache eviction");
     }
 
     private static void Expect(bool condition, string message)

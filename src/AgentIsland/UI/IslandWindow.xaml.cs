@@ -25,6 +25,14 @@ internal readonly record struct SilhouetteScreenBounds(
         if (Width <= 0 || Height <= 0 || ScreenWidth <= 0 || ScreenHeight <= 0)
             return false;
 
+        // Fast screen-space AABB short-circuit: rejects >95% of points with 4 comparisons,
+        // avoiding point creation, floating-point divisions, and circle equations.
+        if (screenPoint.X < TopLeft.X || screenPoint.X > TopLeft.X + ScreenWidth
+            || screenPoint.Y < TopLeft.Y || screenPoint.Y > TopLeft.Y + ScreenHeight)
+        {
+            return false;
+        }
+
         // Normalize the native screen point into the silhouette's local
         // coordinates. This avoids a second screen-to-DIP conversion and
         // keeps the corner test aligned with Border's CornerRadius.

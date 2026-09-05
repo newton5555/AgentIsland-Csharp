@@ -576,6 +576,7 @@ public sealed class ActivityMonitor : INotifyPropertyChanged
         if (_pendingCacheClears.Count == 0) return;
         foreach (var provider in _pendingCacheClears) ClearActivityCache(provider);
         _pendingCacheClears.Clear();
+        AgentIsland.Windows.Memory.MemoryReclaimer.ScheduleReclaim();
     }
 
     private static void ClearActivityCache(TriggerTool provider)

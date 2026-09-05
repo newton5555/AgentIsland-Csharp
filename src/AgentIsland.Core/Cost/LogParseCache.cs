@@ -14,7 +14,9 @@ public sealed class LogParseCache
     private readonly record struct EventDto(
         long Ts, string Model, long In, long Out, long Cc, long Cr);
 
-    private sealed record Entry(long MtimeTicks, long Size, List<EventDto> Events);
+    private sealed record DiskEntry(long MtimeTicks, long Size, List<EventDto> Events);
+
+    private sealed record Entry(long MtimeTicks, long Size, IReadOnlyList<TokenEvent> Events);
 
     private readonly string _cachePath;
     private readonly TriggerTool _provider;
@@ -100,7 +102,7 @@ public sealed class LogParseCache
                 && entry.MtimeTicks == mtime.UtcTicks
                 && entry.Size == size)
             {
-                output.AddRange(entry.Events.Select(FromDto));
+                output.AddRange(entry.Events);
                 continue;
             }
 
@@ -110,7 +112,7 @@ public sealed class LogParseCache
             // partially read while locked, subsequent scans should retry it.
             if (events.Count > 0 || size <= 1024)
             {
-                var next = new Entry(mtime.UtcTicks, size, events.Select(ToDto).ToList());
+                var next = new Entry(mtime.UtcTicks, size, events);
                 changed.Add((path, next));
                 output.AddRange(events);
             }
@@ -205,24 +207,25 @@ public sealed class LogParseCache
                     _cachePath, FileMode.Open, FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete,
                     bufferSize: 64 * 1024, useAsync: false);
-                var deserialized = JsonSerializer.Deserialize<Dictionary<string, Entry>>(stream);
-                loaded = deserialized is null
-                    ? new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase)
-                    : new Dictionary<string, Entry>(deserialized, StringComparer.OrdinalIgnoreCase);
+                var deserialized = JsonSerializer.Deserialize<Dictionary<string, DiskEntry>>(stream);
+                loaded = new Dictionary<string, Entry>(StringComparer.OrdinalIgnoreCase);
+                if (deserialized is not null)
+                {
+                    foreach (var (key, diskEntry) in deserialized)
+                    {
+                        if (diskEntry is null || diskEntry.Events is null) continue;
+                        if (diskEntry.Events.Count == 0 && diskEntry.Size > 1024) continue;
+                        if (diskEntry.Events.Any(item => string.IsNullOrWhiteSpace(item.Model))) continue;
 
-                // Prune legacy poisoned entries where a sharing violation or
-                // crash cached a non-empty session with zero events. Also
-                // reject malformed DTOs instead of turning a corrupt cache
-                // hit into a TokenEvent with a null model.
-                var poisoned = loaded
-                    .Where(kv => kv.Value is null
-                        || kv.Value.Events is null
-                        || (kv.Value.Events.Count == 0 && kv.Value.Size > 1024)
-                        || kv.Value.Events.Any(item => string.IsNullOrWhiteSpace(item.Model)))
-                    .Select(kv => kv.Key)
-                    .ToList();
-                foreach (var key in poisoned) loaded.Remove(key);
-                dirty = poisoned.Count > 0;
+                        var tokenEvents = new List<TokenEvent>(diskEntry.Events.Count);
+                        foreach (var dto in diskEntry.Events)
+                        {
+                            tokenEvents.Add(FromDto(dto));
+                        }
+                        loaded[key] = new Entry(diskEntry.MtimeTicks, diskEntry.Size, tokenEvents);
+                    }
+                    dirty = loaded.Count != deserialized.Count;
+                }
             }
         }
         catch
@@ -276,11 +279,21 @@ public sealed class LogParseCache
             var directory = Path.GetDirectoryName(_cachePath);
             if (!string.IsNullOrWhiteSpace(directory)) Directory.CreateDirectory(directory);
             tmp = _cachePath + ".tmp-" + Guid.NewGuid().ToString("N");
+            var diskSnapshot = new Dictionary<string, DiskEntry>(snapshot.Count, StringComparer.OrdinalIgnoreCase);
+            foreach (var (key, entry) in snapshot)
+            {
+                var dtos = new List<EventDto>(entry.Events.Count);
+                foreach (var ev in entry.Events)
+                {
+                    dtos.Add(ToDto(ev));
+                }
+                diskSnapshot[key] = new DiskEntry(entry.MtimeTicks, entry.Size, dtos);
+            }
             using (var stream = new FileStream(
                 tmp, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                 bufferSize: 64 * 1024, useAsync: false))
             {
-                JsonSerializer.Serialize(stream, snapshot);
+                JsonSerializer.Serialize(stream, diskSnapshot);
                 stream.Flush(flushToDisk: false);
             }
             lock (_gate)
