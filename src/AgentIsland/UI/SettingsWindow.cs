@@ -18,6 +18,7 @@ namespace AgentIsland.UI;
 /// hairlines, scrolling row content, and the GitHub/License/Quit footer.
 public sealed partial class SettingsWindow : Window
 {
+    public ViewModels.SettingsViewModel ViewModel { get; } = new();
     private static SettingsWindow? _open;
 
     public static void Open()
@@ -212,6 +213,7 @@ public sealed partial class SettingsWindow : Window
 
     private SettingsWindow()
     {
+        DataContext = ViewModel;
         InitializeComponent();
         Title = "Agent Island — " + L10n.Tr("Settings");
         Background = IslandColors.Brush(IslandColors.AlarmBackground);
@@ -341,6 +343,7 @@ public sealed partial class SettingsWindow : Window
     private void Select(Tab tab)
     {
         _active = tab;
+        ViewModel.ActiveTab = tab.ToString();
         _providersPage = null;
         Preferences.Set("Settings.activeTab", tab.ToString());
         foreach (var (cellTab, cell, glyph, label) in _navItems)

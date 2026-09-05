@@ -78,6 +78,7 @@ internal readonly record struct SilhouetteScreenBounds(
 /// this remains true when the underlying app belongs to another process.
 public partial class IslandWindow : Window
 {
+    public ViewModels.IslandViewModel ViewModel { get; } = new();
     private readonly IslandModel _model = IslandModel.Shared;
     private System.Windows.Interop.HwndSource? _windowSource;
     private DispatcherTimer? _mouseHitTestTimer;
@@ -127,6 +128,7 @@ public partial class IslandWindow : Window
 
     public IslandWindow()
     {
+        DataContext = ViewModel;
         InitializeComponent();
         ConfigureTransparencyExperiment();
         LeftLogo.Tool = TriggerTool.Claude;
@@ -167,6 +169,7 @@ public partial class IslandWindow : Window
         SetMouseClickThrough(false);
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
+        ViewModel.Dispose();
         base.OnClosed(e);
     }
 

@@ -21,6 +21,8 @@ namespace AgentIsland.UI;
 /// keeps the quiet nameplate rather than a fabricated $0.
 public sealed class CostPage : Border
 {
+    public ViewModels.CostPageViewModel ViewModel { get; } = new();
+
     private readonly Dictionary<DisplayProvider, CostBlock> _blocks = new();
     private readonly Dictionary<DisplayProvider, UIElement> _badges = new();
 
@@ -40,6 +42,8 @@ public sealed class CostPage : Border
 
     public CostPage()
     {
+        DataContext = ViewModel;
+        Unloaded += (_, _) => ViewModel.Dispose();
         Padding = new Thickness(22, 12, 22, 6);
         var grid = new Grid();
         Child = grid;

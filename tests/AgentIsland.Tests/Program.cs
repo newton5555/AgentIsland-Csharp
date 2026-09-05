@@ -111,6 +111,7 @@ public static class Program
             BrandGeometryTests.RunAll();
             ReportDuelTests.RunAll();
             SettingsXamlTests.RunAll();
+            MvvmViewModelTests.RunAll();
             Console.WriteLine("ALL GREEN");
             return 0;
         }

@@ -19,6 +19,8 @@ namespace AgentIsland.UI;
 /// a guests-only pair was selected (owner screenshot, 2026-08-08).
 public sealed class UsagePage : Border
 {
+    public ViewModels.UsagePageViewModel ViewModel { get; } = new();
+
     private readonly Dictionary<DisplayProvider, ProviderChartsBlock> _blocks = new();
     private readonly Dictionary<DisplayProvider, DeepSeekBalanceBlock> _balanceBlocks = new();
     private readonly Dictionary<DisplayProvider, UIElement> _badges = new();
@@ -28,6 +30,8 @@ public sealed class UsagePage : Border
 
     public UsagePage()
     {
+        DataContext = ViewModel;
+        Unloaded += (_, _) => ViewModel.Dispose();
         Padding = new Thickness(22, 12, 22, 6);
         var grid = new Grid();
         Child = grid;
