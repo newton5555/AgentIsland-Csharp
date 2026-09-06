@@ -91,9 +91,22 @@ public class SettingsXamlTests
 
     private static void EnsureApplication()
     {
+        TestIsolation.Initialize();
         if (Application.Current == null)
         {
-            _ = new Application();
+            try
+            {
+                _ = new Application { ShutdownMode = ShutdownMode.OnExplicitShutdown };
+            }
+            catch { }
+        }
+        else
+        {
+            try
+            {
+                Application.Current.ShutdownMode = ShutdownMode.OnExplicitShutdown;
+            }
+            catch { }
         }
         _ = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
     }

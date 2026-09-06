@@ -1,5 +1,6 @@
 using System.Windows;
 using AgentIsland.Core;
+using AgentIsland.Core.Options;
 using AgentIsland.Core.Usage;
 using AgentIsland.UI;
 using AgentIsland.UI.ViewModels;

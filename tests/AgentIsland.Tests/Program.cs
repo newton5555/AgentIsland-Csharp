@@ -115,6 +115,7 @@ public static class Program
             ProviderPluginTests.RunAll();
             HostedWorkerTests.RunAll();
             WindowServiceTests.RunAll();
+            OptionsTests.RunAll();
             Console.WriteLine("ALL GREEN");
 
 

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using AgentIsland.Core;
+using AgentIsland.Core.Options;
 
 namespace AgentIsland.UI;
 

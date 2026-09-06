@@ -35,6 +35,15 @@ internal static class TestIsolation
             {
                 _ = System.IO.Packaging.PackUriHelper.UriSchemePack;
             }
+
+            if (System.Windows.Application.Current == null)
+            {
+                _ = new System.Windows.Application { ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown };
+            }
+            else
+            {
+                System.Windows.Application.Current.ShutdownMode = System.Windows.ShutdownMode.OnExplicitShutdown;
+            }
         }
         catch { }
 

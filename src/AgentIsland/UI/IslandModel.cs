@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Windows;
 using AgentIsland.Core;
+using AgentIsland.Core.Options;
 using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI;
@@ -10,16 +11,6 @@ public enum IslandState
     Compact,
     Peek,
     Expanded,
-}
-
-/// Island bar width preset. macOS offered a wide notch-style bar and a
-/// compact one; Windows has no camera notch, so the wide style (matching the
-/// product's signature look) is the default and compact remains for users
-/// who want a smaller pill.
-public enum IslandSpacingMode
-{
-    NotchStyle,
-    Compact,
 }
 
 /// State machine + geometry for the island silhouette. Sizes are the shipped

@@ -19,6 +19,7 @@ using AgentIsland.Backend.Updates;
 using AgentIsland.Backend.Providers;
 using AgentIsland.UI.ViewModels;
 using AgentIsland.Core.Navigation;
+using AgentIsland.Core.Options;
 using AgentIsland.Core.Dialogs;
 using AgentIsland.UI.Services;
 
@@ -52,6 +53,12 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<IAgentCatalog>(CreateDefaultCatalog());
                 services.AddSingleton<AgentIsland.Windows.Paths.IAppPaths, AgentIsland.Windows.Paths.WindowsAppPaths>();
                 services.AddSingleton<ISettingsStorage>(AtomicJsonSettingsStorage.Default);
+                services.AddSingleton<SettingsManager>();
+                services.AddSingleton<ISettingsManager>(sp => sp.GetRequiredService<SettingsManager>());
+                services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<IslandDisplayOptions>>(sp => sp.GetRequiredService<SettingsManager>().DisplayMonitor);
+                services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<PollingOptions>>(sp => sp.GetRequiredService<SettingsManager>().PollingMonitor);
+                services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<AlertOptions>>(sp => sp.GetRequiredService<SettingsManager>().AlertMonitor);
+                services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<ProviderVisibilityOptions>>(sp => sp.GetRequiredService<SettingsManager>().ProviderVisibilityMonitor);
                 services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
                 services.AddHttpClient();
 
