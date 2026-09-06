@@ -2,6 +2,31 @@
 
 All notable changes to AgentIsland for Windows will be documented in this file.
 
+## [1.2.0] - 2026-09-06
+
+### 🏗️ 现代企业级 C# 架构重构 (Enterprise Modernization)
+- **100% 纯依赖注入 (Pure DI)**：彻底清除全局静态单例（`_instance` / `Shared`），全面迁移至 `Microsoft.Extensions.DependencyInjection` 容器进行服务注册与解析。
+- **Generic Host 应用宿主**：基于 `Microsoft.Extensions.Hosting` 统一编排应用生命周期，将轮询任务统一改造为基于 `PeriodicTimer` 的托管后台工作者（`ActivityMonitoringWorker`, `UsagePollingWorker`, `CostAggregationWorker`, `UpdateCheckWorker`）。
+- **弹性网络管线与离线快速失败**：接入 `IHttpClientFactory` 与 Polly 弹性策略（指数退避重试、断路器机制），配合 `INetworkConnectivityService` 实现离线状态下的毫秒级快速失败，避免后台网络挂起。
+- **强类型配置模式**：引入 `IOptions<T>` 与 `IOptionsMonitor<T>` 响应式配置监听，配合 `AtomicJsonSettingsStorage` 原子化持久化。
+- **提供商插件化架构**：使用 `IAgentProvider` 插件体系与 `IAgentCatalog` 动态注册中心替代硬编码枚举，Agent 能力显式声明。
+- **MVVM 规范化与窗口服务抽象**：规范 View 与 ViewModel（`IslandViewModel`, `SettingsViewModel`, `UsagePageViewModel`, `CostPageViewModel`），抽离 `IWindowService` 与 `IDialogService` 接口，解耦 UI 弹窗与核心逻辑。
+
+### ⚡ 极限负载保障与压力测试 (Stress Testing & Worst-Case I/O)
+- **双 Agent 并发上限契约**：针对实际高负荷工作流，引入 `SemaphoreSlim(2, 2)` 严格限制活跃 Agent 跟踪并发度，避免文件扫描抢占磁盘与系统 I/O。
+- **1 年（365 天）历史会话最坏场景仿真**：覆盖 730+ 个超大历史会话文件，全盘冷扫描耗时 < 30ms，热轮询耗时 < 1ms，CPU 增量峰值 < 5%。
+- **一键压测体验工具**：新增 `Launch-StressUI.bat` 与 `scripts/Launch-StressTestUI.ps1`，自动挂载独立沙箱数据目录并自动呼出灵动岛与仪表盘。
+
+### 🎨 开箱即用体验优化 (Fresh-Install Defaults)
+- 额度显示默认开启**剩余额度（Remaining Quota）**，优先展示剩余额度；
+- 费用统计显示默认**关闭（Off）**，优先保障隐私与离线纯净体验；
+- 视觉外观默认模式**跟随模型（Follow Model）**，自动匹配 Agent 品牌主色调；
+- 灵动岛胶囊条默认开启**常驻显示用量（Always Show Usage）**。
+
+### 🧪 自动化测试体系全面跃升 (Test Automation)
+- 自动化测试套件扩展至 **42 项测试**，涵盖单元测试、STA 线程 UI 渲染测试、MVVM ViewModel 交互测试、网络断路器与 1 年极限并发基准测试。
+- 引入沙箱数据隔离机制，杜绝测试过程与运行中实例的数据互扰。
+
 ## [1.0.1] - 2026-09-05
 
 ### 🚀 性能与内存深度优化 (Performance & Memory)

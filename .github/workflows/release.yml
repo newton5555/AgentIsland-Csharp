@@ -2,8 +2,16 @@ name: Release
 
 on:
   push:
+    branches:
+      - release
     tags:
       - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (optional, defaults to Version in AgentIsland.csproj)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -15,26 +23,65 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.x
 
-      - name: Validate release tag
+      - name: Resolve Release Version
         shell: pwsh
         run: |
-          $tag = '${{ github.ref_name }}'
-          if ($tag -notmatch '^v(?<version>\d+\.\d+\.\d+)$') {
-            throw "Release tags must use the vMAJOR.MINOR.PATCH format; received '$tag'."
+          $inputVersion = '${{ github.event.inputs.version }}'.Trim()
+          $refName = '${{ github.ref_name }}'
+
+          if ($inputVersion) {
+            $version = $inputVersion -replace '^v',''
+          } elseif ($refName -match '^v(?<version>\d+\.\d+\.\d+.*)$') {
+            $version = $Matches.version
+          } else {
+            $csproj = "src/AgentIsland/AgentIsland.csproj"
+            $version = ([xml](Get-Content $csproj)).Project.PropertyGroup.Version.Trim()
           }
-          "VERSION=$($Matches.version)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+          if (-not $version -or $version -notmatch '^\d+\.\d+\.\d+') {
+            throw "Failed to resolve a valid semantic version (resolved '$version')."
+          }
+
+          $tag = "v$version"
+          Write-Host "Resolved Version: $version"
+          Write-Host "Resolved Tag:     $tag"
+
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          "RELEASE_TAG=$tag" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Run Test Suite
+        shell: pwsh
+        run: |
+          dotnet test .\AgentIsland.sln --configuration Release
 
       - name: Build self-contained package
         shell: pwsh
-        run: .\build.ps1 -Runtime win-x64 -Version $env:VERSION
+        run: |
+          .\build.ps1 -Runtime win-x64 -Version $env:VERSION
 
-      - name: Create GitHub Release
+      - name: Prepare Release Notes
+        shell: pwsh
+        run: |
+          $versionDoc = "docs/releases/v$env:VERSION.md"
+          $notesFile = "dist/release-notes.md"
+          if (Test-Path $versionDoc) {
+            Write-Host "Using release document: $versionDoc"
+            Copy-Item -Path $versionDoc -Destination $notesFile
+          } else {
+            Write-Host "Version document $versionDoc not found; using fallback notes."
+            "## AgentIsland $env:VERSION`n`nAutomated release build." | Out-File -FilePath $notesFile -Encoding utf8
+          }
+          "NOTES_FILE=$notesFile" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Publish GitHub Release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -43,6 +90,16 @@ jobs:
           if (-not (Test-Path -LiteralPath $asset)) {
             throw "Expected release asset was not created: $asset"
           }
-          gh release create '${{ github.ref_name }}' $asset `
-            --title "Agent Island $env:VERSION" `
-            --generate-notes
+
+          # Check if release tag already exists
+          $exists = gh release view "$env:RELEASE_TAG" 2>&1
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $env:RELEASE_TAG already exists. Uploading asset and updating notes..."
+            gh release upload "$env:RELEASE_TAG" $asset --clobber
+            gh release edit "$env:RELEASE_TAG" --notes-file "$env:NOTES_FILE" --title "AgentIsland $env:RELEASE_TAG"
+          } else {
+            Write-Host "Creating new GitHub release for $env:RELEASE_TAG..."
+            gh release create "$env:RELEASE_TAG" $asset `
+              --title "AgentIsland $env:RELEASE_TAG" `
+              --notes-file "$env:NOTES_FILE"
+          }

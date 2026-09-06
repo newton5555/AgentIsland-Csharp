@@ -119,10 +119,10 @@ dotnet test AgentIsland.sln
 .\Launch-StressUI.bat
 
 # 4. 本地打包发布独立执行文件
-.\build.ps1 -Runtime win-x64 -Version 1.0.1
+.\build.ps1 -Runtime win-x64 -Version 1.2.0
 ```
 
-发布产物将输出在 `dist/AgentIsland-1.0.1-win-x64.zip`。
+发布产物将输出在 `dist/AgentIsland-1.2.0-win-x64.zip`。
 
 ---
 
