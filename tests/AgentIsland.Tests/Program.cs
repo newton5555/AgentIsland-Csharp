@@ -116,6 +116,7 @@ public static class Program
             HostedWorkerTests.RunAll();
             WindowServiceTests.RunAll();
             OptionsTests.RunAll();
+            ResilienceHttpTests.RunAll();
             Console.WriteLine("ALL GREEN");
 
 

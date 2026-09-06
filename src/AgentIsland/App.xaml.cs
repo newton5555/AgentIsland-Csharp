@@ -19,8 +19,10 @@ using AgentIsland.Backend.Updates;
 using AgentIsland.Backend.Providers;
 using AgentIsland.UI.ViewModels;
 using AgentIsland.Core.Navigation;
+using AgentIsland.Core.Network;
 using AgentIsland.Core.Options;
 using AgentIsland.Core.Dialogs;
+using AgentIsland.Backend.Network;
 using AgentIsland.UI.Services;
 
 namespace AgentIsland;
@@ -60,7 +62,26 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<AlertOptions>>(sp => sp.GetRequiredService<SettingsManager>().AlertMonitor);
                 services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<ProviderVisibilityOptions>>(sp => sp.GetRequiredService<SettingsManager>().ProviderVisibilityMonitor);
                 services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
+                services.AddSingleton<INetworkConnectivityService>(SystemNetworkConnectivityService.Shared);
+                services.AddTransient<OfflineFastFailHandler>();
                 services.AddHttpClient();
+                services.AddHttpClient(AgentIsland.Backend.Usage.Http.ResilientClientName)
+                    .AddHttpMessageHandler<OfflineFastFailHandler>()
+                    .AddStandardResilienceHandler(options =>
+                    {
+                        options.Retry.MaxRetryAttempts = 2;
+                        options.Retry.BackoffType = Polly.DelayBackoffType.Exponential;
+                        options.Retry.UseJitter = true;
+                        options.Retry.Delay = TimeSpan.FromMilliseconds(500);
+
+                        options.CircuitBreaker.FailureRatio = 0.5;
+                        options.CircuitBreaker.SamplingDuration = TimeSpan.FromSeconds(30);
+                        options.CircuitBreaker.MinimumThroughput = 4;
+                        options.CircuitBreaker.BreakDuration = TimeSpan.FromSeconds(15);
+
+                        options.AttemptTimeout.Timeout = TimeSpan.FromSeconds(15);
+                        options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(30);
+                    });
 
                 services.AddAgentProviders();
 

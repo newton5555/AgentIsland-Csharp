@@ -1,4 +1,5 @@
 using System.Net.Http;
+using AgentIsland.Backend.Network;
 
 namespace AgentIsland.Backend.Usage;
 
@@ -8,6 +9,8 @@ namespace AgentIsland.Backend.Usage;
 /// </summary>
 public static class Http
 {
+    public const string ResilientClientName = "AgentIsland.Resilient";
+
     private static IHttpClientFactory? _factory;
 
     public static void Configure(IHttpClientFactory factory)
@@ -15,12 +18,15 @@ public static class Http
         _factory = factory;
     }
 
-    public static HttpClient Client => _factory?.CreateClient() ?? FallbackClient;
+    public static HttpClient Client => _factory?.CreateClient(ResilientClientName) ?? FallbackClient;
 
-    private static readonly HttpClient FallbackClient = new(new SocketsHttpHandler
-    {
-        PooledConnectionLifetime = TimeSpan.FromMinutes(10),
-    })
+    private static readonly HttpClient FallbackClient = new(
+        new OfflineFastFailHandler(
+            SystemNetworkConnectivityService.Shared,
+            new SocketsHttpHandler
+            {
+                PooledConnectionLifetime = TimeSpan.FromMinutes(10),
+            }))
     {
         Timeout = TimeSpan.FromSeconds(30),
     };
