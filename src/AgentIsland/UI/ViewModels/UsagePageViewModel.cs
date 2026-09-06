@@ -31,8 +31,8 @@ public sealed partial class UsagePageViewModel : ObservableObject, IDisposable
     private readonly Dictionary<DisplayProvider, ProviderUsageViewModel> _providerModels = new();
 
     public UsagePageViewModel() : this(
-        ProviderVisibilityStore.Shared,
-        UsageStore.Shared)
+        (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore(),
+        (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore())
     {
     }
 

@@ -22,9 +22,16 @@ public class SortableProviderStack : StackPanel
     private Point _pressPoint;
     private int _dropIndex = -1;
     private double _draggingOpacity = 1;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
 
-    public SortableProviderStack()
+    public SortableProviderStack() : this(null) { }
+
+    public SortableProviderStack(AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
     {
+        _visibilityStore = visibilityStore
+            ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Settings.IProviderVisibilityStore)) as AgentIsland.Backend.Settings.IProviderVisibilityStore)
+            ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
+
         AllowDrop = true;
         DragOver += OnDragOver;
         Drop += OnDrop;
@@ -154,7 +161,7 @@ public class SortableProviderStack : StackPanel
         {
             Children.RemoveAt(oldIndex);
             Children.Insert(newIndex, _draggingRow);
-            ProviderVisibilityStore.Shared.MoveProvider(oldIndex, newIndex);
+            _visibilityStore.MoveProvider(oldIndex, newIndex);
         }
         e.Handled = true;
         FinishDrag();

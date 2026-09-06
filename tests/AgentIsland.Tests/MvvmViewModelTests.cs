@@ -1,6 +1,7 @@
 using System.Windows;
 using AgentIsland.Core;
 using AgentIsland.Core.Options;
+using AgentIsland.Core.Storage;
 using AgentIsland.Core.Usage;
 using AgentIsland.UI;
 using AgentIsland.UI.ViewModels;
@@ -26,14 +27,18 @@ public class MvvmViewModelTests
     [WpfFact]
     public static void TestIslandViewModel()
     {
-        using var vm = new IslandViewModel();
+        var model = new IslandModel();
+        var storage = new MemorySettingsStorage();
+        var visibility = new AgentIsland.Backend.Settings.ProviderVisibilityStore(storage);
+        var activity = new AgentIsland.Backend.Monitoring.ActivityMonitor();
+        using var vm = new IslandViewModel(visibility, activity, model);
         Assert(vm.State == IslandState.Compact || vm.State == IslandState.Expanded, "IslandViewModel should have valid state");
 
         var initialState = vm.State;
         vm.ToggleExpandCommand.Execute(null);
         var toggledState = vm.State;
         Assert(toggledState != initialState, "ToggleExpandCommand should toggle IslandState");
-        Assert(IslandModel.Shared.State == toggledState, "IslandViewModel should sync with IslandModel.Shared.State");
+        Assert(model.State == toggledState, "IslandViewModel should sync with IslandModel.State");
 
         // Toggle back
         vm.ToggleExpandCommand.Execute(null);
@@ -45,12 +50,14 @@ public class MvvmViewModelTests
     [WpfFact]
     public static void TestUsagePageViewModel()
     {
-        using var vm = new UsagePageViewModel();
+        var visibility = new AgentIsland.Backend.Settings.ProviderVisibilityStore(new MemorySettingsStorage());
+        var usage = new AgentIsland.Backend.Usage.UsageStore(visibility);
+        using var vm = new UsagePageViewModel(visibility, usage);
         Assert(vm.RefreshCommand != null, "RefreshCommand must exist");
         Assert(vm.StartClaudeReauthCommand != null, "StartClaudeReauthCommand must exist");
 
         // Check slots reflect visibility store
-        var slots = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.SlotProviders;
+        var slots = visibility.SlotProviders;
         if (slots.Count > 0)
         {
             Assert(vm.LeftSlot != null, "LeftSlot should be populated if slots exist");
@@ -63,10 +70,12 @@ public class MvvmViewModelTests
     [WpfFact]
     public static void TestCostPageViewModel()
     {
-        using var vm = new CostPageViewModel();
+        var visibility = new AgentIsland.Backend.Settings.ProviderVisibilityStore(new MemorySettingsStorage());
+        var cost = new AgentIsland.Backend.Cost.CostStore();
+        using var vm = new CostPageViewModel(visibility, cost);
         Assert(vm.RefreshCommand != null, "RefreshCommand must exist");
 
-        var slots = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.SlotProviders;
+        var slots = visibility.SlotProviders;
         if (slots.Count > 0)
         {
             Assert(vm.LeftSlot != null, "LeftSlot should be populated if slots exist");
@@ -130,6 +139,26 @@ public class MvvmViewModelTests
         public IReadOnlyList<DisplayProvider> Order => SlotProviders;
         public bool ClaudeVisible { get; set; } = true;
         public bool CodexVisible { get; set; } = true;
+        public bool ClaudeShown => ClaudeVisible;
+        public bool CodexShown => CodexVisible;
+        public bool ClaudePanelShown => ClaudeVisible;
+        public bool CodexPanelShown => CodexVisible;
+        public bool AntigravityPanelShown => true;
+        public bool GrokPanelShown => false;
+        public bool CursorPanelShown => false;
+        public bool DeepSeekPanelShown => false;
+        public int GuestPanelCount => 0;
+        public bool IsVisible(TriggerTool tool) => true;
+        public void RedetectGuests() { }
+        public int SelectedCount => SlotProviders.Count;
+        public bool ClaudeDetected => true;
+        public bool CodexDetected => true;
+        public bool AntigravityDetected => true;
+        public bool GrokDetected => false;
+        public bool CursorDetected => false;
+        public bool DeepSeekDetected => false;
+        public bool SetEnabled(DisplayProvider provider, bool enabled) => true;
+        public void MoveProvider(int oldIndex, int newIndex) { }
         public bool IsShown(DisplayProvider provider) => SlotProviders.Contains(provider);
         public bool IsEnabled(DisplayProvider provider) => SlotProviders.Contains(provider);
         public bool Toggle(DisplayProvider provider) => true;
@@ -138,6 +167,8 @@ public class MvvmViewModelTests
 
     internal sealed class FakeActivityMonitor : AgentIsland.Backend.Monitoring.IActivityMonitor
     {
+        public ActivityState Claude => ActivityState.Working;
+        public ActivityState Codex => ActivityState.Idle;
         public ActivityState StateFor(TriggerTool tool) => tool == TriggerTool.Claude ? ActivityState.Working : ActivityState.Idle;
         public AgentIsland.Backend.Monitoring.ActivityMonitor.ActiveThread? ThreadFor(TriggerTool tool) =>
             new AgentIsland.Backend.Monitoring.ActivityMonitor.ActiveThread("s1", "Injected Task", @"C:\p", DateTimeOffset.UtcNow, null, null, SessionLaunchTarget.Cli);
@@ -152,7 +183,7 @@ public class MvvmViewModelTests
     internal sealed class FakeIslandModel : IIslandModel
     {
         public IslandState State { get; set; } = IslandState.Compact;
-        public IslandSpacingMode SpacingMode { get; set; } = IslandSpacingMode.NotchStyle;
+        public AgentIsland.UI.IslandSpacingMode SpacingMode { get; set; } = AgentIsland.UI.IslandSpacingMode.NotchStyle;
         public double ExpandedContentHeight { get; set; } = 188;
         public TriggerTool? SoloProvider => null;
         public double NotchWidth => 200;
@@ -182,6 +213,8 @@ public class MvvmViewModelTests
             RefreshCalled = true;
             return Task.CompletedTask;
         }
+        public void ReauthenticateClaude() { }
+        public bool ReauthenticateCodex() => true;
         public void ClearClaudeReauthFailure() { }
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }

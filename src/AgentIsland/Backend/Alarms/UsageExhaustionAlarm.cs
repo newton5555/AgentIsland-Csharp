@@ -26,15 +26,13 @@ namespace AgentIsland.Backend.Alarms;
 /// When both of a provider's windows cross 100% in the same refresh they
 /// collapse to one alarm for the binding window (the latest reset — the time
 /// you're actually blocked until).
-public sealed class UsageExhaustionAlarm
+public sealed class UsageExhaustionAlarm : IUsageExhaustionAlarm
 {
-    public static UsageExhaustionAlarm Shared { get; } = new(
-        (provider, window, resetAt) => TurnAlarmWindowController.Shared.Show(
-            provider,
-            null,
-            QuotaAlarmKey(provider, window, resetAt),
-            new TurnAlarmKind.QuotaExhausted(window, resetAt)));
-
+    private readonly ITurnAlarmWindowController? _alarmController;
+    private readonly IUsageStore? _usageStore;
+    private readonly AgentReminderStore? _reminderStore;
+    private readonly IProviderVisibilityStore? _visibilityStore;
+    private readonly QuotaAlarmStore? _quotaAlarmStore;
     private readonly Action<TriggerTool, QuotaWindowKind, DateTimeOffset> _fire;
 
     /// windowId ("provider-window") → the most recent reset boundary we've
@@ -48,6 +46,25 @@ public sealed class UsageExhaustionAlarm
 
     private bool _warmedUp;
 
+    public UsageExhaustionAlarm(
+        ITurnAlarmWindowController alarmController,
+        IUsageStore usageStore,
+        AgentReminderStore reminderStore,
+        IProviderVisibilityStore visibilityStore,
+        QuotaAlarmStore quotaAlarmStore)
+    {
+        _alarmController = alarmController ?? throw new ArgumentNullException(nameof(alarmController));
+        _usageStore = usageStore ?? throw new ArgumentNullException(nameof(usageStore));
+        _reminderStore = reminderStore ?? throw new ArgumentNullException(nameof(reminderStore));
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _quotaAlarmStore = quotaAlarmStore ?? throw new ArgumentNullException(nameof(quotaAlarmStore));
+        _fire = (provider, window, resetAt) => _alarmController.Show(
+            provider,
+            null,
+            QuotaAlarmKey(provider, window, resetAt),
+            new TurnAlarmKind.QuotaExhausted(window, resetAt));
+    }
+
     internal UsageExhaustionAlarm(Action<TriggerTool, QuotaWindowKind, DateTimeOffset> fire)
     {
         _fire = fire;
@@ -55,13 +72,24 @@ public sealed class UsageExhaustionAlarm
 
     public void Start()
     {
-        UsageStore.Shared.PropertyChanged += OnUsageChanged;
-        Recompute();
+        if (_usageStore != null)
+        {
+            _usageStore.PropertyChanged += OnUsageChanged;
+            Recompute();
+        }
+    }
+
+    public void Stop()
+    {
+        if (_usageStore != null)
+        {
+            _usageStore.PropertyChanged -= OnUsageChanged;
+        }
     }
 
     private void OnUsageChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName is nameof(UsageStore.Claude) or nameof(UsageStore.Codex))
+        if (e.PropertyName is nameof(IUsageStore.Claude) or nameof(IUsageStore.Codex))
         {
             Recompute();
         }
@@ -73,14 +101,14 @@ public sealed class UsageExhaustionAlarm
         if (AppEnvironment.Current != AppMode.Normal) return;
         // Only once real data has flowed (matches AlertEngine's gate), so a
         // cached/zeroed launch snapshot can't fire anything.
-        if (UsageStore.Shared.LastUpdated is null) return;
+        if (_usageStore?.LastUpdated is null) return;
         Recompute(
-            UsageStore.Shared.Claude,
-            UsageStore.Shared.Codex,
-            AgentReminderStore.Shared.Enabled,
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.ClaudeShown,
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.CodexShown,
-            AgentIsland.Backend.Settings.QuotaAlarmStore.Shared.Enabled);
+            _usageStore.Claude,
+            _usageStore.Codex,
+            _reminderStore?.Enabled ?? true,
+            _visibilityStore?.ClaudeShown ?? true,
+            _visibilityStore?.CodexShown ?? true,
+            _quotaAlarmStore?.Enabled ?? true);
     }
 
     /// Testable core — the macOS 1.5.7 recompute() body with the store reads

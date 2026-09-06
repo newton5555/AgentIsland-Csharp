@@ -210,9 +210,31 @@ public sealed partial class SettingsWindow : Window
     private Tab _active = Tab.General;
 
     private ProvidersSettingsPage? _providersPage;
+    private readonly AgentIsland.Backend.Usage.IUsageStore _usageStore;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
+    private readonly AgentIsland.Backend.Usage.IAntigravityUsageStore _antigravityUsageStore;
+    private readonly AgentIsland.Backend.Usage.IGrokUsageStore _grokUsageStore;
+    private readonly AgentIsland.Backend.Usage.ICursorUsageStore _cursorUsageStore;
+    private readonly AgentIsland.Backend.Usage.IDeepSeekBalanceStore _deepSeekBalanceStore;
 
-    private SettingsWindow()
+    public SettingsWindow() : this(null) { }
+
+    public SettingsWindow(
+        AgentIsland.Backend.Usage.IUsageStore? usageStore = null,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null,
+        AgentIsland.Backend.Usage.IAntigravityUsageStore? antigravityUsageStore = null,
+        AgentIsland.Backend.Usage.IGrokUsageStore? grokUsageStore = null,
+        AgentIsland.Backend.Usage.ICursorUsageStore? cursorUsageStore = null,
+        AgentIsland.Backend.Usage.IDeepSeekBalanceStore? deepSeekBalanceStore = null)
     {
+        var sp = App.Instance?.Services;
+        _visibilityStore = visibilityStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Settings.IProviderVisibilityStore)) as AgentIsland.Backend.Settings.IProviderVisibilityStore) ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
+        _usageStore = usageStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Usage.IUsageStore)) as AgentIsland.Backend.Usage.IUsageStore) ?? new AgentIsland.Backend.Usage.UsageStore();
+        _antigravityUsageStore = antigravityUsageStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Usage.IAntigravityUsageStore)) as AgentIsland.Backend.Usage.IAntigravityUsageStore) ?? new AgentIsland.Backend.Usage.AntigravityUsageStore(_visibilityStore);
+        _grokUsageStore = grokUsageStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Usage.IGrokUsageStore)) as AgentIsland.Backend.Usage.IGrokUsageStore) ?? new AgentIsland.Backend.Usage.GrokUsageStore(_visibilityStore);
+        _cursorUsageStore = cursorUsageStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Usage.ICursorUsageStore)) as AgentIsland.Backend.Usage.ICursorUsageStore) ?? new AgentIsland.Backend.Usage.CursorUsageStore(_visibilityStore);
+        _deepSeekBalanceStore = deepSeekBalanceStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Usage.IDeepSeekBalanceStore)) as AgentIsland.Backend.Usage.IDeepSeekBalanceStore) ?? new AgentIsland.Backend.Usage.DeepSeekBalanceStore(_visibilityStore);
+
         DataContext = ViewModel;
         InitializeComponent();
         Title = "Agent Island — " + L10n.Tr("Settings");
@@ -225,20 +247,20 @@ public sealed partial class SettingsWindow : Window
         // Usage lands from background fetches and the guest stores publish on
         // their own schedule; the provider rows follow along instead of going
         // stale until the next tab switch.
-        UsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
-        ProviderVisibilityStore.Shared.PropertyChanged += OnProviderStoreChanged;
-        AntigravityUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
-        GrokUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
-        CursorUsageStore.Shared.PropertyChanged += OnProviderStoreChanged;
-        DeepSeekBalanceStore.Shared.PropertyChanged += OnProviderStoreChanged;
+        _usageStore.PropertyChanged += OnProviderStoreChanged;
+        _visibilityStore.PropertyChanged += OnProviderStoreChanged;
+        _antigravityUsageStore.PropertyChanged += OnProviderStoreChanged;
+        _grokUsageStore.PropertyChanged += OnProviderStoreChanged;
+        _cursorUsageStore.PropertyChanged += OnProviderStoreChanged;
+        _deepSeekBalanceStore.PropertyChanged += OnProviderStoreChanged;
         Closed += (_, _) =>
         {
-            UsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
-            ProviderVisibilityStore.Shared.PropertyChanged -= OnProviderStoreChanged;
-            AntigravityUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
-            GrokUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
-            CursorUsageStore.Shared.PropertyChanged -= OnProviderStoreChanged;
-            DeepSeekBalanceStore.Shared.PropertyChanged -= OnProviderStoreChanged;
+            _usageStore.PropertyChanged -= OnProviderStoreChanged;
+            _visibilityStore.PropertyChanged -= OnProviderStoreChanged;
+            _antigravityUsageStore.PropertyChanged -= OnProviderStoreChanged;
+            _grokUsageStore.PropertyChanged -= OnProviderStoreChanged;
+            _cursorUsageStore.PropertyChanged -= OnProviderStoreChanged;
+            _deepSeekBalanceStore.PropertyChanged -= OnProviderStoreChanged;
         };
 
         var savedTab = Preferences.Get<string?>("Settings.activeTab");

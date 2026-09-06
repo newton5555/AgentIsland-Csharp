@@ -16,10 +16,6 @@ namespace AgentIsland.Backend.Monitoring;
 /// task_complete) must never wait for the fallback poll.
 public sealed class ActivityMonitor : IActivityMonitor
 {
-    [Obsolete("Inject IActivityMonitor via DI instead")]
-    public static ActivityMonitor Shared { get; } = new();
-    public ActivityMonitor() { }
-
     public sealed record ActiveThread(
         string SessionId,
         string Label,
@@ -58,6 +54,8 @@ public sealed class ActivityMonitor : IActivityMonitor
     };
     private readonly Dictionary<TriggerTool, AgentIsland.Core.Agents.ISessionSensor> _injectedSensors = new();
     private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+    private readonly AgentIsland.Backend.Alarms.IAgentReminderCenter? _reminderCenter;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _uiDispatcher;
 
     /// <summary>
     /// When true, internal DispatcherTimer is suppressed because an external BackgroundService worker drives ticks.
@@ -65,11 +63,14 @@ public sealed class ActivityMonitor : IActivityMonitor
     public bool DisableInternalTimer { get; set; }
 
     public ActivityMonitor(
-
-        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
-        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null,
+        AgentIsland.Backend.Alarms.IAgentReminderCenter? reminderCenter = null,
+        AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null)
     {
         _visibilityStore = visibilityStore;
+        _reminderCenter = reminderCenter;
+        _uiDispatcher = uiDispatcher;
         if (providers is not null)
         {
             foreach (var p in providers)
@@ -172,9 +173,9 @@ public sealed class ActivityMonitor : IActivityMonitor
     {
         if (_started) return;
         _started = true;
-        _dispatcher = Dispatcher.CurrentDispatcher;
+        _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _visibilityChanged = OnProviderVisibilityChanged;
-        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         visibility.PropertyChanged += _visibilityChanged;
         ApplyProviderMode();
     }
@@ -183,10 +184,9 @@ public sealed class ActivityMonitor : IActivityMonitor
     {
         if (!_started) return;
         _started = false;
-        if (_visibilityChanged is not null)
+        if (_visibilityChanged is not null && _visibilityStore is not null)
         {
-            var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
-            visibility.PropertyChanged -= _visibilityChanged;
+            _visibilityStore.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
         _scanGeneration++;
@@ -218,7 +218,7 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private void ApplyProviderMode()
     {
-        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         var selected = visibility.Enabled
             .Select(provider => provider.ToTriggerTool())
             .ToHashSet();
@@ -252,7 +252,7 @@ public sealed class ActivityMonitor : IActivityMonitor
             foreach (var provider in removed)
             {
                 _pendingCacheClears.Add(provider);
-                AgentReminderCenter.Shared.ClearProvider(provider);
+                _reminderCenter?.ClearProvider(provider);
             }
             if (!_scanInFlight) FlushPendingCacheClears();
             RaiseAll();
@@ -382,42 +382,48 @@ public sealed class ActivityMonitor : IActivityMonitor
             .ContinueWith(task =>
             {
                 var sessions = task.IsCompletedSuccessfully ? task.Result : new List<ScannedSession>();
-                // Apply reaches the alarm center and every bound surface. A
-                // throw there is swallowed by the continuation's own task, so
-                // without the finally the in-flight flag would latch and the
-                // monitor would silently never scan again.
-                try
+                Action commit = () =>
                 {
-                    if (scanGeneration == _scanGeneration
-                        && providersSnapshot.SetEquals(_activeProviders))
+                    try
                     {
-                        Apply(sessions, now);
+                        if (scanGeneration == _scanGeneration
+                            && providersSnapshot.SetEquals(_activeProviders))
+                        {
+                            Apply(sessions, now);
+                        }
                     }
-                }
-                catch
+                    catch
+                    {
+                        // A failed provider read must not latch the monitor off.
+                    }
+                    finally
+                    {
+                        _scanInFlight = false;
+                        FlushPendingCacheClears();
+                    }
+                    var stale = scanGeneration != _scanGeneration
+                        || !providersSnapshot.SetEquals(_activeProviders);
+                    if (stale)
+                    {
+                        _rescanQueued = false;
+                        if (_monitoredProviders.Length > 0) Tick();
+                    }
+                    else if (_rescanQueued)
+                    {
+                        _rescanQueued = false;
+                        Tick();
+                    }
+                };
+
+                if (_dispatcher is not null && !_dispatcher.CheckAccess())
                 {
-                    // A failed provider read must not latch the monitor off.
+                    _dispatcher.BeginInvoke(DispatcherPriority.Background, commit);
                 }
-                finally
+                else
                 {
-                    _scanInFlight = false;
-                    FlushPendingCacheClears();
+                    commit();
                 }
-                var stale = scanGeneration != _scanGeneration
-                    || !providersSnapshot.SetEquals(_activeProviders);
-                if (stale)
-                {
-                    _rescanQueued = false;
-                    if (_monitoredProviders.Length > 0) Tick();
-                }
-                else if (_rescanQueued)
-                {
-                    _rescanQueued = false;
-                    Tick();
-                }
-            }, _dispatcher is not null
-                ? TaskScheduler.FromCurrentSynchronizationContext()
-                : TaskScheduler.Default);
+            });
     }
 
     private async Task<List<ScannedSession>> ScanSensorsAsync(
@@ -452,7 +458,7 @@ public sealed class ActivityMonitor : IActivityMonitor
         // applies to providers switched ON in Settings. Someone who only
         // runs Claude keeps Codex hidden - its missing login must not
         // pulse the island red forever.
-        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         UpdateLastWorking(sessions, now);
         var nextStates = new Dictionary<TriggerTool, ActivityState>();
         var nextRaw = new Dictionary<TriggerTool, ActivityState>();
@@ -460,13 +466,13 @@ public sealed class ActivityMonitor : IActivityMonitor
         foreach (var tool in _monitoredProviders)
         {
             var result = BestSession(sessions, tool,
-                thread => AgentReminderCenter.Shared.HasAcknowledged(tool, thread));
+                thread => _reminderCenter?.HasAcknowledged(tool, thread) ?? false);
             nextRaw[tool] = result.State;
             if (result.Thread is { } thread) nextThreads[tool] = thread;
             nextStates[tool] = visibility.IsShown(tool.ToDisplayProvider())
                 ? OverlayUsageAttention(result.State, UsageFor(tool))
                 : result.State;
-            AgentReminderCenter.Shared.Handle(tool, NeedsYouThreads(sessions, tool));
+            _reminderCenter?.Handle(tool, NeedsYouThreads(sessions, tool));
         }
         _rawStates = nextRaw;
         _threads = nextThreads;

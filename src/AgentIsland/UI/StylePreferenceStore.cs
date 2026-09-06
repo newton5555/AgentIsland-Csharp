@@ -19,13 +19,11 @@ public sealed class StylePreferenceStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.chartStyle";
 
-    public static StylePreferenceStore Shared { get; } = new();
-
     private ChartStyle _style;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private StylePreferenceStore()
+    public StylePreferenceStore()
     {
         var raw = Preferences.Get<string?>(Key);
         _style = Enum.TryParse<ChartStyle>(raw, ignoreCase: true, out var parsed)

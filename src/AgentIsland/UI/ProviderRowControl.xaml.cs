@@ -4,8 +4,10 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using AgentIsland.Core;
 using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Settings;
 using AgentIsland.Backend.Usage;
 using AgentIsland.UI.Localization;
+using AgentIsland.UI.Providers;
 using AgentIsland.UI.Theme;
 
 namespace AgentIsland.UI;
@@ -13,11 +15,18 @@ namespace AgentIsland.UI;
 public partial class ProviderRowControl : UserControl
 {
     public DisplayProvider Provider { get; }
-
     public event Action<bool>? SlotRefusalChanged;
     public event Action? RefreshRequested;
     public event Action? ClaudePasteLoginRequested;
     public event Action? CodexSaveAccountRequested;
+
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly IUsageStore _usageStore;
+    private readonly IAntigravityUsageStore _antigravityUsageStore;
+    private readonly IGrokUsageStore _grokUsageStore;
+    private readonly ICursorUsageStore _cursorUsageStore;
+    private readonly IDeepSeekBalanceStore _deepSeekBalanceStore;
+    private readonly ICostStore _costStore;
 
     private bool _hovered;
 
@@ -25,9 +34,26 @@ public partial class ProviderRowControl : UserControl
     {
     }
 
-    public ProviderRowControl(DisplayProvider provider)
+    public ProviderRowControl(
+        DisplayProvider provider,
+        IProviderVisibilityStore? visibilityStore = null,
+        IUsageStore? usageStore = null,
+        IAntigravityUsageStore? antigravityUsageStore = null,
+        IGrokUsageStore? grokUsageStore = null,
+        ICursorUsageStore? cursorUsageStore = null,
+        IDeepSeekBalanceStore? deepSeekBalanceStore = null,
+        ICostStore? costStore = null)
     {
         Provider = provider;
+        var sp = App.Instance?.Services;
+        _visibilityStore = visibilityStore ?? (sp?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
+        _usageStore = usageStore ?? (sp?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+        _antigravityUsageStore = antigravityUsageStore ?? (sp?.GetService(typeof(IAntigravityUsageStore)) as IAntigravityUsageStore) ?? new AntigravityUsageStore(_visibilityStore);
+        _grokUsageStore = grokUsageStore ?? (sp?.GetService(typeof(IGrokUsageStore)) as IGrokUsageStore) ?? new GrokUsageStore(_visibilityStore);
+        _cursorUsageStore = cursorUsageStore ?? (sp?.GetService(typeof(ICursorUsageStore)) as ICursorUsageStore) ?? new CursorUsageStore(_visibilityStore);
+        _deepSeekBalanceStore = deepSeekBalanceStore ?? (sp?.GetService(typeof(IDeepSeekBalanceStore)) as IDeepSeekBalanceStore) ?? new DeepSeekBalanceStore(_visibilityStore);
+        _costStore = costStore ?? (sp?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore();
+
         InitializeComponent();
 
         ProviderName.Text = provider.DisplayName();
@@ -53,12 +79,12 @@ public partial class ProviderRowControl : UserControl
             ReauthButton.Clicked += () => ReauthFlow.Run(tool);
         }
 
-        SlotToggle.IsOn = ProviderVisibilityStore.Shared.IsEnabled(provider);
+        SlotToggle.IsOn = _visibilityStore.IsEnabled(provider);
         SlotToggle.Toggled += enabled =>
         {
-            if (!ProviderVisibilityStore.Shared.SetEnabled(provider, enabled))
+            if (!_visibilityStore.SetEnabled(provider, enabled))
             {
-                SlotToggle.IsOn = ProviderVisibilityStore.Shared.IsEnabled(provider);
+                SlotToggle.IsOn = _visibilityStore.IsEnabled(provider);
                 SlotRefusalChanged?.Invoke(true);
                 return;
             }
@@ -94,7 +120,7 @@ public partial class ProviderRowControl : UserControl
 
     public void Refresh()
     {
-        SlotToggle.IsOn = ProviderVisibilityStore.Shared.IsEnabled(Provider);
+        SlotToggle.IsOn = _visibilityStore.IsEnabled(Provider);
         StatusText.Text = ProviderStatus(Provider);
         var badge = ProviderChip(Provider);
         PlanChipText.Text = badge ?? string.Empty;
@@ -108,7 +134,7 @@ public partial class ProviderRowControl : UserControl
             }
             if (Provider == DisplayProvider.Claude)
             {
-                var store = UsageStore.Shared;
+                var store = _usageStore;
                 PasteLoginButton.Visibility = store.ClaudeReauthFailureCaption is not null
                     && !store.ClaudeReauthInProgress
                     ? Visibility.Visible
@@ -119,8 +145,8 @@ public partial class ProviderRowControl : UserControl
                 ? ClaudeReauthAvailable()
                 : CodexReauthAvailable();
             var waiting = Provider == DisplayProvider.Claude
-                ? UsageStore.Shared.ClaudeReauthInProgress
-                : UsageStore.Shared.CodexReauthInProgress;
+                ? _usageStore.ClaudeReauthInProgress
+                : _usageStore.CodexReauthInProgress;
             ReauthButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
             ReauthButton.Label = waiting ? L10n.Tr("waiting for login…") : L10n.Tr("Re-authenticate");
         }
@@ -130,7 +156,7 @@ public partial class ProviderRowControl : UserControl
 
     private void Paint()
     {
-        var enabledNow = ProviderVisibilityStore.Shared.IsEnabled(Provider);
+        var enabledNow = _visibilityStore.IsEnabled(Provider);
         var ruleOpacity = enabledNow ? (_hovered ? 1.0 : 0.85) : (_hovered ? 0.45 : 0.22);
         RuleBorder.Background = ProviderIdentity.BrandGradient(
             Provider, 1, new Point(0, 0), new Point(0, 1));
@@ -146,31 +172,31 @@ public partial class ProviderRowControl : UserControl
             new DoubleAnimation(_hovered ? 3 : 2, beat) { EasingFunction = ease });
     }
 
-    private static void KickGuestRefresh(DisplayProvider provider)
+    private void KickGuestRefresh(DisplayProvider provider)
     {
         switch (provider)
         {
             case DisplayProvider.Antigravity:
-                AntigravityUsageStore.Shared.KickRefresh();
+                _antigravityUsageStore.KickRefresh();
                 break;
             case DisplayProvider.Grok:
-                GrokUsageStore.Shared.KickRefresh();
+                _grokUsageStore.KickRefresh();
                 break;
             case DisplayProvider.Cursor:
-                CursorUsageStore.Shared.KickRefresh();
+                _cursorUsageStore.KickRefresh();
                 break;
             case DisplayProvider.DeepSeek:
-                DeepSeekBalanceStore.Shared.KickRefresh();
+                _deepSeekBalanceStore.KickRefresh();
                 break;
             default:
                 break;
         }
     }
 
-    private static string ProviderStatus(DisplayProvider provider) => provider switch
+    private string ProviderStatus(DisplayProvider provider) => provider switch
     {
         DisplayProvider.Claude => ClaudeStatus(),
-        DisplayProvider.Codex => ProviderSubtitle(UsageStore.Shared.Codex),
+        DisplayProvider.Codex => ProviderSubtitle(_usageStore.Codex),
         DisplayProvider.Antigravity => AntigravityStatus(),
         DisplayProvider.Grok => GrokStatus(),
         DisplayProvider.Cursor => CursorStatus(),
@@ -178,27 +204,27 @@ public partial class ProviderRowControl : UserControl
         _ => string.Empty,
     };
 
-    private static string? ProviderChip(DisplayProvider provider)
+    private string? ProviderChip(DisplayProvider provider)
     {
-        var visibility = ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore;
         return provider switch
         {
-            DisplayProvider.Claude => UsageStore.Shared.Claude.Plan?.ToUpperInvariant(),
-            DisplayProvider.Codex => UsageStore.Shared.Codex.Plan?.ToUpperInvariant(),
+            DisplayProvider.Claude => _usageStore.Claude.Plan?.ToUpperInvariant(),
+            DisplayProvider.Codex => _usageStore.Codex.Plan?.ToUpperInvariant(),
             DisplayProvider.Antigravity =>
-                visibility.AntigravityDetected ? AntigravityUsageStore.Shared.TierBadge : null,
-            DisplayProvider.Grok => visibility.GrokDetected ? GrokUsageStore.Shared.AuthModeBadge : null,
-            DisplayProvider.Cursor => visibility.CursorDetected ? CursorUsageStore.Shared.PlanBadge : null,
+                visibility.AntigravityDetected ? _antigravityUsageStore.TierBadge : null,
+            DisplayProvider.Grok => visibility.GrokDetected ? _grokUsageStore.AuthModeBadge : null,
+            DisplayProvider.Cursor => visibility.CursorDetected ? _cursorUsageStore.PlanBadge : null,
             DisplayProvider.DeepSeek => visibility.DeepSeekDetected
-                ? DeepSeekBalanceStore.Shared.Snapshot is not null ? "BALANCE" : "TOKENS"
+                ? _deepSeekBalanceStore.Snapshot is not null ? "BALANCE" : "TOKENS"
                 : null,
             _ => null,
         };
     }
 
-    private static string ProviderSubtitle(AppUsage usage)
+    private string ProviderSubtitle(AppUsage usage)
     {
-        var synced = UsageStore.Shared.LastUpdated is { } updated
+        var synced = _usageStore.LastUpdated is { } updated
             ? L10n.TrFormat("synced {0}", Formatting.RelativeAgo(DateTimeOffset.Now - updated, L10n.IsChinese))
             : L10n.Tr("idle");
         var five = WindowCaption(usage.FiveHour);
@@ -219,10 +245,10 @@ public partial class ProviderRowControl : UserControl
         return $"{percent}%";
     }
 
-    private static string AntigravityStatus()
+    private string AntigravityStatus()
     {
-        var store = AntigravityUsageStore.Shared;
-        if (!ProviderVisibilityStore.Shared.AntigravityDetected)
+        var store = _antigravityUsageStore;
+        if (!_visibilityStore.AntigravityDetected)
         {
             return L10n.Tr("Not detected — sign in with the antigravity CLI");
         }
@@ -244,10 +270,10 @@ public partial class ProviderRowControl : UserControl
         return string.Join(" · ", parts);
     }
 
-    private static string ClaudeStatus()
+    private string ClaudeStatus()
     {
-        var subtitle = ProviderSubtitle(UsageStore.Shared.Claude);
-        var store = UsageStore.Shared;
+        var subtitle = ProviderSubtitle(_usageStore.Claude);
+        var store = _usageStore;
         if (store.ClaudeReauthFailureCaption is not { } reason || store.ClaudeReauthInProgress)
         {
             return subtitle;
@@ -255,10 +281,10 @@ public partial class ProviderRowControl : UserControl
         return $"{subtitle} · ⚠ {ErrorDisplay.Localize(reason)}";
     }
 
-    private static string GrokStatus()
+    private string GrokStatus()
     {
-        var store = GrokUsageStore.Shared;
-        if (!ProviderVisibilityStore.Shared.GrokDetected)
+        var store = _grokUsageStore;
+        if (!_visibilityStore.GrokDetected)
         {
             return L10n.Tr("Not detected — sign in with the grok CLI");
         }
@@ -274,10 +300,10 @@ public partial class ProviderRowControl : UserControl
         return string.Join(" · ", parts);
     }
 
-    private static string CursorStatus()
+    private string CursorStatus()
     {
-        var store = CursorUsageStore.Shared;
-        if (!ProviderVisibilityStore.Shared.CursorDetected)
+        var store = _cursorUsageStore;
+        if (!_visibilityStore.CursorDetected)
         {
             return L10n.Tr("Not detected — sign in inside Cursor");
         }
@@ -293,15 +319,15 @@ public partial class ProviderRowControl : UserControl
         return string.Join(" · ", parts);
     }
 
-    private static string DeepSeekStatus()
+    private string DeepSeekStatus()
     {
-        var visibility = ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore;
         if (!visibility.DeepSeekDetected)
         {
             return L10n.Tr("Not detected — create a DeepSeek Harness session");
         }
 
-        var balance = DeepSeekBalanceStore.Shared;
+        var balance = _deepSeekBalanceStore;
         var parts = new List<string>();
         if (balance.LastUpdated is { } updated)
         {
@@ -327,7 +353,7 @@ public partial class ProviderRowControl : UserControl
             parts.Add(L10n.Tr("account balance not fetched"));
         }
 
-        var today = CostStore.Shared.DeepSeek.TodayTokens;
+        var today = _costStore.DeepSeek.TodayTokens;
         if (today > 0)
         {
             parts.Add(L10n.TrFormat("{0} tokens today", Formatting.CompactTokens(today)));
@@ -341,18 +367,18 @@ public partial class ProviderRowControl : UserControl
 
     private static int Percent(double fraction) => Formatting.PercentInt(fraction);
 
-    private static bool ClaudeReauthAvailable()
+    private bool ClaudeReauthAvailable()
     {
-        if (UsageStore.Shared.ClaudeReauthInProgress) return true;
-        var usage = UsageStore.Shared.Claude;
+        if (_usageStore.ClaudeReauthInProgress) return true;
+        var usage = _usageStore.Claude;
         return ClaudeCredentials.IsAuthRecoverableError(usage.FiveHour.Error)
             || ClaudeCredentials.IsAuthRecoverableError(usage.Weekly.Error);
     }
 
-    private static bool CodexReauthAvailable()
+    private bool CodexReauthAvailable()
     {
-        if (UsageStore.Shared.CodexReauthInProgress) return true;
-        var usage = UsageStore.Shared.Codex;
+        if (_usageStore.CodexReauthInProgress) return true;
+        var usage = _usageStore.Codex;
         if (!MentionsAuthFailure(usage.FiveHour.Error) && !MentionsAuthFailure(usage.Weekly.Error))
         {
             return false;

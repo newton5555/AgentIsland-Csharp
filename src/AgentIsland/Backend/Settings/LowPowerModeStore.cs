@@ -19,14 +19,12 @@ public sealed class LowPowerModeStore : INotifyPropertyChanged
     private const string Key = "AgentIsland.lowPowerMode";
     private const string VisualModeKey = "AgentIsland.visualMode";
 
-    public static LowPowerModeStore Shared { get; } = new();
-
     private VisualMode _mode;
     private bool _systemLowPower;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private LowPowerModeStore()
+    public LowPowerModeStore()
     {
         var rawMode = Preferences.Get<string?>(VisualModeKey);
         if (rawMode is not null)

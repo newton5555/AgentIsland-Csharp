@@ -5,10 +5,13 @@ using System.Windows.Media;
 using System.Windows.Media.Animation;
 using System.Windows.Shapes;
 using System.Windows.Threading;
-using AgentIsland.UI.Localization;
-using AgentIsland.UI.Charts;
-using AgentIsland.UI.Theme;
+using AgentIsland.Backend.Settings;
+using AgentIsland.Backend.Usage;
+using AgentIsland.Core;
 using AgentIsland.Core.Usage;
+using AgentIsland.UI.Charts;
+using AgentIsland.UI.Localization;
+using AgentIsland.UI.Theme;
 
 namespace AgentIsland.UI;
 
@@ -17,9 +20,25 @@ namespace AgentIsland.UI;
 public sealed partial class PanelFooter : Grid
 {
     private readonly DispatcherTimer _agoTimer;
+    private readonly ScreenPref _screenPref;
+    private readonly StylePreferenceStore _stylePreferenceStore;
+    private readonly CostStylePreferenceStore _costStylePreferenceStore;
+    private readonly IUsageStore _usageStore;
 
-    public PanelFooter()
+    public PanelFooter() : this(null) { }
+
+    public PanelFooter(
+        ScreenPref? screenPref = null,
+        StylePreferenceStore? stylePreferenceStore = null,
+        CostStylePreferenceStore? costStylePreferenceStore = null,
+        IUsageStore? usageStore = null)
     {
+        var sp = App.Instance?.Services;
+        _screenPref = screenPref ?? (sp?.GetService(typeof(ScreenPref)) as ScreenPref) ?? new ScreenPref();
+        _stylePreferenceStore = stylePreferenceStore ?? (sp?.GetService(typeof(StylePreferenceStore)) as StylePreferenceStore) ?? new StylePreferenceStore();
+        _costStylePreferenceStore = costStylePreferenceStore ?? (sp?.GetService(typeof(CostStylePreferenceStore)) as CostStylePreferenceStore) ?? new CostStylePreferenceStore();
+        _usageStore = usageStore ?? (sp?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+
         InitializeComponent();
 
         WeeklyLabel.Text = L10n.Tr("Weekly");
@@ -33,9 +52,9 @@ public sealed partial class PanelFooter : Grid
         // its store subscriptions pinning the dead instance alive forever.
         System.ComponentModel.PropertyChangedEventHandler onChanged =
             (_, _) => Dispatcher.BeginInvoke(Update);
-        ScreenPref.Shared.PropertyChanged += onChanged;
-        StylePreferenceStore.Shared.PropertyChanged += onChanged;
-        UsageStore.Shared.PropertyChanged += onChanged;
+        _screenPref.PropertyChanged += onChanged;
+        _stylePreferenceStore.PropertyChanged += onChanged;
+        _usageStore.PropertyChanged += onChanged;
 
         // Keep the "2m ago" caption honest while the panel sits open.
         _agoTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -50,9 +69,9 @@ public sealed partial class PanelFooter : Grid
         Unloaded += (_, _) =>
         {
             _agoTimer.Stop();
-            ScreenPref.Shared.PropertyChanged -= onChanged;
-            StylePreferenceStore.Shared.PropertyChanged -= onChanged;
-            UsageStore.Shared.PropertyChanged -= onChanged;
+            _screenPref.PropertyChanged -= onChanged;
+            _stylePreferenceStore.PropertyChanged -= onChanged;
+            _usageStore.PropertyChanged -= onChanged;
         };
 
         Update();
@@ -62,13 +81,13 @@ public sealed partial class PanelFooter : Grid
     {
         // Page-specific corner chip, macOS rules: usage none (the gear owns
         // that corner), cost the cost style, overview the year, triggers AUTO.
-        var pref = ScreenPref.Shared;
+        var pref = _screenPref;
         ChipLabel.Text = pref.Screen switch
         {
             IslandScreen.Usage => "",
-            IslandScreen.Cost => CostStylePreferenceStore.Shared.ChipLabel,
+            IslandScreen.Cost => _costStylePreferenceStore.ChipLabel,
             IslandScreen.Overview => DateTime.Now.Year.ToString(),
-            _ => StylePreferenceStore.Shared.Style.ToString().ToUpperInvariant(),
+            _ => _stylePreferenceStore.Style.ToString().ToUpperInvariant(),
         };
         ChipHost.Visibility = ChipLabel.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -94,7 +113,7 @@ public sealed partial class PanelFooter : Grid
             DotsPanel.Children.Add(dot);
         }
 
-        var store = UsageStore.Shared;
+        var store = _usageStore;
         if (store.Loading)
         {
             SyncLabel.Text = L10n.Tr("Syncing…");
@@ -103,43 +122,70 @@ public sealed partial class PanelFooter : Grid
         {
             SyncLabel.Text = warning;
         }
-        else if (store.LastUpdated is { } updated)
+        else if (store.LastUpdated is { } stamp)
         {
-            SyncLabel.Text = L10n.Tr("Synced") + " " +
-                Core.Formatting.RelativeAgo(DateTimeOffset.Now - updated, L10n.IsChinese);
+            SyncLabel.Text = L10n.TrFormat(
+                "synced {0}",
+                Formatting.RelativeAgo(DateTimeOffset.Now - stamp, L10n.IsChinese));
         }
         else
         {
-            SyncLabel.Text = "";
+            SyncLabel.Text = L10n.Tr("idle");
         }
-        DotIndicator.SetActive(!store.Loading && store.RefreshWarning is null && store.LastUpdated is not null);
+        DotIndicator.SetActive(store.Loading || store.RefreshWarning is null);
+    }
+
+    private void OnChipClick(object sender, MouseButtonEventArgs e)
+    {
+        var pref = _screenPref;
+        switch (pref.Screen)
+        {
+            case IslandScreen.Cost:
+                var nextCost = (CostStyle)(((int)_costStylePreferenceStore.Style + 1)
+                    % Enum.GetValues(typeof(CostStyle)).Length);
+                _costStylePreferenceStore.Style = nextCost;
+                break;
+            case IslandScreen.Usage:
+                break;
+            default:
+                var nextStyle = (ChartStyle)(((int)_stylePreferenceStore.Style + 1)
+                    % Enum.GetValues(typeof(ChartStyle)).Length);
+                _stylePreferenceStore.Style = nextStyle;
+                break;
+        }
+        Update();
+        e.Handled = true;
     }
 
     private void OnPillMouseEnter(object sender, MouseEventArgs e)
     {
-        if (sender is Border border) border.Background = Brushes.White;
+        if (sender is Border b) b.Opacity = 0.85;
     }
 
     private void OnPillMouseLeave(object sender, MouseEventArgs e)
     {
-        if (sender is Border border) border.Background = IslandColors.Brush(Colors.White, 0.92);
+        if (sender is Border b) b.Opacity = 1.0;
     }
 
-    private void OnWeeklyPillClick(object sender, MouseButtonEventArgs e)
+    private void OnWeeklyClick(object sender, MouseButtonEventArgs e)
     {
         Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly);
         e.Handled = true;
     }
 
-    private void OnMonthlyPillClick(object sender, MouseButtonEventArgs e)
+    private void OnWeeklyPillClick(object sender, MouseButtonEventArgs e) => OnWeeklyClick(sender, e);
+
+    private void OnMonthlyClick(object sender, MouseButtonEventArgs e)
     {
         Report.ReportWindow.Show(Report.ReportWindow.Kind.Monthly);
         e.Handled = true;
     }
 
+    private void OnMonthlyPillClick(object sender, MouseButtonEventArgs e) => OnMonthlyClick(sender, e);
+
     private void OnSyncMouseEnter(object sender, MouseEventArgs e)
     {
-        SyncButton.Background = IslandColors.Brush(IslandColors.White(0.05));
+        SyncButton.Background = IslandColors.Brush(IslandColors.White(0.06));
     }
 
     private void OnSyncMouseLeave(object sender, MouseEventArgs e)
@@ -149,7 +195,7 @@ public sealed partial class PanelFooter : Grid
 
     private void OnSyncClick(object sender, MouseButtonEventArgs e)
     {
-        UsageStore.Shared.Refresh();
+        _usageStore.Refresh();
         e.Handled = true;
     }
 }
@@ -161,11 +207,17 @@ public sealed class LiveDot : Grid
     private readonly Ellipse _core;
     private readonly Ellipse _halo;
     private readonly ScaleTransform _bump = new(1, 1);
+    private readonly IUsageStore _usageStore;
     private bool _active;
     private DateTimeOffset? _seenUpdate;
 
-    public LiveDot()
+    public LiveDot() : this(null) { }
+
+    public LiveDot(IUsageStore? usageStore = null)
     {
+        var sp = App.Instance?.Services;
+        _usageStore = usageStore ?? (sp?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+
         Width = 10;
         Height = 10;
         RenderTransformOrigin = new Point(0.5, 0.5);
@@ -197,8 +249,8 @@ public sealed class LiveDot : Grid
         Children.Add(_core);
         System.ComponentModel.PropertyChangedEventHandler onSync =
             (_, _) => Dispatcher.BeginInvoke(MaybeBump);
-        AgentIsland.Backend.Usage.UsageStore.Shared.PropertyChanged += onSync;
-        Unloaded += (_, _) => AgentIsland.Backend.Usage.UsageStore.Shared.PropertyChanged -= onSync;
+        _usageStore.PropertyChanged += onSync;
+        Unloaded += (_, _) => _usageStore.PropertyChanged -= onSync;
         IsVisibleChanged += (_, _) => ApplyBreath();
         SetActive(false);
     }
@@ -245,7 +297,7 @@ public sealed class LiveDot : Grid
 
     private void MaybeBump()
     {
-        var updated = AgentIsland.Backend.Usage.UsageStore.Shared.LastUpdated;
+        var updated = _usageStore.LastUpdated;
         if (updated == _seenUpdate) return;
         _seenUpdate = updated;
         var up = new DoubleAnimation(1.18, IslandAnimations.StrongEaseOutDuration)

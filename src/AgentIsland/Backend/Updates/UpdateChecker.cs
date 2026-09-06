@@ -21,8 +21,6 @@ public sealed record UpdateInfo(
 /// with one HTTP call a day.
 public sealed class UpdateChecker : IUpdateChecker
 {
-    [Obsolete("Inject IUpdateChecker via DI instead")]
-    public static UpdateChecker Shared { get; } = new();
     public UpdateChecker() { }
 
     private const string LatestApi =
@@ -108,6 +106,19 @@ public sealed class UpdateChecker : IUpdateChecker
         return DateTimeOffset.Now - when < DismissalWindow;
     }
 
+    private static void ShowDialogOnUi(Action show)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(show);
+        }
+        else
+        {
+            show();
+        }
+    }
+
     /// "Check now" and the background timer share this. User-initiated checks
     /// always report an outcome (latest / newer / failed); background checks
     /// stay silent unless a new, not-yet-dismissed version exists.
@@ -123,10 +134,10 @@ public sealed class UpdateChecker : IUpdateChecker
                 LastOutcome = "feed-unreachable";
                 if (userInitiated)
                 {
-                    UI.IslandDialog.ShowUpdate(
+                    ShowDialogOnUi(() => UI.IslandDialog.ShowUpdate(
                         "Agent Island",
                         AgentIsland.UI.Localization.L10n.Tr("Couldn't reach the release feed. Try again in a bit."),
-                        primaryLabel: AgentIsland.UI.Localization.L10n.Tr("OK"));
+                        primaryLabel: AgentIsland.UI.Localization.L10n.Tr("OK")));
                 }
                 return;
             }
@@ -137,14 +148,14 @@ public sealed class UpdateChecker : IUpdateChecker
                 if (userInitiated)
                 {
                     // The Sparkle "You're up to date!" card, verbatim.
-                    UI.IslandDialog.ShowUpdate(
+                    ShowDialogOnUi(() => UI.IslandDialog.ShowUpdate(
                         AgentIsland.UI.Localization.L10n.Tr("You're up to date!"),
                         AgentIsland.UI.Localization.L10n.TrFormat(
                             "AgentIsland {0} is currently the newest version available.",
                             CurrentVersionDisplay),
                         primaryLabel: AgentIsland.UI.Localization.L10n.Tr("OK"),
                         secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("Version History"),
-                        secondaryAction: OpenReleasesPage);
+                        secondaryAction: OpenReleasesPage));
                 }
                 return;
             }
@@ -170,26 +181,26 @@ public sealed class UpdateChecker : IUpdateChecker
 
             if (found.AssetUrl is not null)
             {
-                UI.IslandDialog.ShowUpdate(
+                ShowDialogOnUi(() => UI.IslandDialog.ShowUpdate(
                     AgentIsland.UI.Localization.L10n.TrFormat("Agent Island {0} is available", found.Tag),
                     AgentIsland.UI.Localization.L10n.Tr("The update downloads in the background, then Agent Island relaunches on the new version."),
                     primaryLabel: AgentIsland.UI.Localization.L10n.Tr("Update & Relaunch"),
                     primaryAction: () => _ = UpdateInstaller.RunAsync(found),
                     secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("Later"),
-                    secondaryAction: () => Dismiss(found.Tag));
+                    secondaryAction: () => Dismiss(found.Tag)));
             }
             else
             {
                 // Release exists but carries no zip for this architecture
                 // (e.g. the Windows CI job hasn't attached it yet) — send
                 // the user to the page rather than pretend nothing shipped.
-                UI.IslandDialog.ShowUpdate(
+                ShowDialogOnUi(() => UI.IslandDialog.ShowUpdate(
                     AgentIsland.UI.Localization.L10n.TrFormat("Agent Island {0} is available", found.Tag),
                     AgentIsland.UI.Localization.L10n.Tr("A new version is ready on GitHub Releases. The download is a zip — unpack and replace the app."),
                     primaryLabel: AgentIsland.UI.Localization.L10n.Tr("Download"),
                     primaryAction: OpenReleasesPage,
                     secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("Later"),
-                    secondaryAction: () => Dismiss(found.Tag));
+                    secondaryAction: () => Dismiss(found.Tag)));
             }
         }
         finally

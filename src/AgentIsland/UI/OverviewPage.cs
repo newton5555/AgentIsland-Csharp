@@ -29,9 +29,22 @@ public sealed class OverviewPage : Border
     private readonly TextBlock _detail;
     private Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>> _days = new();
     private readonly DispatcherTimer _renderDebounce = new() { Interval = TimeSpan.FromMilliseconds(80) };
+    private readonly AgentIsland.Backend.Cost.ICostStore _costStore;
+    private readonly AgentIsland.Backend.Settings.TokenCountModeStore _tokenCountModeStore;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
 
-    public OverviewPage()
+    public OverviewPage() : this(null) { }
+
+    public OverviewPage(
+        AgentIsland.Backend.Cost.ICostStore? costStore = null,
+        AgentIsland.Backend.Settings.TokenCountModeStore? tokenCountModeStore = null,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
     {
+        var sp = App.Instance?.Services;
+        _costStore = costStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Cost.ICostStore)) as AgentIsland.Backend.Cost.ICostStore) ?? new AgentIsland.Backend.Cost.CostStore();
+        _tokenCountModeStore = tokenCountModeStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Settings.TokenCountModeStore)) as AgentIsland.Backend.Settings.TokenCountModeStore) ?? new AgentIsland.Backend.Settings.TokenCountModeStore();
+        _visibilityStore = visibilityStore ?? (sp?.GetService(typeof(AgentIsland.Backend.Settings.IProviderVisibilityStore)) as AgentIsland.Backend.Settings.IProviderVisibilityStore) ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
+
         Padding = new Thickness(22, 10, 22, 4);
         var grid = new Grid();
         Child = grid;
@@ -121,16 +134,16 @@ public sealed class OverviewPage : Border
                 RebuildData();
                 ScheduleRender();
             });
-        CostStore.Shared.PropertyChanged += onData;
-        TokenCountModeStore.Shared.PropertyChanged += onData;
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += onData;
+        _costStore.PropertyChanged += onData;
+        _tokenCountModeStore.PropertyChanged += onData;
+        _visibilityStore.PropertyChanged += onData;
         SizeChanged += (_, _) => ScheduleRender();
         Unloaded += (_, _) =>
         {
             _renderDebounce.Stop();
-            CostStore.Shared.PropertyChanged -= onData;
-            TokenCountModeStore.Shared.PropertyChanged -= onData;
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= onData;
+            _costStore.PropertyChanged -= onData;
+            _tokenCountModeStore.PropertyChanged -= onData;
+            _visibilityStore.PropertyChanged -= onData;
         };
         RebuildData();
     }
@@ -143,13 +156,13 @@ public sealed class OverviewPage : Border
 
     private void RebuildData()
     {
-        _days = MergeHistory(CostStore.Shared);
+        _days = MergeHistory(_costStore);
         UpdateHero();
     }
 
     private void UpdateHero()
     {
-        var billable = TokenCountModeStore.Shared.Mode == TokenCountMode.Billable;
+        var billable = _tokenCountModeStore.Mode == TokenCountMode.Billable;
         var perProvider = new Dictionary<DisplayProvider, long>();
         long total = 0;
         var activeDays = 0;
@@ -172,7 +185,7 @@ public sealed class OverviewPage : Border
 
         // One chip per provider that ran, in enabled slot order
         _legend.Inlines.Clear();
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = _visibilityStore.Enabled;
         var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
 
         var first = true;
@@ -343,7 +356,7 @@ public sealed class OverviewPage : Border
         _days.TryGetValue(day, out var providers);
         var date = day.ToString(AgentIsland.UI.Localization.L10n.IsChinese ? "M月d日" : "MMM d");
         var parts = new List<string>();
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = _visibilityStore.Enabled;
         var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
 
         if (providers is not null)
@@ -364,9 +377,9 @@ public sealed class OverviewPage : Border
         _detail.Text = parts.Count == 0 ? date : $"{date} · {string.Join(" · ", parts)}";
     }
 
-    private static Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>> MergeHistory(CostStore cost)
+    private Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>> MergeHistory(AgentIsland.Backend.Cost.ICostStore cost)
     {
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = _visibilityStore.Enabled;
         var active = targets.Count > 0 ? (IEnumerable<DisplayProvider>)targets : DisplayProviders.All;
 
         var merged = new Dictionary<DateTime, Dictionary<DisplayProvider, DayProviderTotals>>();

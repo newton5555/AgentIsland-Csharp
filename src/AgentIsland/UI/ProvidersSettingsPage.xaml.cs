@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
 using AgentIsland.Core;
+using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Settings;
+using AgentIsland.Backend.Usage;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Localization;
 
@@ -12,16 +15,38 @@ public partial class ProvidersSettingsPage : UserControl
     public static string CostSectionLabel => L10n.Tr("Cost").ToUpperInvariant();
 
     private readonly List<ProviderRowControl> _rows = new();
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly RefreshIntervalStore _refreshIntervalStore;
+    private readonly TokenCountModeStore _tokenCountModeStore;
+    private readonly ICostStore _costStore;
+    private readonly IDeepSeekBalanceStore _deepSeekBalanceStore;
+    private readonly IUsageStore _usageStore;
 
-    public ProvidersSettingsPage()
+    public ProvidersSettingsPage() : this(null) { }
+
+    public ProvidersSettingsPage(
+        IProviderVisibilityStore? visibilityStore = null,
+        RefreshIntervalStore? refreshIntervalStore = null,
+        TokenCountModeStore? tokenCountModeStore = null,
+        ICostStore? costStore = null,
+        IDeepSeekBalanceStore? deepSeekBalanceStore = null,
+        IUsageStore? usageStore = null)
     {
+        var sp = App.Instance?.Services;
+        _visibilityStore = visibilityStore ?? (sp?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
+        _refreshIntervalStore = refreshIntervalStore ?? (sp?.GetService(typeof(RefreshIntervalStore)) as RefreshIntervalStore) ?? new RefreshIntervalStore();
+        _tokenCountModeStore = tokenCountModeStore ?? (sp?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore) ?? new TokenCountModeStore();
+        _costStore = costStore ?? (sp?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore();
+        _deepSeekBalanceStore = deepSeekBalanceStore ?? (sp?.GetService(typeof(IDeepSeekBalanceStore)) as IDeepSeekBalanceStore) ?? new DeepSeekBalanceStore(_visibilityStore);
+        _usageStore = usageStore ?? (sp?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+
         InitializeComponent();
 
         SlotNotice.Text = L10n.Tr("Pick at most two — turn one off first");
 
-        foreach (var provider in ProviderVisibilityStore.Shared.Order)
+        foreach (var provider in _visibilityStore.Order)
         {
-            var row = new ProviderRowControl(provider);
+            var row = new ProviderRowControl(provider, _visibilityStore);
             row.SlotRefusalChanged += ShowSlotLimit;
             row.RefreshRequested += RefreshRows;
             row.ClaudePasteLoginRequested += StartClaudePasteLogin;
@@ -34,15 +59,15 @@ public partial class ProvidersSettingsPage : UserControl
         var refreshPresets = RefreshIntervalStore.Presets;
         RefreshSegmented.SetLabels(
             new[] { "5m", "15m", "30m" },
-            Math.Max(0, Array.IndexOf(refreshPresets, RefreshIntervalStore.Shared.Seconds)));
-        RefreshSegmented.SelectionChanged += index => RefreshIntervalStore.Shared.Seconds = refreshPresets[index];
+            Math.Max(0, Array.IndexOf(refreshPresets, _refreshIntervalStore.Seconds)));
+        RefreshSegmented.SelectionChanged += index => _refreshIntervalStore.Seconds = refreshPresets[index];
 
         TokenCountSegmented.SetLabels(
             new[] { L10n.Tr("All tokens"), L10n.Tr("Input + output") },
-            TokenCountModeStore.Shared.Mode == TokenCountMode.All ? 0 : 1);
+            _tokenCountModeStore.Mode == TokenCountMode.All ? 0 : 1);
         TokenCountSegmented.SelectionChanged += index =>
         {
-            TokenCountModeStore.Shared.Mode = index == 0 ? TokenCountMode.All : TokenCountMode.Billable;
+            _tokenCountModeStore.Mode = index == 0 ? TokenCountMode.All : TokenCountMode.Billable;
             UpdateTokenSubtitle();
         };
         UpdateTokenSubtitle();
@@ -50,8 +75,8 @@ public partial class ProvidersSettingsPage : UserControl
         CostRefreshButton.Label = L10n.Tr("Refresh");
         CostRefreshButton.Clicked += () =>
         {
-            AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
-            DeepSeekBalanceStore.Shared.Refresh();
+            _costStore.Refresh();
+            _deepSeekBalanceStore.KickRefresh();
         };
 
         RefreshRows();
@@ -59,7 +84,7 @@ public partial class ProvidersSettingsPage : UserControl
 
     private void UpdateTokenSubtitle()
     {
-        TokenCountingRow.Subtitle = TokenCountModeStore.Shared.Mode == TokenCountMode.All
+        TokenCountingRow.Subtitle = _tokenCountModeStore.Mode == TokenCountMode.All
             ? "Input, output, and cache."
             : "Input and output only.";
     }
@@ -73,13 +98,13 @@ public partial class ProvidersSettingsPage : UserControl
     {
         // Slot header marks + count
         MarksHost.Children.Clear();
-        foreach (var provider in ProviderVisibilityStore.Shared.Enabled)
+        foreach (var provider in _visibilityStore.Enabled)
         {
             var mark = ProviderMarks.Mark(provider, 12, tintOpacity: 0.9);
             ((FrameworkElement)mark).Margin = new Thickness(0, 0, 7, 0);
             MarksHost.Children.Add(mark);
         }
-        CountText.Text = $"{ProviderVisibilityStore.Shared.SelectedCount} / {ProviderSelection.MaxEnabled}";
+        CountText.Text = $"{_visibilityStore.SelectedCount} / {ProviderSelection.MaxEnabled}";
 
         // Provider rows
         foreach (var row in _rows)
@@ -88,7 +113,7 @@ public partial class ProvidersSettingsPage : UserControl
         }
 
         // Cost caption
-        CostCaption.Text = AgentIsland.Backend.Cost.CostStore.Shared.LastUpdated is { } updated
+        CostCaption.Text = _costStore.LastUpdated is { } updated
             ? L10n.TrFormat("last scan {0}", Formatting.RelativeAgo(DateTimeOffset.Now - updated, L10n.IsChinese))
             : L10n.Tr("swipe panel to view");
     }
@@ -128,8 +153,8 @@ public partial class ProvidersSettingsPage : UserControl
         }
         if (ok)
         {
-            UsageStore.Shared.ClearClaudeReauthFailure();
-            UsageStore.Shared.Refresh();
+            _usageStore.ClearClaudeReauthFailure();
+            _usageStore.Refresh();
             RefreshRows();
             return;
         }
@@ -144,11 +169,21 @@ public partial class ProvidersSettingsPage : UserControl
         var owner = Window.GetWindow(this);
         var label = NamePromptWindow.Ask(
             owner,
-            L10n.Tr("Save current account"),
-            L10n.Tr("Give this login a name so you can switch back to it later"),
-            L10n.Tr("work / personal"));
-        if (label is null) return;
-        if (!CodexAccountSwitcher.ParkCurrent(label)) return;
+            L10n.Tr("Park current Codex account"),
+            L10n.Tr("Give this login a name. It will appear in the switch menu so you can rotate back later."),
+            L10n.Tr("Account label (e.g. work, personal)"),
+            confirmLabel: L10n.Tr("Park"));
+        if (string.IsNullOrWhiteSpace(label)) return;
+
+        var ok = CodexAccountSwitcher.ParkCurrent(label.Trim());
+        if (!ok)
+        {
+            IslandDialog.ShowApp(
+                L10n.Tr("Could not park account"),
+                L10n.Tr("Unknown error"),
+                secondaryLabel: L10n.Tr("OK"));
+            return;
+        }
         RefreshRows();
     }
 }

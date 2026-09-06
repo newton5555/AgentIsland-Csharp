@@ -12,13 +12,11 @@ public sealed class QuotaAlarmStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.quotaAlarmEnabled";
 
-    public static QuotaAlarmStore Shared { get; } = new();
-
     private bool _enabled;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private QuotaAlarmStore()
+    public QuotaAlarmStore()
     {
         // Missing key → ON. Preferences.Get<bool?> returns null when unset,
         // so the ?? keeps existing users who never touched the setting on the

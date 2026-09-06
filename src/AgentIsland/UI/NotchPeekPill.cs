@@ -15,9 +15,15 @@ namespace AgentIsland.UI;
 public sealed class NotchPeekPill : TextBlock
 {
     private TriggerTool _tool = TriggerTool.Claude;
+    private readonly AgentIsland.Backend.Settings.QuotaDisplayModeStore _displayModeStore;
 
-    public NotchPeekPill()
+    public NotchPeekPill() : this(null) { }
+
+    public NotchPeekPill(AgentIsland.Backend.Settings.QuotaDisplayModeStore? displayModeStore)
     {
+        _displayModeStore = displayModeStore
+            ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Settings.QuotaDisplayModeStore)) as AgentIsland.Backend.Settings.QuotaDisplayModeStore)
+            ?? new AgentIsland.Backend.Settings.QuotaDisplayModeStore();
         FontFamily = new FontFamily("Cascadia Mono, Consolas");
         FontSize = 11;
         FontWeight = FontWeights.SemiBold;
@@ -55,7 +61,7 @@ public sealed class NotchPeekPill : TextBlock
 
         // The right-hand pill mirrors: countdown first, percent hugging the
         // logo — exactly like the macOS bar.
-        var percentText = $"{Math.Round(AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.DisplayValue(usage.UsedPercent))}%";
+        var percentText = $"{Math.Round(_displayModeStore.DisplayValue(usage.UsedPercent))}%";
         var now = DateTimeOffset.Now;
         var countdown = usage.ResetAt is { } resetAt && resetAt > now
             ? CompactCountdown(resetAt - now)

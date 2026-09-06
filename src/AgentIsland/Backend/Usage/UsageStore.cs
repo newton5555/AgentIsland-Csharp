@@ -21,8 +21,6 @@ public sealed class UsageStore : IUsageStore
         DisplayProvider.Codex,
     };
 
-    [Obsolete("Inject IUsageStore via DI instead")]
-    public static UsageStore Shared { get; } = new();
 
     private sealed class RefreshSlot
     {
@@ -71,13 +69,62 @@ public sealed class UsageStore : IUsageStore
     private bool _powerMonitorArmed;
     private bool _lastNetworkAvailable = true;
     private readonly Dictionary<DisplayProvider, AgentIsland.Core.Agents.IUsageFetcher> _injectedFetchers = new();
-    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
+    private readonly RefreshIntervalStore _refreshIntervalStore;
+    private readonly IGrokUsageStore? _grokUsageStore;
+    private readonly IAntigravityUsageStore? _antigravityUsageStore;
+    private readonly ICursorUsageStore? _cursorUsageStore;
+    private readonly IDeepSeekBalanceStore? _deepSeekBalanceStore;
+    private readonly IClaudeWebLogin? _claudeWebLogin;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _uiDispatcher;
     private readonly Dictionary<DisplayProvider, AppUsage> _usages = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public UsageStore()
+    public UsageStore() : this(null, null)
     {
+    }
+
+    public UsageStore(
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
+        : this(visibilityStore, null, providers)
+    {
+    }
+
+    public UsageStore(
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore,
+        RefreshIntervalStore? refreshIntervalStore = null,
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null,
+        IGrokUsageStore? grokUsageStore = null,
+        IAntigravityUsageStore? antigravityUsageStore = null,
+        ICursorUsageStore? cursorUsageStore = null,
+        IDeepSeekBalanceStore? deepSeekBalanceStore = null,
+        IClaudeWebLogin? claudeWebLogin = null,
+        AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null)
+    {
+        _visibilityStore = visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
+        _refreshIntervalStore = refreshIntervalStore ?? new RefreshIntervalStore();
+        _grokUsageStore = grokUsageStore;
+        _antigravityUsageStore = antigravityUsageStore;
+        _cursorUsageStore = cursorUsageStore;
+        _deepSeekBalanceStore = deepSeekBalanceStore;
+        _claudeWebLogin = claudeWebLogin;
+        _uiDispatcher = uiDispatcher;
+
+        if (providers is not null)
+        {
+            foreach (var p in providers)
+            {
+                if (p.UsageFetcher is null) continue;
+                var dp = DisplayProviders.Parse(p.Descriptor.Key.Value);
+                if (dp is not null)
+                {
+                    _injectedFetchers[dp.Value] = p.UsageFetcher;
+                }
+            }
+        }
+
         if (AppEnvironment.IsDemo) return;
         if (LoadCachedSnapshot() is { } snapshot)
         {
@@ -90,25 +137,6 @@ public sealed class UsageStore : IUsageStore
                 _providerUpdatedAt[DisplayProvider.Claude] = claudeAt;
             if (snapshot.CodexUpdatedAt is { } codexAt)
                 _providerUpdatedAt[DisplayProvider.Codex] = codexAt;
-        }
-    }
-
-    public UsageStore(
-        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
-        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null) : this()
-    {
-        _visibilityStore = visibilityStore;
-        if (providers is not null)
-        {
-            foreach (var p in providers)
-            {
-                if (p.UsageFetcher is null) continue;
-                var dp = DisplayProviders.Parse(p.Descriptor.Key.Value);
-                if (dp is not null)
-                {
-                    _injectedFetchers[dp.Value] = p.UsageFetcher;
-                }
-            }
         }
     }
 
@@ -151,7 +179,7 @@ public sealed class UsageStore : IUsageStore
     {
         if (AppEnvironment.IsDemo) return;
         SyncProviderMode();
-        var interval = TimeSpan.FromSeconds(RefreshIntervalStore.Shared.Seconds);
+        var interval = TimeSpan.FromSeconds(_refreshIntervalStore.Seconds);
         var staleCore = CoreProviders.Any(provider =>
             _enabledProviders.Contains(provider)
             && (!_providerUpdatedAt.TryGetValue(provider, out var last)
@@ -173,7 +201,7 @@ public sealed class UsageStore : IUsageStore
         // Guests re-probe every refresh cycle (macOS redetectGuests):
         // signing into agy/grok/Cursor while the app runs claims the slot
         // without a relaunch.
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.RedetectGuests();
+        _visibilityStore.RedetectGuests();
 
         // Demo mode for screen recordings: skip the network entirely and
         // inject hand-tuned values. Reset times are recomputed each refresh
@@ -224,11 +252,11 @@ public sealed class UsageStore : IUsageStore
         // unlock / network / manual) instead of owning timers; their stores
         // no-op when the provider is undetected or when kicked again inside
         // their own attempt floors.
-        if (_enabledProviders.Contains(DisplayProvider.Grok)) GrokUsageStore.Shared.KickRefresh();
-        if (_enabledProviders.Contains(DisplayProvider.Antigravity)) AntigravityUsageStore.Shared.KickRefresh();
-        if (_enabledProviders.Contains(DisplayProvider.Cursor)) CursorUsageStore.Shared.KickRefresh();
-        if (_enabledProviders.Contains(DisplayProvider.DeepSeek)) DeepSeekBalanceStore.Shared.KickRefresh();
-        var dispatcher = Dispatcher.CurrentDispatcher;
+        if (_enabledProviders.Contains(DisplayProvider.Grok)) _grokUsageStore?.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.Antigravity)) _antigravityUsageStore?.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.Cursor)) _cursorUsageStore?.KickRefresh();
+        if (_enabledProviders.Contains(DisplayProvider.DeepSeek)) _deepSeekBalanceStore?.KickRefresh();
+        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         foreach (var provider in _enabledProviders)
         {
             if (CoreProviders.Contains(provider))
@@ -268,12 +296,20 @@ public sealed class UsageStore : IUsageStore
             try
             {
                 var usage = await fetcher.FetchUsageAsync().ConfigureAwait(false);
-                await dispatcher.BeginInvoke(() =>
+                Action apply = () =>
                 {
                     _usages[provider] = usage;
                     _providerUpdatedAt[provider] = DateTimeOffset.Now;
                     Raise(nameof(Usage));
-                });
+                };
+                if (dispatcher.CheckAccess())
+                {
+                    apply();
+                }
+                else
+                {
+                    await dispatcher.BeginInvoke(apply);
+                }
             }
             catch { }
         });
@@ -281,7 +317,7 @@ public sealed class UsageStore : IUsageStore
 
     private bool SyncProviderMode()
     {
-        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore;
         var next = visibility.Enabled.ToHashSet();
         if (_enabledProviders.SetEquals(next)) return false;
 
@@ -410,7 +446,7 @@ public sealed class UsageStore : IUsageStore
 
         try
         {
-            await dispatcher.BeginInvoke(() =>
+            Action apply = () =>
             {
                 var slot = _refreshSlots[provider];
                 if (!ReferenceEquals(slot.Task, task) || slot.Generation != generation)
@@ -449,7 +485,16 @@ public sealed class UsageStore : IUsageStore
                     IsErrorOnly(Codex));
                 UpdateLastUpdated();
                 UpdateLoading();
-            });
+            };
+
+            if (dispatcher.CheckAccess())
+            {
+                apply();
+            }
+            else
+            {
+                await dispatcher.BeginInvoke(apply);
+            }
         }
         catch
         {
@@ -500,16 +545,16 @@ public sealed class UsageStore : IUsageStore
         switch (provider)
         {
             case DisplayProvider.Grok:
-                GrokUsageStore.Shared.ClearMemory();
+                _grokUsageStore?.ClearMemory();
                 break;
             case DisplayProvider.Antigravity:
-                AntigravityUsageStore.Shared.ClearMemory();
+                _antigravityUsageStore?.ClearMemory();
                 break;
             case DisplayProvider.Cursor:
-                CursorUsageStore.Shared.ClearMemory();
+                _cursorUsageStore?.ClearMemory();
                 break;
             case DisplayProvider.DeepSeek:
-                DeepSeekBalanceStore.Shared.ClearMemory();
+                _deepSeekBalanceStore?.ClearMemory();
                 break;
         }
     }
@@ -612,12 +657,12 @@ public sealed class UsageStore : IUsageStore
             existing.ResetCardDetails);
     }
 
-    private static string? WarningFor(bool codexFailed, bool claudeFailed)
+    private string? WarningFor(bool codexFailed, bool claudeFailed)
     {
         // A provider the user removed from the slots cannot nag from the
         // footer — "Claude stale" while only Grok + Cursor are selected reads
         // as a bug, because it was one (owner report, 2026-08-08).
-        var visibility = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore;
         var claude = claudeFailed && visibility.ClaudeVisible;
         var codex = codexFailed && visibility.CodexVisible;
         return (claude, codex) switch
@@ -694,7 +739,7 @@ public sealed class UsageStore : IUsageStore
         if (ClaudeReauthInProgress) return;
         ClaudeReauthFailureCaption = null;
         ClaudeReauthInProgress = true;
-        var dispatcher = Dispatcher.CurrentDispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
             // Nothing observes this task, so a throw anywhere below would
@@ -703,7 +748,7 @@ public sealed class UsageStore : IUsageStore
             // Re-authenticate button until the app restarts.
             try
             {
-                var outcome = await ClaudeWebLogin.Shared.Start();
+                var outcome = await (_claudeWebLogin ?? new ClaudeWebLogin()).Start();
                 if (outcome is ClaudeWebLogin.Outcome.Failed failure)
                 {
                     await dispatcher.BeginInvoke(() =>
@@ -733,7 +778,7 @@ public sealed class UsageStore : IUsageStore
         _codexReauthCts?.Cancel();
         var cts = new CancellationTokenSource();
         _codexReauthCts = cts;
-        var dispatcher = Dispatcher.CurrentDispatcher;
+        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
             // Same latch hazard as the Claude flow: nobody observes this task,
@@ -783,7 +828,7 @@ public sealed class UsageStore : IUsageStore
             var merged = MergedUsage(Codex, fetched);
             Codex = merged;
             SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
-            RefreshWarning = IsErrorOnly(fetched) && AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.CodexVisible
+            RefreshWarning = IsErrorOnly(fetched) && _visibilityStore.CodexVisible
                 ? L10n.Tr("Codex stale")
                 : null;
             if (!IsErrorOnly(fetched)) LastUpdated = DateTimeOffset.Now;
@@ -805,13 +850,13 @@ public sealed class UsageStore : IUsageStore
                 or nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.SlotProviders))) return;
             if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
         };
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        _visibilityStore.PropertyChanged += _visibilityChanged;
         if (_enabledProviders.Count > 0)
         {
             ArmTimer();
             ArmResetEdgeTimer();
         }
-        RefreshIntervalStore.Shared.PropertyChanged += OnIntervalChanged;
+        _refreshIntervalStore.PropertyChanged += OnIntervalChanged;
         StartNetworkMonitor();
         Microsoft.Win32.SystemEvents.PowerModeChanged += OnPowerModeChanged;
         Microsoft.Win32.SystemEvents.SessionSwitch += OnSessionSwitch;
@@ -823,7 +868,7 @@ public sealed class UsageStore : IUsageStore
         _autoRefreshStarted = false;
         if (_visibilityChanged is not null)
         {
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            _visibilityStore.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
         CancelCoreRefreshes();
@@ -831,7 +876,7 @@ public sealed class UsageStore : IUsageStore
         _pollTimer = null;
         _resetEdgeTimer?.Stop();
         _resetEdgeTimer = null;
-        RefreshIntervalStore.Shared.PropertyChanged -= OnIntervalChanged;
+        _refreshIntervalStore.PropertyChanged -= OnIntervalChanged;
         if (_networkMonitorArmed)
         {
             NetworkChange.NetworkAvailabilityChanged -= OnNetworkAvailabilityChanged;
@@ -902,14 +947,17 @@ public sealed class UsageStore : IUsageStore
         _resetEdgeTimer.Start();
     }
 
+    public bool DisableInternalTimer { get; set; }
+
     private void OnIntervalChanged(object? sender, PropertyChangedEventArgs e) => ArmTimer();
 
     private void ArmTimer()
     {
         _pollTimer?.Stop();
+        if (DisableInternalTimer) return;
         _pollTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
-            Interval = TimeSpan.FromSeconds(RefreshIntervalStore.Shared.Seconds),
+            Interval = TimeSpan.FromSeconds(_refreshIntervalStore.Seconds),
         };
         _pollTimer.Tick += (_, _) => Refresh();
         _pollTimer.Start();

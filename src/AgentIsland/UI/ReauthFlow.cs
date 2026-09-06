@@ -11,23 +11,24 @@ namespace AgentIsland.UI;
 /// so a mid-update CLI swap never dead-ends the user.
 public static class ReauthFlow
 {
-    public static void Run(TriggerTool tool)
+    public static void Run(TriggerTool tool, IUsageStore? usageStore = null)
     {
+        var usage = usageStore ?? (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore);
         if (tool == TriggerTool.Claude)
         {
-            UsageStore.Shared.ReauthenticateClaude();
+            usage?.ReauthenticateClaude();
             return;
         }
-        if (UsageStore.Shared.ReauthenticateCodex()) return;
-        ShowCodexCliMissing();
+        if (usage?.ReauthenticateCodex() == true) return;
+        ShowCodexCliMissing(usage);
     }
 
-    private static void ShowCodexCliMissing() =>
+    private static void ShowCodexCliMissing(IUsageStore? usageStore) =>
         IslandDialog.Show(
             TriggerTool.Codex,
             AgentIsland.UI.Localization.L10n.Tr("Re-authenticate"),
             AgentIsland.UI.Localization.L10n.Tr("Codex CLI not found. Log in from a terminal with: codex login"),
             primaryLabel: AgentIsland.UI.Localization.L10n.Tr("Retry"),
-            primaryAction: () => Run(TriggerTool.Codex),
+            primaryAction: () => Run(TriggerTool.Codex, usageStore),
             secondaryLabel: AgentIsland.UI.Localization.L10n.Tr("I know"));
 }

@@ -9,13 +9,11 @@ public sealed class AlwaysShowUsageStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.alwaysShowUsage";
 
-    public static AlwaysShowUsageStore Shared { get; } = new();
-
     private bool _enabled;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private AlwaysShowUsageStore()
+    public AlwaysShowUsageStore()
     {
         _enabled = Preferences.Get<bool?>(Key) ?? false;
     }

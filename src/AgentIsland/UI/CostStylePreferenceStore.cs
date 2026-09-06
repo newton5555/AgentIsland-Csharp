@@ -17,13 +17,11 @@ public sealed class CostStylePreferenceStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.costStyle";
 
-    public static CostStylePreferenceStore Shared { get; } = new();
-
     private CostStyle _style;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private CostStylePreferenceStore()
+    public CostStylePreferenceStore()
     {
         var raw = Preferences.Get<string?>(Key);
         _style = Enum.TryParse<CostStyle>(raw, ignoreCase: true, out var parsed)

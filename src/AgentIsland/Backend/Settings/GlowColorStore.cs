@@ -11,8 +11,6 @@ public sealed class GlowColorStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.glowColor";
 
-    public static GlowColorStore Shared { get; } = new();
-
     public enum Choice
     {
         Teal,
@@ -28,7 +26,7 @@ public sealed class GlowColorStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private GlowColorStore()
+    public GlowColorStore()
     {
         _value = Parse(Preferences.Get<string?>(Key)) ?? Choice.Teal;
     }

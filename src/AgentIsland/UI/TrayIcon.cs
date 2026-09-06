@@ -20,8 +20,23 @@ public sealed class TrayIcon : IDisposable
     private System.Drawing.Icon? _rendered;
     private TrayIconRenderer.VisualStateKey? _lastVisualKey;
 
-    public TrayIcon(Action showIsland, Action toggleIsland, Action openSettings, Action exit)
+    private readonly IUsageStore _usageStore;
+    private readonly Backend.Monitoring.IActivityMonitor _activityMonitor;
+    private readonly Backend.Settings.IProviderVisibilityStore _visibilityStore;
+
+    public TrayIcon(
+        Action showIsland,
+        Action toggleIsland,
+        Action openSettings,
+        Action exit,
+        IUsageStore? usageStore = null,
+        Backend.Monitoring.IActivityMonitor? activityMonitor = null,
+        Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
     {
+        _usageStore = usageStore ?? (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+        _activityMonitor = activityMonitor ?? (App.Instance?.Services?.GetService(typeof(Backend.Monitoring.IActivityMonitor)) as Backend.Monitoring.IActivityMonitor) ?? new Backend.Monitoring.ActivityMonitor();
+        _visibilityStore = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(Backend.Settings.IProviderVisibilityStore)) as Backend.Settings.IProviderVisibilityStore) ?? new Backend.Settings.ProviderVisibilityStore();
+
         _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
@@ -45,9 +60,9 @@ public sealed class TrayIcon : IDisposable
             if (e.Button == System.Windows.Forms.MouseButtons.Left) showIsland();
         };
 
-        UsageStore.Shared.PropertyChanged += OnDataChanged;
-        ActivityMonitor.Shared.PropertyChanged += OnDataChanged;
-        ProviderVisibilityStore.Shared.PropertyChanged += OnDataChanged;
+        _usageStore.PropertyChanged += OnDataChanged;
+        _activityMonitor.PropertyChanged += OnDataChanged;
+        _visibilityStore.PropertyChanged += OnDataChanged;
         Update();               // paints the first icon
         _icon.Visible = true;   // then show it
     }
@@ -74,9 +89,9 @@ public sealed class TrayIcon : IDisposable
 
     private void Update()
     {
-        var visibility = ProviderVisibilityStore.Shared;
-        var usage = UsageStore.Shared;
-        var monitor = ActivityMonitor.Shared;
+        var visibility = _visibilityStore;
+        var usage = _usageStore;
+        var monitor = _activityMonitor;
 
         double usage5h = 0;
         var worst = ActivityState.Idle;
@@ -142,9 +157,9 @@ public sealed class TrayIcon : IDisposable
     public void Dispose()
     {
         if (ReferenceEquals(Current, this)) Current = null;
-        UsageStore.Shared.PropertyChanged -= OnDataChanged;
-        ActivityMonitor.Shared.PropertyChanged -= OnDataChanged;
-        ProviderVisibilityStore.Shared.PropertyChanged -= OnDataChanged;
+        _usageStore.PropertyChanged -= OnDataChanged;
+        _activityMonitor.PropertyChanged -= OnDataChanged;
+        _visibilityStore.PropertyChanged -= OnDataChanged;
         _icon.Visible = false;
         _icon.Dispose();
         _rendered = null;

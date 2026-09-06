@@ -5,6 +5,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using AgentIsland.Backend.Alarms;
+using AgentIsland.Backend.Monitoring;
 using AgentIsland.Backend.Settings;
 using AgentIsland.Core;
 using AgentIsland.UI.Localization;
@@ -77,57 +79,70 @@ public sealed partial class StatusSettingsPage : UserControl
     private static MediaPlayer? _previewPlayer;
     private readonly ObservableCollection<SoundChoiceItem> _soundItems = new();
     private readonly bool _initialized;
+    private readonly AgentReminderStore _reminderStore;
+    private readonly QuotaAlarmStore _quotaAlarmStore;
+    private readonly IActivityMonitor _activityMonitor;
 
-    public StatusSettingsPage()
+    public StatusSettingsPage() : this(null) { }
+
+    public StatusSettingsPage(
+        AgentReminderStore? reminderStore = null,
+        QuotaAlarmStore? quotaAlarmStore = null,
+        IActivityMonitor? activityMonitor = null)
     {
+        var sp = App.Instance?.Services;
+        _reminderStore = reminderStore ?? (sp?.GetService(typeof(AgentReminderStore)) as AgentReminderStore) ?? new AgentReminderStore();
+        _quotaAlarmStore = quotaAlarmStore ?? (sp?.GetService(typeof(QuotaAlarmStore)) as QuotaAlarmStore) ?? new QuotaAlarmStore();
+        _activityMonitor = activityMonitor ?? (sp?.GetService(typeof(IActivityMonitor)) as IActivityMonitor) ?? new ActivityMonitor();
+
         InitializeComponent();
 
         WorkingLogo.SetState(ActivityState.Working);
         AttentionLogo.SetState(ActivityState.Stalled);
 
-        var reminderStore = AgentReminderStore.Shared;
-        TurnAlarmToggle.IsOn = reminderStore.Enabled;
+        var reminderStoreRef = _reminderStore;
+        TurnAlarmToggle.IsOn = reminderStoreRef.Enabled;
         TurnAlarmToggle.Toggled += value =>
         {
             if (!_initialized) return;
-            reminderStore.Enabled = value;
+            reminderStoreRef.Enabled = value;
         };
 
-        AlarmWhenFrontToggle.IsOn = reminderStore.AlarmWhenFrontmost;
+        AlarmWhenFrontToggle.IsOn = reminderStoreRef.AlarmWhenFrontmost;
         AlarmWhenFrontToggle.Toggled += enabled =>
         {
             if (!_initialized) return;
-            reminderStore.AlarmWhenFrontmost = enabled;
+            reminderStoreRef.AlarmWhenFrontmost = enabled;
         };
 
-        FrontChimeToggle.IsOn = reminderStore.FrontmostSoundOnly;
+        FrontChimeToggle.IsOn = reminderStoreRef.FrontmostSoundOnly;
         FrontChimeToggle.Toggled += enabled =>
         {
             if (!_initialized) return;
-            reminderStore.FrontmostSoundOnly = enabled;
+            reminderStoreRef.FrontmostSoundOnly = enabled;
         };
 
-        ThreadDetailsToggle.IsOn = reminderStore.ShowSessionDetails;
+        ThreadDetailsToggle.IsOn = reminderStoreRef.ShowSessionDetails;
         ThreadDetailsToggle.Toggled += value =>
         {
             if (!_initialized) return;
-            reminderStore.ShowSessionDetails = value;
+            reminderStoreRef.ShowSessionDetails = value;
         };
 
-        var quotaAlarmStore = QuotaAlarmStore.Shared;
-        QuotaAlarmToggle.IsOn = quotaAlarmStore.Enabled;
+        var quotaAlarmStoreRef = _quotaAlarmStore;
+        QuotaAlarmToggle.IsOn = quotaAlarmStoreRef.Enabled;
         QuotaAlarmToggle.Toggled += value =>
         {
             if (!_initialized) return;
-            quotaAlarmStore.Enabled = value;
+            quotaAlarmStoreRef.Enabled = value;
         };
 
-        AlarmSoundToggle.IsOn = reminderStore.SoundEnabled;
-        SoundHost.Visibility = reminderStore.SoundEnabled ? Visibility.Visible : Visibility.Collapsed;
+        AlarmSoundToggle.IsOn = reminderStoreRef.SoundEnabled;
+        SoundHost.Visibility = reminderStoreRef.SoundEnabled ? Visibility.Visible : Visibility.Collapsed;
         AlarmSoundToggle.Toggled += value =>
         {
             if (!_initialized) return;
-            reminderStore.SoundEnabled = value;
+            reminderStoreRef.SoundEnabled = value;
             SoundHost.Visibility = value ? Visibility.Visible : Visibility.Collapsed;
         };
 
@@ -143,29 +158,29 @@ public sealed partial class StatusSettingsPage : UserControl
         SoundChoicesList.ItemsSource = _soundItems;
         RebuildSoundList();
 
-        VolumeSlider.Value = reminderStore.Volume;
+        VolumeSlider.Value = reminderStoreRef.Volume;
         VolumeSlider.ValueChanged += (_, _) =>
         {
             if (!_initialized) return;
-            reminderStore.Volume = VolumeSlider.Value;
+            reminderStoreRef.Volume = VolumeSlider.Value;
         };
 
         if (AppEnvironment.IsDemo || AppEnvironment.IsDebug)
         {
             DemoSection.Visibility = Visibility.Visible;
-            DemoWorkingBtn.Clicked += () => ActivityMonitor.Shared.Demo(ActivityState.Working);
-            DemoYourTurnBtn.Clicked += () => ActivityMonitor.Shared.Demo(ActivityState.NeedsYou);
-            DemoAuthBtn.Clicked += () => ActivityMonitor.Shared.Demo(ActivityState.AuthRequired);
-            DemoRateBtn.Clicked += () => ActivityMonitor.Shared.Demo(ActivityState.RateLimited);
-            DemoLiveBtn.Clicked += () => ActivityMonitor.Shared.Demo(null);
+            DemoWorkingBtn.Clicked += () => _activityMonitor.Demo(ActivityState.Working);
+            DemoYourTurnBtn.Clicked += () => _activityMonitor.Demo(ActivityState.NeedsYou);
+            DemoAuthBtn.Clicked += () => _activityMonitor.Demo(ActivityState.AuthRequired);
+            DemoRateBtn.Clicked += () => _activityMonitor.Demo(ActivityState.RateLimited);
+            DemoLiveBtn.Clicked += () => _activityMonitor.Demo(null);
         }
 
         _initialized = true;
     }
 
-    private static string CurrentSoundLabel()
+    private string CurrentSoundLabel()
     {
-        var store = AgentReminderStore.Shared;
+        var store = _reminderStore;
         if (store.SoundChoice == AgentReminderStore.CustomSoundChoice)
         {
             return store.CustomSoundPath.Length > 0
@@ -178,7 +193,7 @@ public sealed partial class StatusSettingsPage : UserControl
     private void RebuildSoundList()
     {
         _soundItems.Clear();
-        var store = AgentReminderStore.Shared;
+        var store = _reminderStore;
 
         foreach (var tone in AgentReminderStore.SystemTones.Available)
         {
@@ -217,7 +232,7 @@ public sealed partial class StatusSettingsPage : UserControl
     {
         if (sender is FrameworkElement { DataContext: SoundChoiceItem item })
         {
-            var store = AgentReminderStore.Shared;
+            var store = _reminderStore;
             if (item.IsCustom)
             {
                 var dialog = new Microsoft.Win32.OpenFileDialog
@@ -241,14 +256,14 @@ public sealed partial class StatusSettingsPage : UserControl
         }
     }
 
-    private static void PreviewSound()
+    private void PreviewSound()
     {
         try
         {
-            if (AgentReminderStore.Shared.ResolveSoundFile() is not { } file) return;
+            if (_reminderStore.ResolveSoundFile() is not { } file) return;
             _previewPlayer ??= new MediaPlayer();
             _previewPlayer.Stop();
-            _previewPlayer.Volume = AgentReminderStore.Shared.Volume;
+            _previewPlayer.Volume = _reminderStore.Volume;
             _previewPlayer.Open(new Uri(file));
             _previewPlayer.Play();
         }

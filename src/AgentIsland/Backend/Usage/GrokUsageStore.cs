@@ -20,16 +20,14 @@ public sealed class GrokCachedSnapshot
 /// network recovery, manual refresh) via KickRefresh(), with a small attempt
 /// floor so bursty kick sources never turn into extra polling of a provider
 /// the user may not even be looking at.
-public sealed class GrokUsageStore : INotifyPropertyChanged
+public sealed class GrokUsageStore : IGrokUsageStore
 {
-    public static GrokUsageStore Shared { get; } = new();
-
     private const string CacheKey = "GrokUsageStore.lastSnapshot.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
-
-    /// De-dupes kick bursts (poll + reset boundary + manual refresh all
-    /// landing close together); the real cadence stays whatever UsageStore runs.
     private static readonly TimeSpan MinAttemptGap = TimeSpan.FromSeconds(120);
+
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _dispatcher;
 
     private GrokBillingSnapshot? _snapshot;
     private string? _errorCaption;
@@ -43,13 +41,18 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private GrokUsageStore()
+    public GrokUsageStore(
+        IProviderVisibilityStore visibilityStore,
+        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null)
     {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _dispatcher = dispatcher;
+
         if (AppEnvironment.IsDemo)
         {
             // The recording rig pins its own island via AGENTISLAND_DEMO_PROVIDERS;
             // only dress the Grok row when Grok is one of the pinned slots.
-            if (!ProviderVisibilityStore.Shared.GrokPanelShown) return;
+            if (!_visibilityStore.GrokPanelShown) return;
             var now = DateTimeOffset.Now;
             _snapshot = new GrokBillingSnapshot(
                 0.37,
@@ -131,7 +134,7 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
     public void KickRefresh()
     {
         if (AppEnvironment.IsDemo) return;
-        if (!ProviderVisibilityStore.Shared.GrokPanelShown) return;
+        if (!_visibilityStore.GrokPanelShown) return;
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
@@ -142,17 +145,19 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
         var generation = ++_refreshGeneration;
         var cts = new CancellationTokenSource();
         _refreshCts = cts;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        var dispatcher = _dispatcher != null
+            ? (Action<Action>)(act => _dispatcher.BeginInvoke(act))
+            : (Action<Action>)(act => (System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher).BeginInvoke(act));
         _ = Task.Run(async () =>
         {
             try
             {
                 var outcome = await GrokUsageFetcher.Fetch(cts.Token);
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
-                await dispatcher.BeginInvoke(() =>
+                dispatcher(() =>
                 {
                     if (cts.IsCancellationRequested || generation != _refreshGeneration
-                        || !ProviderVisibilityStore.Shared.GrokPanelShown) return;
+                        || !_visibilityStore.GrokPanelShown) return;
                     Apply(outcome);
                 });
             }
@@ -161,10 +166,10 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
                 try
                 {
-                    await dispatcher.BeginInvoke(() =>
+                    dispatcher(() =>
                     {
                         if (generation != _refreshGeneration
-                            || !ProviderVisibilityStore.Shared.GrokPanelShown) return;
+                            || !_visibilityStore.GrokPanelShown) return;
                         Apply(new GrokUsageFetcher.Outcome.Failed(error.Message));
                     });
                 }
@@ -177,7 +182,7 @@ public sealed class GrokUsageStore : INotifyPropertyChanged
                     _refreshCts = null;
                     if (generation == _refreshGeneration)
                     {
-                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                        try { dispatcher(() => Loading = false); } catch { }
                     }
                 }
                 cts.Dispose();

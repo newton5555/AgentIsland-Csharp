@@ -10,7 +10,7 @@ public class ReportDuelTests
 
     internal static void RunAll()
     {
-        TestIsolation.Initialize();
+        WpfTestEnvironment.EnsureInitialized();
         foreach (var opponent in new[] { DisplayProvider.Codex, DisplayProvider.Claude })
         foreach (var tokens in new long[] { 20, 50, 80 })
         {

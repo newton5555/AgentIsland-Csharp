@@ -8,15 +8,22 @@ namespace AgentIsland.UI;
 public sealed partial class AlertsSettingsPage : UserControl
 {
     private readonly bool _initialized;
+    private readonly AlertThresholdStore _thresholdStore;
 
-    public AlertsSettingsPage()
+    public AlertsSettingsPage() : this(null) { }
+
+    public AlertsSettingsPage(AlertThresholdStore? thresholdStore = null)
     {
+        _thresholdStore = thresholdStore
+            ?? (App.Instance?.Services?.GetService(typeof(AlertThresholdStore)) as AlertThresholdStore)
+            ?? new AlertThresholdStore();
+
         InitializeComponent();
 
         WarningLabelBlock.Text = L10n.Tr("Warning");
         CriticalLabelBlock.Text = L10n.Tr("Critical");
 
-        var store = AlertThresholdStore.Shared;
+        var store = _thresholdStore;
         AlertsToggle.IsOn = store.Enabled;
         WarningField.Text = store.WarningPercent.ToString();
         CriticalField.Text = store.CriticalPercent.ToString();

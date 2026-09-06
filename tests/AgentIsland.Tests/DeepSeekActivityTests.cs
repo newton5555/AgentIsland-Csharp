@@ -135,15 +135,13 @@ public class DeepSeekActivityTests
             "deepseek:1:1",
             SessionLaunchTarget.Cli);
 
-        ActivityMonitor.Shared.Apply(new List<ScannedSession> { session }, now);
-        Expect(ActivityMonitor.Shared.RawStateFor(TriggerTool.DeepSeek) == ActivityState.Working,
+        var monitor = new ActivityMonitor();
+        monitor.Apply(new List<ScannedSession> { session }, now);
+        Expect(monitor.RawStateFor(TriggerTool.DeepSeek) == ActivityState.Working,
             "DeepSeek monitor publishes the raw working state");
-        Expect(ActivityMonitor.Shared.DeepSeek == ActivityState.Working,
+        Expect(monitor.DeepSeek == ActivityState.Working,
             "DeepSeek named monitor property follows the working state");
 
-        // Do not leave the singleton in a live state for the following UI
-        // tests; a real scan will repopulate it on the next timer tick.
-        ActivityMonitor.Shared.Apply(new List<ScannedSession>(), now);
         Console.WriteLine("PASS DeepSeek activity monitor publishes working state");
     }
 

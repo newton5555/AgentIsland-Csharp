@@ -22,5 +22,7 @@ public interface IUsageStore : INotifyPropertyChanged
     void RefreshIfStale();
     Task RefreshAsync(CancellationToken cancellationToken = default);
     void ClearClaudeReauthFailure();
+    void ReauthenticateClaude();
+    bool ReauthenticateCodex();
 }
 

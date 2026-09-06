@@ -21,15 +21,21 @@ public sealed class PagedContent : Grid
     private Point _dragOrigin;
     private double _dragOriginX;
 
-    public PagedContent()
+    private readonly ScreenPref _screenPref;
+
+    public PagedContent() : this(null) { }
+
+    public PagedContent(ScreenPref? screenPref = null)
     {
+        _screenPref = screenPref ?? (App.Instance?.Services?.GetService(typeof(ScreenPref)) as ScreenPref) ?? new ScreenPref();
+
         ClipToBounds = true;
         Background = Brushes.Transparent;
         _track.RenderTransform = _slide;
         Children.Add(_track);
         BuildPages();
         SizeChanged += (_, _) => Relayout(animate: false);
-        ScreenPref.Shared.PropertyChanged += (_, args) =>
+        _screenPref.PropertyChanged += (_, args) =>
         {
             if (args.PropertyName == nameof(ScreenPref.Screen))
             {
@@ -134,13 +140,13 @@ public sealed class PagedContent : Grid
         target = Math.Clamp(target, 0, _pages.Count - 1);
 
         var screen = _pages[target].Screen;
-        if (ScreenPref.Shared.Screen == screen)
+        if (_screenPref.Screen == screen)
         {
             Relayout(animate: true);
         }
         else
         {
-            ScreenPref.Shared.Screen = screen;
+            _screenPref.Screen = screen;
         }
     }
 
@@ -148,7 +154,7 @@ public sealed class PagedContent : Grid
     {
         _track.Children.Clear();
         _pages.Clear();
-        foreach (var screen in ScreenPref.Shared.VisibleScreens)
+        foreach (var screen in _screenPref.VisibleScreens)
         {
             FrameworkElement view = screen switch
             {
@@ -182,7 +188,7 @@ public sealed class PagedContent : Grid
             Canvas.SetLeft(view, i * width);
             Canvas.SetTop(view, 0);
         }
-        var index = _pages.FindIndex(p => p.Screen == ScreenPref.Shared.Screen);
+        var index = _pages.FindIndex(p => p.Screen == _screenPref.Screen);
         if (index < 0) index = 0;
         var target = -index * width;
         if (!animate)
@@ -209,7 +215,7 @@ public sealed class PagedContent : Grid
         if (now - _lastWheelPageMs < 250) { e.Handled = true; return; }
         _lastWheelPageMs = now;
         // Wheel down (negative delta) advances, matching macOS.
-        ScreenPref.Shared.ShowNext(e.Delta < 0 ? 1 : -1);
+        _screenPref.ShowNext(e.Delta < 0 ? 1 : -1);
         e.Handled = true;
     }
 }

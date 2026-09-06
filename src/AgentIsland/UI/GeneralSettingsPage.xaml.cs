@@ -9,9 +9,15 @@ namespace AgentIsland.UI;
 public sealed partial class GeneralSettingsPage : UserControl
 {
     private bool _initialized;
+    private readonly AgentIsland.Backend.Updates.IUpdateChecker _updateChecker;
 
-    public GeneralSettingsPage()
+    public GeneralSettingsPage() : this(null) { }
+
+    public GeneralSettingsPage(AgentIsland.Backend.Updates.IUpdateChecker? updateChecker = null)
     {
+        _updateChecker = updateChecker
+            ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Updates.IUpdateChecker)) as AgentIsland.Backend.Updates.IUpdateChecker)
+            ?? new AgentIsland.Backend.Updates.UpdateChecker();
         InitializeComponent();
 
         // 1. Launch at Login
@@ -52,7 +58,7 @@ public sealed partial class GeneralSettingsPage : UserControl
         CheckNowButton.Clicked += () =>
         {
             if (!_initialized) return;
-            _ = AgentIsland.Backend.Updates.UpdateChecker.Shared.CheckAsync(userInitiated: true);
+            _ = _updateChecker.CheckAsync(userInitiated: true);
         };
 
         _initialized = true;

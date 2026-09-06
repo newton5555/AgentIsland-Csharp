@@ -22,9 +22,12 @@ namespace AgentIsland.UI;
 public sealed class CostPage : Border
 {
     public ViewModels.CostPageViewModel ViewModel { get; } = new();
-
     private readonly Dictionary<DisplayProvider, CostBlock> _blocks = new();
     private readonly Dictionary<DisplayProvider, UIElement> _badges = new();
+
+    private readonly ICostStore _costStore;
+    private readonly CostStylePreferenceStore _costStyleStore;
+    private readonly IProviderVisibilityStore _visibilityStore;
 
     /// How a provider's slot presents AgentIsland.Backend.Cost. Claude/Codex are table-priced and
     /// Grok self-reports dollars, so all three show a full dollar tile; Cursor
@@ -40,8 +43,17 @@ public sealed class CostPage : Border
         _ => CostFace.Dollars,
     };
 
-    public CostPage()
+    public CostPage() : this(null, null, null) { }
+
+    public CostPage(
+        ICostStore? costStore = null,
+        CostStylePreferenceStore? costStyleStore = null,
+        IProviderVisibilityStore? visibilityStore = null)
     {
+        _costStore = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore();
+        _costStyleStore = costStyleStore ?? (App.Instance?.Services?.GetService(typeof(CostStylePreferenceStore)) as CostStylePreferenceStore) ?? new CostStylePreferenceStore();
+        _visibilityStore = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
+
         DataContext = ViewModel;
         Unloaded += (_, _) => ViewModel.Dispose();
         Padding = new Thickness(22, 12, 22, 6);
@@ -68,25 +80,22 @@ public sealed class CostPage : Border
         Grid.SetColumn(hairline, 1);
         grid.Children.Add(hairline);
 
-        // Every provider owns its widgets up front; a slot change only
-        // re-columns and re-shows them, so nothing here is rebuilt mid-flight
-        // (a rebuilt WPF element loses its animation state and can flash empty).
-        // Cost tile for each provider that has one, keyed by identity; a
-        // nameplate for all providers (the freed half of a solo split, and
-        // Gemini's cold state).
+        // Every provider owns a column upfront. Slots only re-column and
+        // re-show them, so nothing in this deep visual tree is ever rebuilt
+        // mid-flight.
         foreach (var provider in DisplayProviders.All)
         {
-            if (FaceOf(provider) != CostFace.Cold)
+            var face = FaceOf(provider);
+            var color = Providers.ProviderIdentity.StreamColor(provider.ToTriggerTool());
+            var block = new CostBlock(
+                color,
+                showsDollars: face == CostFace.Dollars)
             {
-                var block = new CostBlock(
-                    ProviderIdentity.Accent(provider),
-                    showsDollars: FaceOf(provider) == CostFace.Dollars)
-                {
-                    Visibility = Visibility.Collapsed,
-                };
-                _blocks[provider] = block;
-                grid.Children.Add(block);
-            }
+                Visibility = Visibility.Collapsed,
+            };
+            _blocks[provider] = block;
+            grid.Children.Add(block);
+
             var badge = new SoloProviderBadge(provider) { Visibility = Visibility.Collapsed };
             _badges[provider] = badge;
             grid.Children.Add(badge);
@@ -103,7 +112,7 @@ public sealed class CostPage : Border
 
         void ApplyVisibility()
         {
-            var slots = ProviderVisibilityStore.Shared.SlotProviders;
+            var slots = _visibilityStore.SlotProviders;
             foreach (var block in _blocks.Values) block.Visibility = Visibility.Collapsed;
             foreach (var badge in _badges.Values) badge.Visibility = Visibility.Collapsed;
 
@@ -141,14 +150,14 @@ public sealed class CostPage : Border
             (_, _) => Dispatcher.BeginInvoke(Update);
         System.ComponentModel.PropertyChangedEventHandler onVisibility =
             (_, _) => Dispatcher.BeginInvoke(ApplyVisibility);
-        CostStore.Shared.PropertyChanged += onUpdate;
-        CostStylePreferenceStore.Shared.PropertyChanged += onUpdate;
-        ProviderVisibilityStore.Shared.PropertyChanged += onVisibility;
+        _costStore.PropertyChanged += onUpdate;
+        _costStyleStore.PropertyChanged += onUpdate;
+        _visibilityStore.PropertyChanged += onVisibility;
         Unloaded += (_, _) =>
         {
-            CostStore.Shared.PropertyChanged -= onUpdate;
-            CostStylePreferenceStore.Shared.PropertyChanged -= onUpdate;
-            ProviderVisibilityStore.Shared.PropertyChanged -= onVisibility;
+            _costStore.PropertyChanged -= onUpdate;
+            _costStyleStore.PropertyChanged -= onUpdate;
+            _visibilityStore.PropertyChanged -= onVisibility;
         };
         ApplyVisibility();
         Update();
@@ -158,7 +167,7 @@ public sealed class CostPage : Border
     {
         foreach (var (provider, block) in _blocks)
         {
-            block.Update(CostStore.Shared.Summary(provider));
+            block.Update(_costStore.Summary(provider), _costStyleStore.Style);
         }
     }
 }
@@ -244,7 +253,7 @@ public sealed class CostBlock : StackPanel
         Children.Add(_tokenLine);
     }
 
-    public void Update(ProviderCostSummary summary)
+    public void Update(ProviderCostSummary summary, CostStyle? costStyle = null)
     {
         // Tokens-only provider: no price, so the tile
         // leads with the token count and every dollar slot reads "—". This
@@ -266,7 +275,8 @@ public sealed class CostBlock : StackPanel
                 Core.Formatting.CompactTokens(summary.TodayBillableTokens));
             return;
         }
-        switch (CostStylePreferenceStore.Shared.Style)
+        var activeStyle = costStyle ?? (App.Instance?.Services?.GetService(typeof(CostStylePreferenceStore)) as CostStylePreferenceStore)?.Style ?? CostStyle.Dollar;
+        switch (activeStyle)
         {
             case CostStyle.Tokens:
                 _countUp.Animate(summary.TodayTokens, "tokens",

@@ -91,7 +91,6 @@ public class SettingsXamlTests
 
     private static void EnsureApplication()
     {
-        TestIsolation.Initialize();
         if (Application.Current == null)
         {
             try
@@ -108,7 +107,6 @@ public class SettingsXamlTests
             }
             catch { }
         }
-        _ = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
     }
 
 
@@ -445,14 +443,15 @@ public class SettingsXamlTests
 
     private static void TestProvidersSettingsPageStructureAndSlotRejection()
     {
-        var page = new ProvidersSettingsPage();
+        var visibility = new ProviderVisibilityStore();
+        var page = new ProvidersSettingsPage(visibility);
         var expectedCount = DisplayProviders.All.Length;
         if (page.SortableHost.Children.Count != expectedCount)
         {
             throw new Exception($"Expected {expectedCount} rows in ProvidersSettingsPage, got {page.SortableHost.Children.Count}");
         }
 
-        var order = ProviderVisibilityStore.Shared.Order;
+        var order = visibility.Order;
         for (var i = 0; i < expectedCount; i++)
         {
             if (page.SortableHost.Children[i] is not ProviderRowControl rowCtrl)

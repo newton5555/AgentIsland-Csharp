@@ -46,10 +46,10 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
     private readonly AgentIsland.Core.Navigation.IWindowService? _windowService;
 
     public IslandViewModel() : this(
-        ProviderVisibilityStore.Shared,
-        ActivityMonitor.Shared,
-        IslandModel.Shared,
-        null)
+        (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore(),
+        (App.Instance?.Services?.GetService(typeof(IActivityMonitor)) as IActivityMonitor) ?? new ActivityMonitor(),
+        (App.Instance?.Services?.GetService(typeof(IIslandModel)) as IIslandModel) ?? new IslandModel(),
+        App.Instance?.Services?.GetService(typeof(AgentIsland.Core.Navigation.IWindowService)) as AgentIsland.Core.Navigation.IWindowService)
     {
     }
 

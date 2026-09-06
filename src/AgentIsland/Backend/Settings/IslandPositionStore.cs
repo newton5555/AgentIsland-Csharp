@@ -24,15 +24,13 @@ public sealed class IslandPositionStore : INotifyPropertyChanged
     // Legacy key from the first edge iteration.
     private const string LegacyEdgeKey = "AgentIsland.islandEdge";
 
-    public static IslandPositionStore Shared { get; } = new();
-
     private IslandPlacement _placement;
     private double? _floatX;
     private double? _floatY;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private IslandPositionStore()
+    public IslandPositionStore()
     {
         var raw = Preferences.Get<string?>(PlacementKey);
         if (Enum.TryParse<IslandPlacement>(raw, out var placement))

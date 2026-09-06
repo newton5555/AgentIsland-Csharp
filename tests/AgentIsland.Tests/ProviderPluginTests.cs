@@ -93,7 +93,7 @@ public class ProviderPluginTests
         );
 
         var fakeVisibility = new MockVisibilityStore(DisplayProvider.Claude);
-        var activityMonitor = new ActivityMonitor(new[] { claudeProvider }, fakeVisibility);
+        var activityMonitor = new ActivityMonitor(visibilityStore: fakeVisibility, providers: new[] { claudeProvider });
 
         Assert(activityMonitor.StateFor(TriggerTool.Claude) == ActivityState.Idle, "Idle before scan");
     }
@@ -117,7 +117,7 @@ public class ProviderPluginTests
         );
 
         var fakeVisibility = new MockVisibilityStore(DisplayProvider.Claude);
-        var costStore = new CostStore(new[] { claudeProvider }, fakeVisibility);
+        var costStore = new CostStore(visibilityStore: fakeVisibility, providers: new[] { claudeProvider });
 
         var summary = costStore.Summary(DisplayProvider.Claude);
         Assert(summary != null, "Summary must not be null");
@@ -171,6 +171,26 @@ public class ProviderPluginTests
             SlotProviders = providers;
         }
 
+        public bool ClaudeShown => ClaudeVisible;
+        public bool CodexShown => CodexVisible;
+        public bool ClaudePanelShown => ClaudeVisible;
+        public bool CodexPanelShown => CodexVisible;
+        public bool AntigravityPanelShown => true;
+        public bool GrokPanelShown => false;
+        public bool CursorPanelShown => false;
+        public bool DeepSeekPanelShown => false;
+        public int GuestPanelCount => 0;
+        public bool IsVisible(TriggerTool tool) => true;
+        public void RedetectGuests() { }
+        public int SelectedCount => SlotProviders.Count;
+        public bool ClaudeDetected => true;
+        public bool CodexDetected => true;
+        public bool AntigravityDetected => true;
+        public bool GrokDetected => false;
+        public bool CursorDetected => false;
+        public bool DeepSeekDetected => false;
+        public bool SetEnabled(DisplayProvider provider, bool enabled) => true;
+        public void MoveProvider(int oldIndex, int newIndex) { }
         public bool IsShown(DisplayProvider provider) => SlotProviders.Contains(provider);
         public bool IsEnabled(DisplayProvider provider) => SlotProviders.Contains(provider);
         public bool Toggle(DisplayProvider provider) => true;

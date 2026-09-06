@@ -16,9 +16,9 @@ public sealed record CostScanResult(
     IReadOnlyList<TokenEvent> Events,
     ProviderCostSummary Summary);
 
-public sealed class CostQueryService
+public sealed class CostQueryService : ICostQueryService
 {
-    public static CostQueryService Shared { get; } = new();
+    private readonly IProviderVisibilityStore _visibilityStore;
 
     private sealed class ProviderState
     {
@@ -30,6 +30,11 @@ public sealed class CostQueryService
     private readonly object _gate = new();
     private readonly Dictionary<DisplayProvider, ProviderState> _states =
         new();
+
+    public CostQueryService(IProviderVisibilityStore visibilityStore)
+    {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+    }
 
     /// Starts or joins the current provider scan. `consumerCancellation` only
     /// cancels the caller's wait; provider invalidation is what cancels the
@@ -51,7 +56,7 @@ public sealed class CostQueryService
             // This check belongs before task creation. ReportPeriods captures
             // Enabled before entering Task.Run, so a toggle in between must
             // never warm a disabled provider's reader/cache.
-            if (!ProviderVisibilityStore.Shared.IsEnabled(provider))
+            if (!_visibilityStore.IsEnabled(provider))
             {
                 return Task.FromException<CostScanResult>(
                     new ProviderDisabledException(provider));
@@ -104,6 +109,16 @@ public sealed class CostQueryService
             provider,
             CostSummarizer.YearHistoryDays(DateTimeOffset.Now),
             DateTimeOffset.Now,
+            consumerCancellation);
+
+    public Task<CostScanResult> ScanCurrentAsync(
+        DisplayProvider provider,
+        DateTimeOffset now,
+        CancellationToken consumerCancellation = default) =>
+        ScanAsync(
+            provider,
+            CostSummarizer.YearHistoryDays(now),
+            now,
             consumerCancellation);
 
     /// Invalidates only one provider. A disabled provider cannot publish its

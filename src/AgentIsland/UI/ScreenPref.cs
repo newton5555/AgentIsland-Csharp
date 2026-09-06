@@ -17,15 +17,13 @@ public sealed class ScreenPref : INotifyPropertyChanged
     private const string Key = "AgentIsland.screen";
     private const string SwipedKey = "AgentIsland.hasSwipedScreen";
 
-    public static ScreenPref Shared { get; } = new();
-
     private IslandScreen _screen;
     private bool _hasSwiped;
     private bool _showCostPage;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private ScreenPref()
+    public ScreenPref()
     {
         var raw = Preferences.Get<string?>(Key);
         _screen = Enum.TryParse<IslandScreen>(raw, ignoreCase: true, out var parsed)

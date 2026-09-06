@@ -17,13 +17,11 @@ public sealed class TokenCountModeStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.tokenCountMode";
 
-    public static TokenCountModeStore Shared { get; } = new();
-
     private TokenCountMode _mode;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private TokenCountModeStore()
+    public TokenCountModeStore()
     {
         var raw = Preferences.Get<string?>(Key);
         _mode = raw == nameof(TokenCountMode.Billable) ? TokenCountMode.Billable : TokenCountMode.All;

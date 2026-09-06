@@ -1,8 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using AgentIsland.Core;
-using AgentIsland.Core.Options;
-using AgentIsland.UI.Providers;
+using AgentIsland.Core.Agents;
+using AgentIsland.Backend.Settings;
 
 namespace AgentIsland.UI;
 
@@ -13,14 +13,17 @@ public enum IslandState
     Expanded,
 }
 
+public enum IslandSpacingMode
+{
+    NotchStyle,
+    CompactStyle,
+}
+
 /// State machine + geometry for the island silhouette. Sizes are the shipped
 /// macOS constants: tab 38, peek pill slot 104 per side, expanded panel 800
 /// wide with 188/244pt content pages.
 public sealed class IslandModel : IIslandModel
 {
-    [Obsolete("Inject IIslandModel via DI instead")]
-    public static IslandModel Shared { get; } = new();
-
     public const double TabWidth = 38;
     public const double PillSlotWidth = 104;
     public const double ExpandedWidth = 800;
@@ -35,21 +38,39 @@ public sealed class IslandModel : IIslandModel
     public const double CompactCornerRadius = 14;
     public const double ExpandedCornerRadius = 14;
 
+    private readonly IProviderVisibilityStore? _visibilityStore;
+    private readonly IslandPositionStore? _positionStore;
+    private readonly AlwaysShowUsageStore? _alwaysShowUsageStore;
+
     private IslandState _state = IslandState.Compact;
     private IslandSpacingMode _spacingMode;
     private double _expandedContentHeight = UsageContentHeight;
 
-    public IslandModel()
+    public IslandModel(
+        IProviderVisibilityStore? visibilityStore = null,
+        IslandPositionStore? positionStore = null,
+        AlwaysShowUsageStore? alwaysShowUsageStore = null)
     {
+        _visibilityStore = visibilityStore;
+        _positionStore = positionStore;
+        _alwaysShowUsageStore = alwaysShowUsageStore;
+
         // Windows displays have no notch, so the macOS Compact/Notched-Mac
         // bar-style choice is gone: the bar is always the wide layout
         // (any previously persisted choice is ignored).
         _spacingMode = IslandSpacingMode.NotchStyle;
+
         // The center gap depends on placement (see NotchWidth); re-emit Size
         // so the silhouette re-measures the moment the mode flips.
-        AgentIsland.Backend.Settings.IslandPositionStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
+        if (_positionStore != null)
+        {
+            _positionStore.PropertyChanged += (_, _) => Raise(nameof(Size));
+        }
         // A provider flip can change the solo split, so the bar reflows live.
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += (_, _) => Raise(nameof(Size));
+        if (_visibilityStore != null)
+        {
+            _visibilityStore.PropertyChanged += (_, _) => Raise(nameof(Size));
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -63,6 +84,7 @@ public sealed class IslandModel : IIslandModel
             _state = value;
             Raise(nameof(State));
             Raise(nameof(Size));
+            Raise(nameof(CornerRadius));
         }
     }
 
@@ -73,20 +95,17 @@ public sealed class IslandModel : IIslandModel
         {
             if (_spacingMode == value) return;
             _spacingMode = value;
-            AgentIsland.Windows.Preferences.Set("AgentIsland.spacingMode", value.ToString());
             Raise(nameof(SpacingMode));
             Raise(nameof(Size));
         }
     }
 
-    /// Height of the expanded content area below the silhouette strip;
-    /// depends on the visible page (usage/cost 188, overview 244 + detail).
     public double ExpandedContentHeight
     {
         get => _expandedContentHeight;
         set
         {
-            if (Math.Abs(_expandedContentHeight - value) < 0.5) return;
+            if (Math.Abs(_expandedContentHeight - value) < 0.001) return;
             _expandedContentHeight = value;
             Raise(nameof(ExpandedContentHeight));
             Raise(nameof(Size));
@@ -101,7 +120,8 @@ public sealed class IslandModel : IIslandModel
     {
         get
         {
-            var slots = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Slots;
+            if (_visibilityStore == null) return null;
+            var slots = _visibilityStore.Slots;
             return slots.Count == 1 ? slots[0].ToTriggerTool() : null;
         }
     }
@@ -111,7 +131,7 @@ public sealed class IslandModel : IIslandModel
     /// Mac menu bar; a floating island has no camera housing to mimic, so it
     /// tightens to a compact spacer.
     public double NotchWidth =>
-        AgentIsland.Backend.Settings.IslandPositionStore.Shared.Placement == AgentIsland.Backend.Settings.IslandPlacement.Floating
+        (_positionStore?.Placement == IslandPlacement.Floating)
             ? 64
             : (_spacingMode == IslandSpacingMode.NotchStyle ? 200 : 100);
 
@@ -119,7 +139,7 @@ public sealed class IslandModel : IIslandModel
     {
         // "Always show usage" keeps the compact bar at peek width so the
         // percentages have their outboard slots even without a hover.
-        IslandState.Compact when AlwaysShowUsageStore.Shared.Enabled =>
+        IslandState.Compact when (_alwaysShowUsageStore?.Enabled ?? false) =>
             new Size(NotchWidth + (TabWidth + PillSlotWidth) * 2, SilhouetteHeight),
         IslandState.Compact => new Size(NotchWidth + TabWidth * 2, SilhouetteHeight),
         IslandState.Peek => new Size(NotchWidth + (TabWidth + PillSlotWidth) * 2, SilhouetteHeight),

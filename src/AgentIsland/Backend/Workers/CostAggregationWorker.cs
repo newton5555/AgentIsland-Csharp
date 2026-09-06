@@ -11,19 +11,26 @@ namespace AgentIsland.Backend.Workers;
 public sealed class CostAggregationWorker : BackgroundService
 {
     private readonly ICostStore _costStore;
+    private readonly RefreshIntervalStore? _refreshIntervalStore;
     private readonly ILogger<CostAggregationWorker>? _logger;
 
     public CostAggregationWorker(
         ICostStore costStore,
+        RefreshIntervalStore? refreshIntervalStore = null,
         ILogger<CostAggregationWorker>? logger = null)
     {
         _costStore = costStore;
+        _refreshIntervalStore = refreshIntervalStore;
         _logger = logger;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
         _logger?.LogInformation("CostAggregationWorker starting.");
+        if (_costStore is CostStore store)
+        {
+            store.DisableInternalTimer = true;
+        }
 
         try
         {
@@ -40,7 +47,7 @@ public sealed class CostAggregationWorker : BackgroundService
 
         while (!stoppingToken.IsCancellationRequested)
         {
-            var intervalSeconds = RefreshIntervalStore.Shared.Seconds;
+            var intervalSeconds = _refreshIntervalStore?.Seconds ?? 300;
             if (intervalSeconds < 10) intervalSeconds = 300;
 
             using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));

@@ -22,7 +22,9 @@ public sealed class TurnAlarmWindow : Window
     public string DeliveryKey { get; }
 
     private readonly TurnAlarmKind _kind;
-    private readonly TurnAlarmSoundLooper _sound = new();
+    private readonly AgentReminderStore _reminderStore;
+    private readonly IAgentReminderCenter? _reminderCenter;
+    private readonly TurnAlarmSoundLooper _sound;
     public event Action<TurnAlarmWindow>? Dismissed;
 
     private System.Windows.Controls.Button? _openButton;
@@ -35,8 +37,13 @@ public sealed class TurnAlarmWindow : Window
         TriggerTool provider,
         ActivityMonitor.ActiveThread? thread,
         string deliveryKey,
-        TurnAlarmKind? kind = null)
+        TurnAlarmKind? kind = null,
+        AgentReminderStore? reminderStore = null,
+        IAgentReminderCenter? reminderCenter = null)
     {
+        _reminderStore = reminderStore ?? (App.Instance?.Services?.GetService(typeof(AgentReminderStore)) as AgentReminderStore) ?? new AgentReminderStore();
+        _reminderCenter = reminderCenter ?? (App.Instance?.Services?.GetService(typeof(IAgentReminderCenter)) as IAgentReminderCenter);
+        _sound = new TurnAlarmSoundLooper(_reminderStore);
         Provider = provider;
         Thread = thread;
         DeliveryKey = deliveryKey;
@@ -162,7 +169,7 @@ public sealed class TurnAlarmWindow : Window
             Margin = new Thickness(0, 8, 0, 0),
         });
 
-        if (!IsExhausted && AgentReminderStore.Shared.ShowSessionDetails && Thread is { } thread)
+        if (!IsExhausted && _reminderStore.ShowSessionDetails && Thread is { } thread)
         {
             stack.Children.Add(BuildMetadata(thread, tint));
         }
@@ -644,7 +651,7 @@ public sealed class TurnAlarmWindow : Window
         // alarm has no thread turn to mark as seen.
         if (_kind is TurnAlarmKind.YourTurn)
         {
-            AgentReminderCenter.Shared.Acknowledge(Provider, Thread);
+            _reminderCenter?.Acknowledge(Provider, Thread);
         }
         DismissSilently();
     }

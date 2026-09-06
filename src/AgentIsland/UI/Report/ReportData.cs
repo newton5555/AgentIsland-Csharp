@@ -33,16 +33,20 @@ public sealed record WeeklyReportData(
     double OmittedPercent = 0,
     bool IsAllTokens = true)
 {
-    public static WeeklyReportData Current()
+    public static WeeklyReportData Current(
+        ICostStore? costStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null,
+        ICostQueryService? costQueryService = null)
     {
-        var cost = CostStore.Shared;
+        var cost = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore);
         // Anchor the 7-day window to the freshest SCANNED day, not the wall
         // clock (macOS): right after launch the store can still hold
         // yesterday's snapshot, and a wall-clock window shears against the
         // scan-anchored model rows.
-        var anchor = ReportPeriods.ScanAnchor();
+        var anchor = ReportPeriods.ScanAnchor(cost);
         var days = Enumerable.Range(0, 7).Reverse().Select(offset => anchor.AddDays(-offset)).ToArray();
-        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
 
         long BucketTotal(IReadOnlyList<DailyTokenBucket> buckets, DateTime day) =>
             buckets.FirstOrDefault(b => b.DayStart.Date == day) is { } bucket
@@ -50,9 +54,9 @@ public sealed record WeeklyReportData(
                 : 0;
 
         long WeekTokens(AgentIsland.UI.Providers.DisplayProvider provider) =>
-            days.Sum(d => BucketTotal(cost.Summary(provider).DailyHistory, d));
+            days.Sum(d => BucketTotal(cost?.Summary(provider).DailyHistory ?? Array.Empty<DailyTokenBucket>(), d));
 
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
 
         // Every provider that ran from user's enabled targets
         var providers = targets
@@ -62,19 +66,19 @@ public sealed record WeeklyReportData(
             .ToList();
 
         var daily = days
-            .Select(d => targets.Sum(p => BucketTotal(cost.Summary(p).DailyHistory, d)))
+            .Select(d => targets.Sum(p => BucketTotal(cost?.Summary(p).DailyHistory ?? Array.Empty<DailyTokenBucket>(), d)))
             .ToArray();
         var total = providers.Sum(slice => slice.Tokens);
         // Tokens-but-no-dollars providers (Cursor) carry $0 rows, so they add
         // nothing to the dollar total on their own; the "≈" hero copy keeps it
         // an estimate.
-        var dollars = targets.Sum(p => cost.Summary(p).WeeklyModels.Sum(m => m.Dollars));
+        var dollars = targets.Sum(p => cost?.Summary(p).WeeklyModels.Sum(m => m.Dollars) ?? 0.0);
 
         // The card follows the app language — a card destined for WeChat
         // groups must read Chinese when the UI is Chinese.
         var range = FormatRange(days[0], anchor);
         var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
-            ReportFormat.ProviderModels(cost, targets, s => s.WeeklyModels), top: 3);
+            cost != null ? ReportFormat.ProviderModels(cost, targets, s => s.WeeklyModels) : Array.Empty<(AgentIsland.UI.Providers.DisplayProvider, ModelSpend)>(), top: 3, tokenModeStore: tokenModeStore);
 
         return new WeeklyReportData(
             range,
@@ -96,16 +100,18 @@ public sealed record WeeklyReportData(
     /// sits on a single consistent window by construction.
     public static WeeklyReportData ForInterval(
         DateTime start, DateTime endExclusive,
-        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices)
+        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null)
     {
-        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
         var firstDay = start.Date;
         var days = Enumerable.Range(0, 7).Select(offset => firstDay.AddDays(offset)).ToArray();
 
         long BucketValue(DailyTokenBucket bucket) =>
             mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
 
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
         ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
@@ -129,7 +135,7 @@ public sealed record WeeklyReportData(
         var lastDay = days[^1];
         var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
             targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
-            top: 3);
+            top: 3, tokenModeStore: tokenModeStore);
 
         return new WeeklyReportData(
             FormatRange(firstDay, lastDay),
@@ -172,26 +178,29 @@ public sealed record MonthlyReportData(
     double OmittedPercent = 0,
     bool IsAllTokens = true)
 {
-    public static MonthlyReportData Current()
+    public static MonthlyReportData Current(
+        ICostStore? costStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null)
     {
-        var cost = CostStore.Shared;
+        var cost = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore);
         var today = DateTime.Today;
         var zh = ReportFormat.IsChinese;
 
-        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
         var providers = targets
             .Select(provider => new ProviderPeriodSlice(provider, mode == AgentIsland.Backend.Settings.TokenCountMode.All
-                ? cost.Summary(provider).MonthTokens
-                : cost.Summary(provider).MonthBillableTokens))
+                ? cost?.Summary(provider).MonthTokens ?? 0
+                : cost?.Summary(provider).MonthBillableTokens ?? 0))
             .Where(slice => slice.Tokens > 0)
             .OrderByDescending(slice => slice.Tokens)
             .ToList();
         var totalTokens = providers.Sum(slice => slice.Tokens);
-        var totalDollars = targets.Sum(p => cost.Summary(p).MonthDollars);
+        var totalDollars = targets.Sum(p => cost?.Summary(p).MonthDollars ?? 0.0);
 
         var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
-            ReportFormat.ProviderModels(cost, targets, s => s.MonthModels), top: 5);
+            cost != null ? ReportFormat.ProviderModels(cost, targets, s => s.MonthModels) : Array.Empty<(AgentIsland.UI.Providers.DisplayProvider, ModelSpend)>(), top: 5, tokenModeStore: tokenModeStore);
 
         return new MonthlyReportData(
             zh ? $"{today:yyyy年M月}" : today.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
@@ -209,10 +218,12 @@ public sealed record MonthlyReportData(
     /// full-scan slice.
     public static MonthlyReportData ForInterval(
         DateTime start,
-        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices)
+        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null)
     {
         var zh = ReportFormat.IsChinese;
-        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
 
         long BucketValue(DailyTokenBucket bucket) =>
             mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
@@ -220,7 +231,7 @@ public sealed record MonthlyReportData(
         ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
-        var targets = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled;
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
         var providers = targets
             .Select(provider => new ProviderPeriodSlice(
                 provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
@@ -232,7 +243,7 @@ public sealed record MonthlyReportData(
 
         var (topModels, omittedCount, omittedPercent) = ReportFormat.BuildTopModelsDetailed(
             targets.SelectMany(p => SliceOf(p).ByModel.Select(spend => (p, spend))),
-            top: 5);
+            top: 5, tokenModeStore: tokenModeStore);
 
         return new MonthlyReportData(
             zh ? $"{start:yyyy年M月}" : start.ToString("MMMM yyyy", CultureInfo.InvariantCulture),
@@ -253,7 +264,7 @@ public static class ReportFormat
 
     /// Model list filtered by specified active providers.
     public static IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
-        CostStore cost, IEnumerable<AgentIsland.UI.Providers.DisplayProvider> providers, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select)
+        ICostStore cost, IEnumerable<AgentIsland.UI.Providers.DisplayProvider> providers, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select)
     {
         foreach (var provider in providers)
         {
@@ -265,7 +276,7 @@ public static class ReportFormat
     }
 
     public static IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> ProviderModels(
-        CostStore cost, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select) =>
+        ICostStore cost, Func<ProviderCostSummary, IReadOnlyList<ModelSpend>> select) =>
         ProviderModels(cost, AgentIsland.UI.Providers.DisplayProviders.All, select);
 
     /// Rank models by TOKEN share — the one metric every provider defines
@@ -279,15 +290,17 @@ public static class ReportFormat
     /// brand accent; the dollar figure still rides each row where the provider
     /// can be priced, and reads "—" where it cannot.
     public static IReadOnlyList<ModelShare> BuildTopModels(
-        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top) =>
-        BuildTopModelsDetailed(spend, top).TopModels;
+        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top,
+        TokenCountModeStore? tokenModeStore = null) =>
+        BuildTopModelsDetailed(spend, top, tokenModeStore).TopModels;
 
     public static (IReadOnlyList<ModelShare> TopModels, int OmittedCount, double OmittedPercent) BuildTopModelsDetailed(
-        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top)
+        IEnumerable<(AgentIsland.UI.Providers.DisplayProvider Provider, ModelSpend Spend)> spend, int top,
+        TokenCountModeStore? tokenModeStore = null)
     {
         // Token counting follows the user's mode, same as the hero total
         // (macOS rankedModels) — one accounting for the whole card.
-        var mode = AgentIsland.Backend.Settings.TokenCountModeStore.Shared.Mode;
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
         long TokenOf(ModelSpend s) => mode == AgentIsland.Backend.Settings.TokenCountMode.All ? s.Tokens : s.BillableTokens;
         var all = spend.ToList();
         var tokenUniverse = Math.Max(1, all.Sum(m => TokenOf(m.Spend)));

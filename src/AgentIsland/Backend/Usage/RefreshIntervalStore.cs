@@ -14,13 +14,11 @@ public sealed class RefreshIntervalStore : INotifyPropertyChanged
     /// and Shared's constructor reads this array.
     public static readonly int[] Presets = { 300, 900, 1800 };
 
-    public static RefreshIntervalStore Shared { get; } = new();
-
     private int _seconds;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private RefreshIntervalStore()
+    public RefreshIntervalStore()
     {
         var saved = Preferences.Get<int?>(Key) ?? 300;
         _seconds = Presets.Contains(saved) ? saved : 300;

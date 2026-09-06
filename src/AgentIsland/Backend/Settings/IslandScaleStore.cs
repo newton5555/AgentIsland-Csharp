@@ -11,13 +11,11 @@ public sealed class IslandScaleStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.interfaceScale";
 
-    public static IslandScaleStore Shared { get; } = new();
-
     private double _scale;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private IslandScaleStore()
+    public IslandScaleStore()
     {
         _scale = Clamp(Preferences.Get<double?>(Key) ?? 1.0);
     }

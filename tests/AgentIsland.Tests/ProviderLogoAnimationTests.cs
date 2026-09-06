@@ -52,7 +52,7 @@ public class ProviderLogoAnimationTests
 
     private static void RunInternal()
     {
-        if (Application.Current is null) _ = new Application();
+        WpfTestEnvironment.EnsureInitialized();
         TestAntigravityWorkingDoesNotSpin();
         TestAntigravityWorkingActivatesWave();
         TestDeepSeekWorkingActivatesSwim();
@@ -281,242 +281,207 @@ public class ProviderLogoAnimationTests
 
     private static void TestAntigravityOldNeedsYouWithNewWorkingAggregatesToWorkingAndStartsWave()
     {
-        var prevReminder = AgentReminderStore.Shared.Enabled;
-        try
+        var monitor = new ActivityMonitor();
+        var now = DateTimeOffset.UtcNow;
+        var sessions = new List<ScannedSession>
         {
-            // Setup: Reminders disabled (AgentIsland.agentReminders=false)
-            AgentReminderStore.Shared.Enabled = false;
+            // Old Antigravity session waiting on user (unacknowledged)
+            new(
+                TriggerTool.Antigravity,
+                "session-old-needsyou",
+                @"C:\work\project-old",
+                "Old AGY Task",
+                now.AddMinutes(-10),
+                ActivityState.NeedsYou,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\old-1\.system_generated\logs\transcript_full.jsonl",
+                "ag:10",
+                SessionLaunchTarget.Cli),
+            // New Antigravity session actively working
+            new(
+                TriggerTool.Antigravity,
+                "session-new-working",
+                @"C:\work\project-new",
+                "New AGY Task",
+                now.AddSeconds(-2),
+                ActivityState.Working,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\new-2\.system_generated\logs\transcript_full.jsonl",
+                "ag:20",
+                SessionLaunchTarget.Cli),
+        };
 
-            var now = DateTimeOffset.UtcNow;
-            var sessions = new List<ScannedSession>
-            {
-                // Old Antigravity session waiting on user (unacknowledged)
-                new(
-                    TriggerTool.Antigravity,
-                    "session-old-needsyou",
-                    @"C:\work\project-old",
-                    "Old AGY Task",
-                    now.AddMinutes(-10),
-                    ActivityState.NeedsYou,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\old-1\.system_generated\logs\transcript_full.jsonl",
-                    "ag:10",
-                    SessionLaunchTarget.Cli),
-                // New Antigravity session actively working
-                new(
-                    TriggerTool.Antigravity,
-                    "session-new-working",
-                    @"C:\work\project-new",
-                    "New AGY Task",
-                    now.AddSeconds(-2),
-                    ActivityState.Working,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\new-2\.system_generated\logs\transcript_full.jsonl",
-                    "ag:20",
-                    SessionLaunchTarget.Cli),
-            };
+        monitor.Apply(sessions, now);
 
-            ActivityMonitor.Shared.Apply(sessions, now);
+        var agyState = monitor.StateFor(TriggerTool.Antigravity);
+        Expect(agyState == ActivityState.Working, $"Antigravity state must be Working when a working sibling exists, got {agyState}");
 
-            var agyState = ActivityMonitor.Shared.StateFor(TriggerTool.Antigravity);
-            Expect(agyState == ActivityState.Working, $"Antigravity state must be Working when a working sibling exists, got {agyState}");
+        var logo = new ProviderLogo { Tool = TriggerTool.Antigravity };
+        logo.SetState(agyState);
 
-            var logo = new ProviderLogo { Tool = TriggerTool.Antigravity };
-            logo.SetState(agyState);
+        Expect(logo.IsAntigravityWaveActive, "AGY logo must activate four-color wave when aggregated state is Working");
+        Expect(logo.AntigravityWaveVisibility == Visibility.Visible, "AGY wave host must be visible");
+        Expect(logo.AntigravityStaticVisibility == Visibility.Collapsed, "AGY static face must be collapsed");
+        Expect(!logo.IsSpinActive, "AGY logo must not spin");
 
-            Expect(logo.IsAntigravityWaveActive, "AGY logo must activate four-color wave when aggregated state is Working");
-            Expect(logo.AntigravityWaveVisibility == Visibility.Visible, "AGY wave host must be visible");
-            Expect(logo.AntigravityStaticVisibility == Visibility.Collapsed, "AGY static face must be collapsed");
-            Expect(!logo.IsSpinActive, "AGY logo must not spin");
-
-            Console.WriteLine("PASS antigravity old needsyou + new working aggregates to working and activates wave");
-        }
-        finally
-        {
-            AgentReminderStore.Shared.Enabled = prevReminder;
-        }
+        Console.WriteLine("PASS antigravity old needsyou + new working aggregates to working and activates wave");
     }
 
     private static void TestAntigravityOnlyNeedsYouRemainsStationaryAndPreservesReminders()
     {
-        var prevReminder = AgentReminderStore.Shared.Enabled;
-        try
+        var monitor = new ActivityMonitor();
+        var now = DateTimeOffset.UtcNow;
+        var sessions = new List<ScannedSession>
         {
-            AgentReminderStore.Shared.Enabled = false;
+            new(
+                TriggerTool.Antigravity,
+                "session-old-needsyou",
+                @"C:\work\project-old",
+                "Old AGY Task",
+                now.AddMinutes(-5),
+                ActivityState.NeedsYou,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\old-1\.system_generated\logs\transcript_full.jsonl",
+                "ag:10",
+                SessionLaunchTarget.Cli),
+            new(
+                TriggerTool.Antigravity,
+                "session-idle",
+                @"C:\work\project-idle",
+                "Idle AGY Task",
+                now.AddHours(-1),
+                ActivityState.Idle,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\idle-1\.system_generated\logs\transcript_full.jsonl",
+                null,
+                SessionLaunchTarget.Cli),
+        };
 
-            var now = DateTimeOffset.UtcNow;
-            var sessions = new List<ScannedSession>
-            {
-                new(
-                    TriggerTool.Antigravity,
-                    "session-old-needsyou",
-                    @"C:\work\project-old",
-                    "Old AGY Task",
-                    now.AddMinutes(-5),
-                    ActivityState.NeedsYou,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\old-1\.system_generated\logs\transcript_full.jsonl",
-                    "ag:10",
-                    SessionLaunchTarget.Cli),
-                new(
-                    TriggerTool.Antigravity,
-                    "session-idle",
-                    @"C:\work\project-idle",
-                    "Idle AGY Task",
-                    now.AddHours(-1),
-                    ActivityState.Idle,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\idle-1\.system_generated\logs\transcript_full.jsonl",
-                    null,
-                    SessionLaunchTarget.Cli),
-            };
+        monitor.Apply(sessions, now);
 
-            ActivityMonitor.Shared.Apply(sessions, now);
+        var agyState = monitor.StateFor(TriggerTool.Antigravity);
+        Expect(agyState == ActivityState.NeedsYou, $"Antigravity state must be NeedsYou when only needsyou sessions exist, got {agyState}");
 
-            var agyState = ActivityMonitor.Shared.StateFor(TriggerTool.Antigravity);
-            Expect(agyState == ActivityState.NeedsYou, $"Antigravity state must be NeedsYou when only needsyou sessions exist, got {agyState}");
+        var logo = new ProviderLogo { Tool = TriggerTool.Antigravity };
+        logo.SetState(agyState);
 
-            var logo = new ProviderLogo { Tool = TriggerTool.Antigravity };
-            logo.SetState(agyState);
+        Expect(!logo.IsAntigravityWaveActive, "AGY logo must NOT activate wave when in NeedsYou state");
+        Expect(logo.AntigravityWaveVisibility == Visibility.Collapsed, "AGY wave host must be collapsed in NeedsYou");
+        Expect(logo.AntigravityStaticVisibility == Visibility.Visible, "AGY static face must be visible in NeedsYou");
+        Expect(!logo.IsSpinActive, "AGY logo must not spin in NeedsYou");
 
-            Expect(!logo.IsAntigravityWaveActive, "AGY logo must NOT activate wave when in NeedsYou state");
-            Expect(logo.AntigravityWaveVisibility == Visibility.Collapsed, "AGY wave host must be collapsed in NeedsYou");
-            Expect(logo.AntigravityStaticVisibility == Visibility.Visible, "AGY static face must be visible in NeedsYou");
-            Expect(!logo.IsSpinActive, "AGY logo must not spin in NeedsYou");
-
-            Console.WriteLine("PASS antigravity with only needsyou remains stationary without wave");
-        }
-        finally
-        {
-            AgentReminderStore.Shared.Enabled = prevReminder;
-        }
+        Console.WriteLine("PASS antigravity with only needsyou remains stationary without wave");
     }
 
     private static void TestFollowModelDualActivePipelineWithRemindersDisabled()
     {
-        // Replicate user environment:
-        // visualMode: follow_model
-        // lowPowerMode: false (EffectiveEnabled = false)
-        // agentReminders: false
-        var prevMode = LowPowerModeStore.Shared.Mode;
-        var prevReminder = AgentReminderStore.Shared.Enabled;
-        try
+        var monitor = new ActivityMonitor();
+        var now = DateTimeOffset.UtcNow;
+        var sessions = new List<ScannedSession>
         {
-            LowPowerModeStore.Shared.Mode = VisualMode.FollowModel;
-            AgentReminderStore.Shared.Enabled = false;
+            new(
+                TriggerTool.Codex,
+                "session-codex-work",
+                @"C:\work\codex-repo",
+                "Codex Task",
+                now.AddSeconds(-2),
+                ActivityState.Working,
+                @"C:\Users\newto\.codex\sessions\1.jsonl",
+                "cdx:1",
+                SessionLaunchTarget.Cli),
+            new(
+                TriggerTool.Antigravity,
+                "session-agy-old-needsyou",
+                @"C:\work\agy-repo",
+                "AGY Old Finished Turn",
+                now.AddMinutes(-30),
+                ActivityState.NeedsYou,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\old\.system_generated\logs\transcript_full.jsonl",
+                "ag:1",
+                SessionLaunchTarget.Cli),
+            new(
+                TriggerTool.Antigravity,
+                "session-agy-new-working",
+                @"C:\work\agy-repo",
+                "AGY Active Run",
+                now.AddSeconds(-1),
+                ActivityState.Working,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\current\.system_generated\logs\transcript_full.jsonl",
+                "ag:2",
+                SessionLaunchTarget.Cli),
+        };
 
-            var now = DateTimeOffset.UtcNow;
-            var sessions = new List<ScannedSession>
-            {
-                new(
-                    TriggerTool.Codex,
-                    "session-codex-work",
-                    @"C:\work\codex-repo",
-                    "Codex Task",
-                    now.AddSeconds(-2),
-                    ActivityState.Working,
-                    @"C:\Users\newto\.codex\sessions\1.jsonl",
-                    "cdx:1",
-                    SessionLaunchTarget.Cli),
-                new(
-                    TriggerTool.Antigravity,
-                    "session-agy-old-needsyou",
-                    @"C:\work\agy-repo",
-                    "AGY Old Finished Turn",
-                    now.AddMinutes(-30),
-                    ActivityState.NeedsYou,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\old\.system_generated\logs\transcript_full.jsonl",
-                    "ag:1",
-                    SessionLaunchTarget.Cli),
-                new(
-                    TriggerTool.Antigravity,
-                    "session-agy-new-working",
-                    @"C:\work\agy-repo",
-                    "AGY Active Run",
-                    now.AddSeconds(-1),
-                    ActivityState.Working,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\current\.system_generated\logs\transcript_full.jsonl",
-                    "ag:2",
-                    SessionLaunchTarget.Cli),
-            };
+        monitor.Apply(sessions, now);
 
-            ActivityMonitor.Shared.Apply(sessions, now);
+        var codexState = monitor.StateFor(TriggerTool.Codex);
+        var agyState = monitor.StateFor(TriggerTool.Antigravity);
 
-            var codexState = ActivityMonitor.Shared.StateFor(TriggerTool.Codex);
-            var agyState = ActivityMonitor.Shared.StateFor(TriggerTool.Antigravity);
+        Expect(codexState == ActivityState.Working, $"Codex must be Working, got {codexState}");
+        Expect(agyState == ActivityState.Working, $"Antigravity must be Working, got {agyState}");
 
-            Expect(codexState == ActivityState.Working, $"Codex must be Working, got {codexState}");
-            Expect(agyState == ActivityState.Working, $"Antigravity must be Working, got {agyState}");
+        var leftLogo = new ProviderLogo { Tool = TriggerTool.Codex };
+        var rightLogo = new ProviderLogo { Tool = TriggerTool.Antigravity };
 
-            var leftLogo = new ProviderLogo { Tool = TriggerTool.Codex };
-            var rightLogo = new ProviderLogo { Tool = TriggerTool.Antigravity };
+        leftLogo.SetState(codexState);
+        rightLogo.SetState(agyState);
 
-            leftLogo.SetState(codexState);
-            rightLogo.SetState(agyState);
+        // Left logo (Codex): spinning 360, no wave
+        Expect(leftLogo.IsSpinActive, "Codex logo must be spinning while Working");
+        Expect(!leftLogo.IsAntigravityWaveActive, "Codex logo must not have wave active");
 
-            // Left logo (Codex): spinning 360, no wave
-            Expect(leftLogo.IsSpinActive, "Codex logo must be spinning while Working");
-            Expect(!leftLogo.IsAntigravityWaveActive, "Codex logo must not have wave active");
+        // Right logo (Antigravity): four-color wave active, no spin
+        Expect(rightLogo.IsAntigravityWaveActive, "Antigravity logo must have four-color wave active while Working");
+        Expect(!rightLogo.IsSpinActive, "Antigravity logo must NOT spin");
+        Expect(rightLogo.AntigravityWaveVisibility == Visibility.Visible, "AGY wave host must be visible");
+        Expect(rightLogo.AntigravityStaticVisibility == Visibility.Collapsed, "AGY static face must be collapsed");
 
-            // Right logo (Antigravity): four-color wave active, no spin
-            Expect(rightLogo.IsAntigravityWaveActive, "Antigravity logo must have four-color wave active while Working");
-            Expect(!rightLogo.IsSpinActive, "Antigravity logo must NOT spin");
-            Expect(rightLogo.AntigravityWaveVisibility == Visibility.Visible, "AGY wave host must be visible");
-            Expect(rightLogo.AntigravityStaticVisibility == Visibility.Collapsed, "AGY static face must be collapsed");
-
-            // Now simulate Antigravity turn completing into NeedsYou while Codex is still working
-            var sessionsAfter = new List<ScannedSession>
-            {
-                new(
-                    TriggerTool.Codex,
-                    "session-codex-work",
-                    @"C:\work\codex-repo",
-                    "Codex Task",
-                    now.AddSeconds(1),
-                    ActivityState.Working,
-                    @"C:\Users\newto\.codex\sessions\1.jsonl",
-                    "cdx:1",
-                    SessionLaunchTarget.Cli),
-                new(
-                    TriggerTool.Antigravity,
-                    "session-agy-old-needsyou",
-                    @"C:\work\agy-repo",
-                    "AGY Old Finished Turn",
-                    now.AddMinutes(-30),
-                    ActivityState.NeedsYou,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\old\.system_generated\logs\transcript_full.jsonl",
-                    "ag:1",
-                    SessionLaunchTarget.Cli),
-                new(
-                    TriggerTool.Antigravity,
-                    "session-agy-new-working",
-                    @"C:\work\agy-repo",
-                    "AGY Active Run",
-                    now.AddSeconds(2),
-                    ActivityState.NeedsYou,
-                    @"C:\Users\newto\.gemini\antigravity-cli\brain\current\.system_generated\logs\transcript_full.jsonl",
-                    "ag:2",
-                    SessionLaunchTarget.Cli),
-            };
-
-            ActivityMonitor.Shared.Apply(sessionsAfter, now.AddSeconds(2));
-
-            var codexStateAfter = ActivityMonitor.Shared.StateFor(TriggerTool.Codex);
-            var agyStateAfter = ActivityMonitor.Shared.StateFor(TriggerTool.Antigravity);
-
-            Expect(codexStateAfter == ActivityState.Working, "Codex remains Working");
-            Expect(agyStateAfter == ActivityState.NeedsYou, "Antigravity transitions to NeedsYou");
-
-            leftLogo.SetState(codexStateAfter);
-            rightLogo.SetState(agyStateAfter);
-
-            Expect(leftLogo.IsSpinActive, "Codex logo continues spinning");
-            Expect(!rightLogo.IsAntigravityWaveActive, "Antigravity wave stops on NeedsYou transition");
-            Expect(rightLogo.AntigravityStaticVisibility == Visibility.Visible, "Antigravity static face restored");
-
-            Console.WriteLine("PASS follow model pipeline with dual active and reminders off routes working and wave correctly");
-        }
-        finally
+        // Now simulate Antigravity turn completing into NeedsYou while Codex is still working
+        var sessionsAfter = new List<ScannedSession>
         {
-            LowPowerModeStore.Shared.Mode = prevMode;
-            AgentReminderStore.Shared.Enabled = prevReminder;
-        }
+            new(
+                TriggerTool.Codex,
+                "session-codex-work",
+                @"C:\work\codex-repo",
+                "Codex Task",
+                now.AddSeconds(1),
+                ActivityState.Working,
+                @"C:\Users\newto\.codex\sessions\1.jsonl",
+                "cdx:1",
+                SessionLaunchTarget.Cli),
+            new(
+                TriggerTool.Antigravity,
+                "session-agy-old-needsyou",
+                @"C:\work\agy-repo",
+                "AGY Old Finished Turn",
+                now.AddMinutes(-30),
+                ActivityState.NeedsYou,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\old\.system_generated\logs\transcript_full.jsonl",
+                "ag:1",
+                SessionLaunchTarget.Cli),
+            new(
+                TriggerTool.Antigravity,
+                "session-agy-new-working",
+                @"C:\work\agy-repo",
+                "AGY Active Run",
+                now.AddSeconds(2),
+                ActivityState.NeedsYou,
+                @"C:\Users\newto\.gemini\antigravity-cli\brain\current\.system_generated\logs\transcript_full.jsonl",
+                "ag:2",
+                SessionLaunchTarget.Cli),
+        };
+
+        monitor.Apply(sessionsAfter, now.AddSeconds(2));
+
+        var codexStateAfter = monitor.StateFor(TriggerTool.Codex);
+        var agyStateAfter = monitor.StateFor(TriggerTool.Antigravity);
+
+        Expect(codexStateAfter == ActivityState.Working, "Codex remains Working");
+        Expect(agyStateAfter == ActivityState.NeedsYou, "Antigravity transitions to NeedsYou");
+
+        leftLogo.SetState(codexStateAfter);
+        rightLogo.SetState(agyStateAfter);
+
+        Expect(leftLogo.IsSpinActive, "Codex logo continues spinning");
+        Expect(!rightLogo.IsAntigravityWaveActive, "Antigravity wave stops on NeedsYou transition");
+        Expect(rightLogo.AntigravityStaticVisibility == Visibility.Visible, "Antigravity static face restored");
+
+        Console.WriteLine("PASS follow model pipeline with dual active and reminders off routes working and wave correctly");
     }
 
     private static void TestFollowModelPalettesCoverEveryProvider()
@@ -619,7 +584,7 @@ public class ProviderLogoAnimationTests
 
     private static void TestFollowModelSweepPaletteSelectionRules()
     {
-        var glow = GlowColorStore.Shared.Color;
+        var glow = new GlowColorStore().Color;
         var agyPalette = ProviderIdentity.StreamPalette(TriggerTool.Antigravity);
         var codexPalette = ProviderIdentity.StreamPalette(TriggerTool.Codex);
         var claudePalette = ProviderIdentity.StreamPalette(TriggerTool.Claude);

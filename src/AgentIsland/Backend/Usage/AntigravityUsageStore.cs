@@ -12,13 +12,14 @@ namespace AgentIsland.Backend.Usage;
 /// UsageStore.Refresh()'s cadence via KickRefresh() behind a 120s attempt
 /// floor, with a Preferences snapshot cache so relaunch (or Antigravity not
 /// running, the only time its quota is unreadable) doesn't blank the strip.
-public sealed class AntigravityUsageStore : INotifyPropertyChanged
+public sealed class AntigravityUsageStore : IAntigravityUsageStore
 {
-    public static AntigravityUsageStore Shared { get; } = new();
-
     private const string CacheKey = "AntigravityUsageStore.lastSnapshot.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromDays(8);
     private static readonly TimeSpan MinAttemptGap = TimeSpan.FromSeconds(120);
+
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _dispatcher;
 
     private AntigravityQuotaSnapshot? _snapshot;
     private string? _statusCaption;
@@ -34,8 +35,13 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
     /// Detection is launch-static, same as the other providers.
     public bool Detected { get; }
 
-    private AntigravityUsageStore()
+    public AntigravityUsageStore(
+        IProviderVisibilityStore visibilityStore,
+        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null)
     {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _dispatcher = dispatcher;
+
         if (AppEnvironment.IsDemo)
         {
             if (!DemoGuestFixturesEnabled)
@@ -120,7 +126,7 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
     {
         if (AppEnvironment.IsDemo) return;
         if (!Detected) return;
-        if (!ProviderVisibilityStore.Shared.AntigravityPanelShown) return;
+        if (!_visibilityStore.AntigravityPanelShown) return;
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
@@ -130,17 +136,19 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
         var generation = ++_refreshGeneration;
         var cts = new CancellationTokenSource();
         _refreshCts = cts;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        var dispatcher = _dispatcher != null
+            ? (Action<Action>)(act => _dispatcher.BeginInvoke(act))
+            : (Action<Action>)(act => (System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher).BeginInvoke(act));
         _ = Task.Run(async () =>
         {
             try
             {
                 var outcome = await AntigravityUsageFetcher.Fetch(cts.Token);
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
-                await dispatcher.BeginInvoke(() =>
+                dispatcher(() =>
                 {
                     if (cts.IsCancellationRequested || generation != _refreshGeneration
-                        || !ProviderVisibilityStore.Shared.AntigravityPanelShown) return;
+                        || !_visibilityStore.AntigravityPanelShown) return;
                     Apply(outcome);
                 });
             }
@@ -149,10 +157,10 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
                 try
                 {
-                    await dispatcher.BeginInvoke(() =>
+                    dispatcher(() =>
                     {
                         if (generation != _refreshGeneration
-                            || !ProviderVisibilityStore.Shared.AntigravityPanelShown) return;
+                            || !_visibilityStore.AntigravityPanelShown) return;
                         Apply(new AntigravityUsageFetcher.Outcome.Failed(error.Message));
                     });
                 }
@@ -165,7 +173,7 @@ public sealed class AntigravityUsageStore : INotifyPropertyChanged
                     _refreshCts = null;
                     if (generation == _refreshGeneration)
                     {
-                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                        try { dispatcher(() => Loading = false); } catch { }
                     }
                 }
                 cts.Dispose();

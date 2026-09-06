@@ -29,7 +29,7 @@ namespace AgentIsland;
 
 public partial class App : System.Windows.Application
 {
-    public static App Instance => (App)Current;
+    public static App? Instance => Current as App;
 
     public IHost Host { get; }
     public IServiceProvider Services => Host.Services;
@@ -62,7 +62,7 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<AlertOptions>>(sp => sp.GetRequiredService<SettingsManager>().AlertMonitor);
                 services.AddSingleton<Microsoft.Extensions.Options.IOptionsMonitor<ProviderVisibilityOptions>>(sp => sp.GetRequiredService<SettingsManager>().ProviderVisibilityMonitor);
                 services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
-                services.AddSingleton<INetworkConnectivityService>(SystemNetworkConnectivityService.Shared);
+                services.AddSingleton<INetworkConnectivityService, SystemNetworkConnectivityService>();
                 services.AddTransient<OfflineFastFailHandler>();
                 services.AddHttpClient();
                 services.AddHttpClient(AgentIsland.Backend.Usage.Http.ResilientClientName)
@@ -85,22 +85,76 @@ public partial class App : System.Windows.Application
 
                 services.AddAgentProviders();
 
-                services.AddSingleton<IProviderVisibilityStore, ProviderVisibilityStore>();
-                services.AddSingleton<IUsageStore, UsageStore>();
-                services.AddSingleton<ICostStore, CostStore>();
-                services.AddSingleton<IActivityMonitor, ActivityMonitor>();
-                services.AddSingleton<IIslandModel, IslandModel>();
-                services.AddSingleton<IUpdateChecker, UpdateChecker>();
+                // UI & Settings Stores
+                services.AddSingleton<IslandModel>();
+                services.AddSingleton<IIslandModel>(sp => sp.GetRequiredService<IslandModel>());
+                services.AddSingleton<ScreenPref>();
+                services.AddSingleton<IslandPositionStore>();
+                services.AddSingleton<IslandTargetDisplayStore>();
+                services.AddSingleton<IslandScaleStore>();
+                services.AddSingleton<LowPowerModeStore>();
+                services.AddSingleton<GlowColorStore>();
+                services.AddSingleton<QuotaDisplayModeStore>();
+                services.AddSingleton<AlwaysShowUsageStore>();
+                services.AddSingleton<StylePreferenceStore>();
+                services.AddSingleton<CostStylePreferenceStore>();
+                services.AddSingleton<TokenCountModeStore>();
+                services.AddSingleton<AlertThresholdStore>();
+                services.AddSingleton<RefreshIntervalStore>();
+                services.AddSingleton<AgentReminderStore>();
+                services.AddSingleton<QuotaAlarmStore>();
+
+                // Domain & Usage Stores
+                services.AddSingleton<ProviderVisibilityStore>();
+                services.AddSingleton<IProviderVisibilityStore>(sp => sp.GetRequiredService<ProviderVisibilityStore>());
+
+                services.AddSingleton<GrokUsageStore>();
+                services.AddSingleton<IGrokUsageStore>(sp => sp.GetRequiredService<GrokUsageStore>());
+
+                services.AddSingleton<CursorUsageStore>();
+                services.AddSingleton<ICursorUsageStore>(sp => sp.GetRequiredService<CursorUsageStore>());
+
+                services.AddSingleton<AntigravityUsageStore>();
+                services.AddSingleton<IAntigravityUsageStore>(sp => sp.GetRequiredService<AntigravityUsageStore>());
+
+                services.AddSingleton<DeepSeekBalanceStore>();
+                services.AddSingleton<IDeepSeekBalanceStore>(sp => sp.GetRequiredService<DeepSeekBalanceStore>());
+
+                services.AddSingleton<CostQueryService>();
+                services.AddSingleton<ICostQueryService>(sp => sp.GetRequiredService<CostQueryService>());
+
+                services.AddSingleton<CostStore>();
+                services.AddSingleton<ICostStore>(sp => sp.GetRequiredService<CostStore>());
+
+                services.AddSingleton<UsageStore>();
+                services.AddSingleton<IUsageStore>(sp => sp.GetRequiredService<UsageStore>());
+
+                services.AddSingleton<ActivityMonitor>();
+                services.AddSingleton<IActivityMonitor>(sp => sp.GetRequiredService<ActivityMonitor>());
+
+                services.AddSingleton<TurnAlarmWindowController>(sp => new TurnAlarmWindowController(
+                    sp.GetService<AgentReminderStore>(),
+                    sp));
+                services.AddSingleton<ITurnAlarmWindowController>(sp => sp.GetRequiredService<TurnAlarmWindowController>());
+
+                services.AddSingleton<AgentReminderCenter>();
+                services.AddSingleton<IAgentReminderCenter>(sp => sp.GetRequiredService<AgentReminderCenter>());
+
+                services.AddSingleton<UsageExhaustionAlarm>();
+                services.AddSingleton<IUsageExhaustionAlarm>(sp => sp.GetRequiredService<UsageExhaustionAlarm>());
+
+                services.AddSingleton<AlertEngine>();
+                services.AddSingleton<IAlertEngine>(sp => sp.GetRequiredService<AlertEngine>());
+
+                services.AddSingleton<UpdateChecker>();
+                services.AddSingleton<IUpdateChecker>(sp => sp.GetRequiredService<UpdateChecker>());
+
+                // Window & Dialog Services
                 services.AddSingleton<IWindowService, WpfWindowService>();
                 services.AddSingleton<IDialogService, WpfDialogService>();
 
-                services.AddSingleton(GrokUsageStore.Shared);
-                services.AddSingleton(CursorUsageStore.Shared);
-                services.AddSingleton(AntigravityUsageStore.Shared);
-                services.AddSingleton(DeepSeekBalanceStore.Shared);
-                services.AddSingleton(UsageExhaustionAlarm.Shared);
-                services.AddSingleton(AlertEngine.Shared);
-
+                // Windows & ViewModels
+                services.AddTransient<IslandWindow>();
                 services.AddTransient<IslandViewModel>();
                 services.AddTransient<UsagePageViewModel>();
                 services.AddTransient<CostPageViewModel>();
@@ -185,6 +239,11 @@ public partial class App : System.Windows.Application
         }
         InstallCrashLogger();
 
+        // Before any store singleton or worker reads a key: settings written by pre-1.7
+        // builds carry the MacIsland.* prefix and must land on AgentIsland.*.
+        AgentIsland.Windows.Preferences.MigrateLegacyPrefix();
+        AgentIsland.Backend.Settings.AppLanguageStore.ApplyAtStartup();
+
         try
         {
             Host.StartAsync().GetAwaiter().GetResult();
@@ -192,18 +251,21 @@ public partial class App : System.Windows.Application
         }
         catch { }
 
-        ActivityMonitor.Shared.Configure(AgentCatalog);
-        // Before any store singleton reads a key: settings written by pre-1.7
-        // builds carry the MacIsland.* prefix and must land on AgentIsland.*.
-        AgentIsland.Windows.Preferences.MigrateLegacyPrefix();
-        AgentIsland.Backend.Settings.AppLanguageStore.ApplyAtStartup();
+        var activity = Services.GetRequiredService<ActivityMonitor>();
+        var usage = Services.GetRequiredService<UsageStore>();
+        var cost = Services.GetRequiredService<CostStore>();
+        var updates = Services.GetRequiredService<UpdateChecker>();
+        var exhaustionAlarm = Services.GetRequiredService<UsageExhaustionAlarm>();
+        var alertEngine = Services.GetRequiredService<AlertEngine>();
+
+        activity.Configure(AgentCatalog);
 
         if (AppEnvironment.IsDemo)
         {
-            ActivityMonitor.Shared.Demo(ActivityState.Working);
+            activity.Demo(ActivityState.Working);
         }
 
-        _island = new IslandWindow();
+        _island = Services.GetRequiredService<IslandWindow>();
         _island.Show();
 
         _tray = new TrayIcon(
@@ -217,9 +279,13 @@ public partial class App : System.Windows.Application
             });
         TrayIcon.Current = _tray;
 
-        AgentIsland.Backend.Alarms.UsageExhaustionAlarm.Shared.Start();
+        activity.Start();
+        usage.StartAutoRefresh();
+        cost.StartAutoRefresh();
+        updates.Start();
+        exhaustionAlarm.Start();
         AgentIsland.Backend.Updates.UpdateInstaller.CleanupAtStartup();
-        AgentIsland.Backend.Settings.AlertEngine.Shared.Start();
+        alertEngine.Start();
 
         // Release card: once per version, shortly after the island lands
 
@@ -252,13 +318,13 @@ public partial class App : System.Windows.Application
                     UI.Report.ReportWindow.WritePng(UI.Report.ReportWindow.Kind.Monthly, monthlySnapshot!);
                 Shutdown();
             }
-            if (AgentIsland.Backend.Cost.CostStore.Shared.LastUpdated is not null)
+            if (cost.LastUpdated is not null)
             {
                 RenderAndQuit();
             }
             else
             {
-                AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += (_, args) =>
+                cost.PropertyChanged += (_, args) =>
                 {
                     if (args.PropertyName == nameof(AgentIsland.Backend.Cost.CostStore.LastUpdated))
                     {
@@ -289,7 +355,7 @@ public partial class App : System.Windows.Application
             var stateName = Environment.GetEnvironmentVariable("AGENTISLAND_DEBUG_ISLAND_STATE");
             if (Enum.TryParse<ActivityState>(stateName, ignoreCase: true, out var forced))
             {
-                ActivityMonitor.Shared.Demo(forced);
+                activity.Demo(forced);
             }
             // _EXPANDED=1 renders the open panel (header chip, tiles, footer)
             // instead of the compact bar; _SCREEN picks the carousel page
@@ -298,7 +364,7 @@ public partial class App : System.Windows.Application
                     Environment.GetEnvironmentVariable("AGENTISLAND_DEBUG_ISLAND_SCREEN"),
                     ignoreCase: true, out var screen))
             {
-                UI.ScreenPref.Shared.ForceForVerification(screen);
+                Services.GetRequiredService<ScreenPref>().ForceForVerification(screen);
             }
             if (Environment.GetEnvironmentVariable("AGENTISLAND_DEBUG_ISLAND_EXPANDED") == "1")
             {
@@ -352,7 +418,7 @@ public partial class App : System.Windows.Application
     {
         var wasVisible = _island?.IsVisible ?? true;
         _island?.Close();
-        _island = new IslandWindow();
+        _island = Services.GetRequiredService<IslandWindow>();
         if (wasVisible) _island.Show();
 
         _tray?.Dispose();

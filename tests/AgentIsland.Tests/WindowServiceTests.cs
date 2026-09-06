@@ -48,10 +48,10 @@ public class WindowServiceTests
         var mockUpdate = new MockUpdateChecker();
 
         var viewModel = new SettingsViewModel(
-            storage,
-            mockUpdate,
-            mockWindowService,
-            mockDialogService);
+            storage: storage,
+            updateChecker: mockUpdate,
+            windowService: mockWindowService,
+            dialogService: mockDialogService);
 
         Assert(!mockWindowService.OpenWhatsNewCalled, "OpenWhatsNew must not be called initially");
         mockWindowService.OpenWhatsNew();

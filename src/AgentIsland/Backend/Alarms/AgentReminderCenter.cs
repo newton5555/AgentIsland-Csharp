@@ -7,9 +7,10 @@ namespace AgentIsland.Backend.Alarms;
 /// confirmation buffer that a fresher scan can cancel, and auto-dismissal
 /// when the turn leaves needsYou. Direct port of the macOS center with the
 /// system notification delivered as a tray balloon.
-public sealed class AgentReminderCenter
+public sealed class AgentReminderCenter : IAgentReminderCenter
 {
-    public static AgentReminderCenter Shared { get; } = new();
+    private readonly AgentReminderStore _reminderStore;
+    private readonly ITurnAlarmWindowController _alarmController;
 
     private readonly Dictionary<string, DateTimeOffset> _deliveredNeedsYouKeys = new();
     private readonly Dictionary<string, HashSet<string>> _activeNeedsYouKeys = new();
@@ -33,15 +34,19 @@ public sealed class AgentReminderCenter
     private readonly Dictionary<string, (TriggerTool Provider, ActivityMonitor.ActiveThread Thread)> _heldAlarms
         = new(StringComparer.Ordinal);
 
-    private AgentReminderCenter()
+    public AgentReminderCenter(
+        AgentReminderStore reminderStore,
+        ITurnAlarmWindowController alarmController)
     {
+        _reminderStore = reminderStore ?? throw new ArgumentNullException(nameof(reminderStore));
+        _alarmController = alarmController ?? throw new ArgumentNullException(nameof(alarmController));
         _acknowledgedNeedsYouKeys = LoadAcknowledgedKeys();
         InstallForegroundWatch();
     }
 
     public void Handle(TriggerTool provider, IReadOnlyList<ActivityMonitor.ActiveThread> needsYouThreads)
     {
-        if (!AgentReminderStore.Shared.Enabled) return;
+        if (!_reminderStore.Enabled) return;
         PruneRememberedKeys();
         var providerKey = provider.RawValue();
         var isFirstObservation = _observedProviders.Add(providerKey);
@@ -58,7 +63,7 @@ public sealed class AgentReminderCenter
             {
                 CancelPending(staleKey);
                 _heldAlarms.Remove(staleKey);
-                TurnAlarmWindowController.Shared.AutoDismiss(provider, staleKey);
+                _alarmController.AutoDismiss(provider, staleKey);
             }
         }
         _activeNeedsYouKeys[providerKey] = currentKeys;
@@ -130,7 +135,7 @@ public sealed class AgentReminderCenter
             {
                 CancelPending(key);
                 _heldAlarms.Remove(key);
-                TurnAlarmWindowController.Shared.AutoDismiss(provider, key);
+                _alarmController.AutoDismiss(provider, key);
             }
         }
 
@@ -148,7 +153,7 @@ public sealed class AgentReminderCenter
                      .ToList())
         {
             _heldAlarms.Remove(key);
-            TurnAlarmWindowController.Shared.AutoDismiss(provider, key);
+            _alarmController.AutoDismiss(provider, key);
         }
         foreach (var key in _deliveredNeedsYouKeys.Keys
                      .Where(key => key.StartsWith(prefix, StringComparison.Ordinal))
@@ -214,7 +219,7 @@ public sealed class AgentReminderCenter
         // Event-driven scans re-evaluate the active set within ~1.2s of any
         // transcript write, so by fire time a turn the user already answered
         // was removed (and this delivery cancelled) by that fresher scan.
-        if (!AgentReminderStore.Shared.Enabled) return;
+        if (!_reminderStore.Enabled) return;
         if (!_activeNeedsYouKeys.TryGetValue(provider.RawValue(), out var active)
             || !active.Contains(deliveryKey))
         {
@@ -229,13 +234,13 @@ public sealed class AgentReminderCenter
         // the user is watching. Park it; the focus-change watch below fires
         // it the moment they switch away with the turn still open. Sessions
         // whose host can't be resolved (daemons, containers) fail open.
-        if (!AgentReminderStore.Shared.AlarmWhenFrontmost
+        if (!_reminderStore.AlarmWhenFrontmost
             && AgentHostAppResolver.IsHostAppFrontmost(provider, thread.Cwd))
         {
             _heldAlarms[deliveryKey] = (provider, thread);
             // Opt-in: one chime marks the moment instead of total silence —
             // "the app is frontmost" doesn't always mean "the user noticed".
-            if (AgentReminderStore.Shared.FrontmostSoundOnly) PlayFrontmostChime();
+            if (_reminderStore.FrontmostSoundOnly) PlayFrontmostChime();
             return;
         }
         _deliveredNeedsYouKeys[deliveryKey] = DateTimeOffset.Now;
@@ -266,7 +271,7 @@ public sealed class AgentReminderCenter
         foreach (var (key, held) in _heldAlarms.ToList())
         {
             // Conditions may have moved on while parked.
-            if (!AgentReminderStore.Shared.Enabled
+            if (!_reminderStore.Enabled
                 || !_activeNeedsYouKeys.TryGetValue(held.Provider.RawValue(), out var active)
                 || !active.Contains(key)
                 || _acknowledgedNeedsYouKeys.ContainsKey(key)
@@ -327,7 +332,7 @@ public sealed class AgentReminderCenter
 
     private void PlayFrontmostChime()
     {
-        var store = AgentReminderStore.Shared;
+        var store = _reminderStore;
         if (!store.SoundEnabled) return;
         if (store.ResolveSoundFile() is not { } file) return;
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
@@ -352,6 +357,6 @@ public sealed class AgentReminderCenter
     {
         // The foreground alarm window IS the notification — a system toast
         // in the corner would just repeat the same message next to it.
-        TurnAlarmWindowController.Shared.Show(provider, thread, deliveryKey);
+        _alarmController.Show(provider, thread, deliveryKey);
     }
 }

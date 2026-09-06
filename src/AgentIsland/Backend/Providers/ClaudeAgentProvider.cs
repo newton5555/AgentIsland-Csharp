@@ -13,6 +13,13 @@ public sealed class ClaudeAgentProvider : IAgentProvider, ISessionSensor, IUsage
     private readonly ClaudeSessionSensor _sensor = new();
     private readonly ClaudeCostLedgerReader _costReader = new();
 
+    private readonly IClaudeWebLogin _claudeWebLogin;
+
+    public ClaudeAgentProvider(IClaudeWebLogin? claudeWebLogin = null)
+    {
+        _claudeWebLogin = claudeWebLogin ?? new ClaudeWebLogin();
+    }
+
     public AgentDescriptor Descriptor { get; } = new(
         new AgentKey("claude"),
         "Claude",
@@ -33,7 +40,7 @@ public sealed class ClaudeAgentProvider : IAgentProvider, ISessionSensor, IUsage
 
     public Task StartReauthAsync(CancellationToken ct = default)
     {
-        _ = ClaudeWebLogin.Shared.Start();
+        _ = _claudeWebLogin.Start();
         return Task.CompletedTask;
     }
 }

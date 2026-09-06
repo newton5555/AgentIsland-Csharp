@@ -1,7 +1,9 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using AgentIsland.Backend.Updates;
 using AgentIsland.Core;
+using AgentIsland.Core.Options;
 
 namespace AgentIsland.Backend.Workers;
 
@@ -11,13 +13,16 @@ namespace AgentIsland.Backend.Workers;
 public sealed class UpdateCheckWorker : BackgroundService
 {
     private readonly IUpdateChecker _updateChecker;
+    private readonly IOptionsMonitor<PollingOptions>? _options;
     private readonly ILogger<UpdateCheckWorker>? _logger;
 
     public UpdateCheckWorker(
         IUpdateChecker updateChecker,
+        IOptionsMonitor<PollingOptions>? options = null,
         ILogger<UpdateCheckWorker>? logger = null)
     {
         _updateChecker = updateChecker;
+        _options = options;
         _logger = logger;
     }
 
@@ -31,7 +36,7 @@ public sealed class UpdateCheckWorker : BackgroundService
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(20), stoppingToken).ConfigureAwait(false);
-            if (!stoppingToken.IsCancellationRequested)
+            if (!stoppingToken.IsCancellationRequested && (_options?.CurrentValue.AutoCheckUpdates ?? true))
             {
                 await _updateChecker.CheckAsync(userInitiated: false).ConfigureAwait(false);
             }
@@ -46,7 +51,10 @@ public sealed class UpdateCheckWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                await _updateChecker.CheckAsync(userInitiated: false).ConfigureAwait(false);
+                if (_options?.CurrentValue.AutoCheckUpdates ?? true)
+                {
+                    await _updateChecker.CheckAsync(userInitiated: false).ConfigureAwait(false);
+                }
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

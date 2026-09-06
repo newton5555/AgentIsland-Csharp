@@ -28,8 +28,8 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
     private readonly Dictionary<DisplayProvider, ProviderCostViewModel> _providerModels = new();
 
     public CostPageViewModel() : this(
-        ProviderVisibilityStore.Shared,
-        CostStore.Shared)
+        (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore(),
+        (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore())
     {
     }
 

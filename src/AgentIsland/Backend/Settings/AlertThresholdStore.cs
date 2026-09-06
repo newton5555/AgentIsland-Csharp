@@ -8,15 +8,13 @@ namespace AgentIsland.Backend.Settings;
 /// critical by clamping.
 public sealed class AlertThresholdStore : INotifyPropertyChanged
 {
-    public static AlertThresholdStore Shared { get; } = new();
-
     private bool _enabled;
     private int _warningPercent;
     private int _criticalPercent;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private AlertThresholdStore()
+    public AlertThresholdStore()
     {
         _enabled = Preferences.Get<bool?>("AgentIsland.alertsEnabled") ?? false;
         _warningPercent = Math.Clamp(Preferences.Get<int?>("AgentIsland.alertWarning") ?? 80, 50, 98);

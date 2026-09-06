@@ -15,10 +15,9 @@ namespace AgentIsland.Backend.Usage;
 /// fully-scoped token pair is written to `.claude\.credentials.json` via
 /// `ClaudeCredentials`, which is exactly what a `claude /login` would have
 /// done. Direct port of the macOS ClaudeWebLogin (NWListener → HttpListener).
-public sealed class ClaudeWebLogin
+public sealed class ClaudeWebLogin : IClaudeWebLogin
 {
-    public static ClaudeWebLogin Shared { get; } = new();
-    private ClaudeWebLogin() { }
+    public ClaudeWebLogin() { }
 
     public abstract record Outcome
     {

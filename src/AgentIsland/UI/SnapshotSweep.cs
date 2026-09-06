@@ -23,8 +23,8 @@ public static class SnapshotSweep
         Directory.CreateDirectory(dir);
 
         // The cost page hides by default; the sweep must SEE it (runner-local
-        // prefs, nothing leaks to a user machine).
-        Try(() => ScreenPref.Shared.ShowCostPage = true);
+        var screenPref = (App.Instance?.Services?.GetService(typeof(ScreenPref)) as ScreenPref) ?? new ScreenPref();
+        Try(() => screenPref.ShowCostPage = true);
 
         // A wedged sweep must never leave the runner hanging for the job
         // timeout.
@@ -54,19 +54,19 @@ public static class SnapshotSweep
                 island.SaveVisualSnapshot(At("island-expanded.png"));
                 After(1.0, () =>
                 {
-                ScreenPref.Shared.ForceForVerification(IslandScreen.Cost);
+                screenPref.ForceForVerification(IslandScreen.Cost);
                 After(0.9, () =>
                 {
                     island.SaveVisualSnapshot(At("island-Cost.png"));
                     After(1.0, () =>
                     {
-                    ScreenPref.Shared.ForceForVerification(IslandScreen.Overview);
+                    screenPref.ForceForVerification(IslandScreen.Overview);
                     After(1.0, () =>
                     {
                         island.SaveVisualSnapshot(At("island-overview.png"));
                         After(1.0, () =>
                         {
-                        ScreenPref.Shared.ForceForVerification(IslandScreen.Usage);
+                        screenPref.ForceForVerification(IslandScreen.Usage);
                         Try(() => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly));
                         After(1.5, () =>
                         {

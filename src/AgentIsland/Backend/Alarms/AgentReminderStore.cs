@@ -53,8 +53,6 @@ public sealed class AgentReminderStore : INotifyPropertyChanged
             Curated.FirstOrDefault(tone => tone.Key == key).Label;
     }
 
-    public static AgentReminderStore Shared { get; } = new();
-
     private const string EnabledKey = "AgentIsland.agentReminders";
     private const string SoundEnabledKey = "AgentIsland.agentReminderSound";
     private const string VolumeKey = "AgentIsland.agentReminderVolume";
@@ -77,7 +75,7 @@ public sealed class AgentReminderStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private AgentReminderStore()
+    public AgentReminderStore()
     {
         _enabled = Preferences.Get<bool?>(EnabledKey) ?? true;
         _soundEnabled = Preferences.Get<bool?>(SoundEnabledKey) ?? true;

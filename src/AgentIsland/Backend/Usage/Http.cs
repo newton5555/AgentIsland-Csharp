@@ -22,7 +22,7 @@ public static class Http
 
     private static readonly HttpClient FallbackClient = new(
         new OfflineFastFailHandler(
-            SystemNetworkConnectivityService.Shared,
+            new SystemNetworkConnectivityService(),
             new SocketsHttpHandler
             {
                 PooledConnectionLifetime = TimeSpan.FromMinutes(10),

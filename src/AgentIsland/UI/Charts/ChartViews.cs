@@ -893,10 +893,12 @@ public sealed class ChartTile : StackPanel
     private readonly RingMeter _ring;
     private readonly NumericMeter _numeric;
     private readonly string _labelKey;
+    private readonly AgentIsland.Backend.Settings.QuotaDisplayModeStore? _displayModeStore;
 
-    public ChartTile(Color color, string labelKey, int seed = 1)
+    public ChartTile(Color color, string labelKey, int seed = 1, AgentIsland.Backend.Settings.QuotaDisplayModeStore? displayModeStore = null)
     {
         _labelKey = labelKey;
+        _displayModeStore = displayModeStore;
         Orientation = Orientation.Vertical;
         Height = TileHeight;
         _stepped = new SteppedMeter(color) { Margin = new Thickness(0, 6, 0, 6) };
@@ -911,10 +913,11 @@ public sealed class ChartTile : StackPanel
         Children.Add(_foot);
     }
 
-    public void Update(WindowUsage window, ChartStyle style)
+    public void Update(WindowUsage window, ChartStyle style, AgentIsland.Backend.Settings.QuotaDisplayModeStore? displayModeStore = null)
     {
         // 0-100; flips to "percent left" when the user prefers remaining.
-        var value = AgentIsland.Backend.Settings.QuotaDisplayModeStore.Shared.DisplayValue(window.UsedPercent);
+        var store = displayModeStore ?? _displayModeStore ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Settings.QuotaDisplayModeStore)) as AgentIsland.Backend.Settings.QuotaDisplayModeStore);
+        var value = store?.DisplayValue(window.UsedPercent) ?? window.UsedPercent;
         var label = PeriodLabel(window, _labelKey);
 
         // Ring and Numeric render their own heads; the shared head serves

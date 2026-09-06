@@ -23,8 +23,7 @@ public sealed class ProviderVisibilityStore : IProviderVisibilityStore
     private const string ClaudeTouchedKey = "AgentIsland.claudeVisibleTouched";
     private const string CodexTouchedKey = "AgentIsland.codexVisibleTouched";
 
-    [Obsolete("Inject IProviderVisibilityStore via DI instead")]
-    public static ProviderVisibilityStore Shared { get; } = new();
+
 
     private readonly ISettingsStorage _storage;
     private readonly Dictionary<DisplayProvider, bool> _detected = new();

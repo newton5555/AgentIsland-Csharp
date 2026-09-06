@@ -7,13 +7,19 @@ namespace AgentIsland.Backend.Alarms;
 /// (not SoundPlayer) so the store's volume slider actually applies.
 public sealed class TurnAlarmSoundLooper
 {
+    private readonly AgentReminderStore _reminderStore;
     private DispatcherTimer? _timer;
     private MediaPlayer? _player;
+
+    public TurnAlarmSoundLooper(AgentReminderStore? reminderStore = null)
+    {
+        _reminderStore = reminderStore ?? (App.Instance?.Services?.GetService(typeof(AgentReminderStore)) as AgentReminderStore) ?? new AgentReminderStore();
+    }
 
     public void Start()
     {
         Stop();
-        if (!AgentReminderStore.Shared.SoundEnabled) return;
+        if (!_reminderStore.SoundEnabled) return;
         Play();
         _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1.8) };
         _timer.Tick += (_, _) => Play();
@@ -30,7 +36,7 @@ public sealed class TurnAlarmSoundLooper
 
     private void Play()
     {
-        if (!AgentReminderStore.Shared.SoundEnabled)
+        if (!_reminderStore.SoundEnabled)
         {
             Stop();
             return;
@@ -44,11 +50,11 @@ public sealed class TurnAlarmSoundLooper
         {
             return;
         }
-        if (AgentReminderStore.Shared.ResolveSoundFile() is not { } file) return;
+        if (_reminderStore.ResolveSoundFile() is not { } file) return;
         try
         {
             _player ??= new MediaPlayer();
-            _player.Volume = AgentReminderStore.Shared.Volume;
+            _player.Volume = _reminderStore.Volume;
             _player.Open(new Uri(file));
             _player.Play();
         }

@@ -11,8 +11,6 @@ public sealed class SystemNetworkConnectivityService : INetworkConnectivityServi
     private bool _lastAvailable;
     private bool _disposed;
 
-    public static SystemNetworkConnectivityService Shared { get; } = new();
-
     public bool IsNetworkAvailable => NetworkInterface.GetIsNetworkAvailable();
 
     public event EventHandler<bool>? NetworkAvailabilityChanged;

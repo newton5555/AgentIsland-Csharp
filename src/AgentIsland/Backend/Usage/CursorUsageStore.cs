@@ -10,16 +10,14 @@ namespace AgentIsland.Backend.Usage;
 /// identity from the editor's own store. Timer-free — it rides
 /// UsageStore.Refresh()'s cadence via KickRefresh() behind the slot
 /// selection, with an attempt floor so kick bursts never add polling.
-public sealed class CursorUsageStore : INotifyPropertyChanged
+public sealed class CursorUsageStore : ICursorUsageStore
 {
-    public static CursorUsageStore Shared { get; } = new();
-
     private const string CacheKey = "CursorUsageStore.lastSnapshot.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
-
-    /// De-dupes kick bursts (poll + reset boundary + manual refresh landing
-    /// together); the real cadence stays whatever UsageStore runs.
     private static readonly TimeSpan MinAttemptGap = TimeSpan.FromMinutes(2);
+
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _dispatcher;
 
     /// One included-usage pool per billing cycle (~30 days). Cursor reports
     /// the cycle END, never its length, so this is what the window label
@@ -46,8 +44,13 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         public DateTimeOffset UpdatedAt { get; init; }
     }
 
-    private CursorUsageStore()
+    public CursorUsageStore(
+        IProviderVisibilityStore visibilityStore,
+        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null)
     {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _dispatcher = dispatcher;
+
         if (AppEnvironment.IsDemo)
         {
             if (DemoGuestFixtures)
@@ -118,6 +121,8 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         Loading = false;
     }
 
+    public string? LocalPlan => _localPlan;
+
     /// "FREE" / "PRO" chip text for the Settings row. Reads two cached
     /// fields, never the state db — the badge is bound by the UI.
     public string? PlanBadge => (_snapshot?.PlanName ?? _localPlan)?.ToUpperInvariant();
@@ -133,7 +138,7 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
     public void KickRefresh()
     {
         if (AppEnvironment.IsDemo) return;
-        if (!ProviderVisibilityStore.Shared.CursorPanelShown) return;
+        if (!_visibilityStore.CursorPanelShown) return;
         if (Loading) return;
         if (_lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
         RestoreCachedSnapshot();
@@ -142,7 +147,9 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
         var generation = ++_refreshGeneration;
         var cts = new CancellationTokenSource();
         _refreshCts = cts;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        var dispatcher = _dispatcher != null
+            ? (Action<Action>)(act => _dispatcher.BeginInvoke(act))
+            : (Action<Action>)(act => (System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher).BeginInvoke(act));
         _ = Task.Run(async () =>
         {
             try
@@ -153,10 +160,10 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
                 var plan = CursorCredentials.CachedPlan();
                 var outcome = await CursorUsageFetcher.Fetch(cts.Token);
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
-                await dispatcher.BeginInvoke(() =>
+                dispatcher(() =>
                 {
                     if (cts.IsCancellationRequested || generation != _refreshGeneration
-                        || !ProviderVisibilityStore.Shared.CursorPanelShown) return;
+                        || !_visibilityStore.CursorPanelShown) return;
                     Apply(outcome, email, plan);
                 });
             }
@@ -165,10 +172,10 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
                 try
                 {
-                    await dispatcher.BeginInvoke(() =>
+                    dispatcher(() =>
                     {
                         if (generation != _refreshGeneration
-                            || !ProviderVisibilityStore.Shared.CursorPanelShown) return;
+                            || !_visibilityStore.CursorPanelShown) return;
                         ErrorCaption = L10n.Tr("network drop");
                         Loading = false;
                     });
@@ -182,7 +189,7 @@ public sealed class CursorUsageStore : INotifyPropertyChanged
                     _refreshCts = null;
                     if (generation == _refreshGeneration)
                     {
-                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                        try { dispatcher(() => Loading = false); } catch { }
                     }
                 }
                 cts.Dispose();

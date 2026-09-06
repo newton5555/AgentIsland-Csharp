@@ -1,5 +1,7 @@
 using AgentIsland.Core;
 using AgentIsland.Core.Cost;
+using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Settings;
 using AgentIsland.UI.Providers;
 
 namespace AgentIsland.UI.Report;
@@ -15,10 +17,10 @@ public static class ReportPeriods
     /// Null when no history has been scanned yet (paging stays disabled).
     /// Also null in demo mode: past pages assemble from a REAL log scan, and
     /// demo exists precisely to keep real usage off screen recordings.
-    public static DateTime? EarliestDataDay()
+    public static DateTime? EarliestDataDay(ICostStore? costStore = null)
     {
         if (AppEnvironment.IsDemo) return null;
-        var cost = CostStore.Shared;
+        var cost = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore();
         DateTime? earliest = null;
         foreach (var provider in DisplayProviders.All)
         {
@@ -36,30 +38,31 @@ public static class ReportPeriods
     /// [start, end). Offset 0 reproduces the live card's window — anchored
     /// to the freshest SCANNED day, same as WeeklyReportData.Current() —
     /// so older pages tile exactly against what the current card shows.
-    public static (DateTime Start, DateTime End) WeekInterval(int offset)
+    public static (DateTime Start, DateTime End) WeekInterval(int offset, ICostStore? costStore = null)
     {
-        var endDay = ScanAnchor().AddDays(-7 * offset);
-        var startDay = endDay.AddDays(-6);
-        return (startDay, endDay.AddDays(1));
+        var anchor = ScanAnchor(costStore);
+        var end = anchor.AddDays(1 - 7 * offset);
+        var start = end.AddDays(-7);
+        return (start, end);
     }
 
-    /// The calendar month `offset` months behind the current one, half-open
-    /// [monthStart, nextMonthStart). The current month (offset 0) naturally
-    /// reads month-to-date — future days simply hold no events yet.
+    /// The calendar month `offset` months behind today, half-open [start, end).
+    /// Offset 0 is this month, 1 is last month, etc.
     public static (DateTime Start, DateTime End) MonthInterval(int offset)
     {
-        var now = DateTime.Today;
-        var thisMonthStart = new DateTime(now.Year, now.Month, 1);
-        var start = thisMonthStart.AddMonths(-offset);
-        return (start, start.AddMonths(1));
+        var today = DateTime.Today;
+        var targetMonth = new DateTime(today.Year, today.Month, 1).AddMonths(-offset);
+        var start = targetMonth;
+        var end = targetMonth.AddMonths(1);
+        return (start, end);
     }
 
     /// Freshest scanned day across all providers, clamped to today — the
     /// weekly window's right edge (macOS: min(scanAnchor, today)).
-    public static DateTime ScanAnchor()
+    public static DateTime ScanAnchor(ICostStore? costStore = null)
     {
         var today = DateTime.Today;
-        var cost = CostStore.Shared;
+        var cost = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore) ?? new CostStore();
         DateTime? scanned = null;
         foreach (var provider in DisplayProviders.All)
         {
@@ -85,12 +88,16 @@ public static class ReportPeriods
     public static Task<Dictionary<DisplayProvider, ReportSlice>> SlicesAsync(
         DateTime start,
         DateTime end,
+        IProviderVisibilityStore? visibilityStore = null,
+        ICostQueryService? costQueryService = null,
         CancellationToken cancellationToken = default)
     {
         var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
         var startOffset = new DateTimeOffset(start, DateTimeOffset.Now.Offset);
         var endOffset = new DateTimeOffset(end, DateTimeOffset.Now.Offset);
-        var providers = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToArray();
+        var visibility = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
+        var queryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService) ?? new CostQueryService(visibility);
+        var providers = visibility.Enabled.ToArray();
         return Task.Run(async () =>
         {
             ReportSlice Slice(IReadOnlyList<TokenEvent> events) =>
@@ -99,7 +106,7 @@ public static class ReportPeriods
             cancellationToken.ThrowIfCancellationRequested();
             var scans = providers.ToDictionary(
                 provider => provider,
-                provider => CostQueryService.Shared.ScanAsync(
+                provider => queryService.ScanAsync(
                     provider, lookback, DateTimeOffset.Now, cancellationToken));
 
             var output = new Dictionary<DisplayProvider, ReportSlice>();
@@ -109,20 +116,13 @@ public static class ReportPeriods
                 CostScanResult scan;
                 try
                 {
-                    // Await each already-started task independently. A provider
-                    // can be disabled after the enabled snapshot but before
-                    // the service entry gate; that provider is simply absent
-                    // from this page and must not discard other providers'
-                    // completed work.
                     scan = await scans[provider].ConfigureAwait(false);
                 }
                 catch (CostQueryService.ProviderDisabledException)
                 {
                     continue;
                 }
-                // A provider can be disabled and re-enabled while the report
-                // waits. The service generation rejects that stale result.
-                if (!CostQueryService.Shared.IsCurrent(provider, scan.ProviderVersion)) continue;
+                if (!queryService.IsCurrent(provider, scan.ProviderVersion)) continue;
                 output[provider] = Slice(scan.Events);
             }
             return output;

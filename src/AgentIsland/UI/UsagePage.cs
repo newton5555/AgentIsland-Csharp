@@ -28,8 +28,36 @@ public sealed class UsagePage : Border
     private readonly Border _hairline;
     private readonly TextBlock _bothHidden;
 
-    public UsagePage()
+    private readonly IUsageStore _usageStore;
+    private readonly IDeepSeekBalanceStore _balanceStore;
+    private readonly StylePreferenceStore _styleStore;
+    private readonly AgentIsland.Backend.Settings.QuotaDisplayModeStore _quotaDisplayModeStore;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
+    private readonly IAntigravityUsageStore _antigravityStore;
+    private readonly IGrokUsageStore _grokStore;
+    private readonly ICursorUsageStore _cursorStore;
+
+    public UsagePage() : this(null, null, null, null, null, null, null, null) { }
+
+    public UsagePage(
+        IUsageStore? usageStore = null,
+        IDeepSeekBalanceStore? balanceStore = null,
+        StylePreferenceStore? styleStore = null,
+        AgentIsland.Backend.Settings.QuotaDisplayModeStore? quotaDisplayModeStore = null,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null,
+        IAntigravityUsageStore? antigravityStore = null,
+        IGrokUsageStore? grokStore = null,
+        ICursorUsageStore? cursorStore = null)
     {
+        _visibilityStore = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Settings.IProviderVisibilityStore)) as AgentIsland.Backend.Settings.IProviderVisibilityStore) ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
+        _usageStore = usageStore ?? (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore) ?? new UsageStore();
+        _balanceStore = balanceStore ?? (App.Instance?.Services?.GetService(typeof(IDeepSeekBalanceStore)) as IDeepSeekBalanceStore) ?? new DeepSeekBalanceStore(_visibilityStore);
+        _styleStore = styleStore ?? (App.Instance?.Services?.GetService(typeof(StylePreferenceStore)) as StylePreferenceStore) ?? new StylePreferenceStore();
+        _quotaDisplayModeStore = quotaDisplayModeStore ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Settings.QuotaDisplayModeStore)) as AgentIsland.Backend.Settings.QuotaDisplayModeStore) ?? new AgentIsland.Backend.Settings.QuotaDisplayModeStore();
+        _antigravityStore = antigravityStore ?? (App.Instance?.Services?.GetService(typeof(IAntigravityUsageStore)) as IAntigravityUsageStore) ?? new AntigravityUsageStore(_visibilityStore);
+        _grokStore = grokStore ?? (App.Instance?.Services?.GetService(typeof(IGrokUsageStore)) as IGrokUsageStore) ?? new GrokUsageStore(_visibilityStore);
+        _cursorStore = cursorStore ?? (App.Instance?.Services?.GetService(typeof(ICursorUsageStore)) as ICursorUsageStore) ?? new CursorUsageStore(_visibilityStore);
+
         DataContext = ViewModel;
         Unloaded += (_, _) => ViewModel.Dispose();
         Padding = new Thickness(22, 12, 22, 6);
@@ -122,24 +150,24 @@ public sealed class UsagePage : Border
         // the singleton stores and keeps running Update forever.
         System.ComponentModel.PropertyChangedEventHandler onUpdate =
             (_, _) => Dispatcher.BeginInvoke(Update);
-        UsageStore.Shared.PropertyChanged += onUpdate;
-        DeepSeekBalanceStore.Shared.PropertyChanged += onUpdate;
-        StylePreferenceStore.Shared.PropertyChanged += onUpdate;
-        QuotaDisplayModeStore.Shared.PropertyChanged += onUpdate;
-        ProviderVisibilityStore.Shared.PropertyChanged += onUpdate;
-        AntigravityUsageStore.Shared.PropertyChanged += onUpdate;
-        GrokUsageStore.Shared.PropertyChanged += onUpdate;
-        CursorUsageStore.Shared.PropertyChanged += onUpdate;
+        _usageStore.PropertyChanged += onUpdate;
+        _balanceStore.PropertyChanged += onUpdate;
+        _styleStore.PropertyChanged += onUpdate;
+        _quotaDisplayModeStore.PropertyChanged += onUpdate;
+        _visibilityStore.PropertyChanged += onUpdate;
+        _antigravityStore.PropertyChanged += onUpdate;
+        _grokStore.PropertyChanged += onUpdate;
+        _cursorStore.PropertyChanged += onUpdate;
         Unloaded += (_, _) =>
         {
-            UsageStore.Shared.PropertyChanged -= onUpdate;
-            DeepSeekBalanceStore.Shared.PropertyChanged -= onUpdate;
-            StylePreferenceStore.Shared.PropertyChanged -= onUpdate;
-            QuotaDisplayModeStore.Shared.PropertyChanged -= onUpdate;
-            ProviderVisibilityStore.Shared.PropertyChanged -= onUpdate;
-            AntigravityUsageStore.Shared.PropertyChanged -= onUpdate;
-            GrokUsageStore.Shared.PropertyChanged -= onUpdate;
-            CursorUsageStore.Shared.PropertyChanged -= onUpdate;
+            _usageStore.PropertyChanged -= onUpdate;
+            _balanceStore.PropertyChanged -= onUpdate;
+            _styleStore.PropertyChanged -= onUpdate;
+            _quotaDisplayModeStore.PropertyChanged -= onUpdate;
+            _visibilityStore.PropertyChanged -= onUpdate;
+            _antigravityStore.PropertyChanged -= onUpdate;
+            _grokStore.PropertyChanged -= onUpdate;
+            _cursorStore.PropertyChanged -= onUpdate;
         };
         Update();
     }
@@ -161,7 +189,7 @@ public sealed class UsagePage : Border
             Cursor = System.Windows.Input.Cursors.Hand,
             Visibility = Visibility.Collapsed,
         };
-        button.Click += (_, _) => ReauthFlow.Run(Core.TriggerTool.Claude);
+        button.Click += (_, _) => ReauthFlow.Run(Core.TriggerTool.Claude, _usageStore);
         return button;
     }
 
@@ -188,9 +216,9 @@ public sealed class UsagePage : Border
 
     private void Update()
     {
-        var store = UsageStore.Shared;
-        var style = StylePreferenceStore.Shared.Style;
-        var slots = ProviderVisibilityStore.Shared.SlotProviders;
+        var store = _usageStore;
+        var style = _styleStore.Style;
+        var slots = _visibilityStore.SlotProviders;
 
         foreach (var block in _blocks.Values) block.Visibility = Visibility.Collapsed;
         foreach (var block in _balanceBlocks.Values) block.Visibility = Visibility.Collapsed;
@@ -254,12 +282,12 @@ public sealed class UsagePage : Border
         foreach (var (provider, block) in _blocks)
         {
             if (block.Visibility != Visibility.Visible) continue;
-            block.Update(UsageFor(provider), style);
+            block.Update(UsageFor(provider, _usageStore, _antigravityStore, _grokStore, _cursorStore), style);
         }
         foreach (var (provider, balance) in _balanceBlocks)
         {
             if (balance.Visibility != Visibility.Visible) continue;
-            balance.Update(DeepSeekBalanceStore.Shared);
+            balance.Update(_balanceStore);
         }
 
         // Keep a manual Claude auth escape hatch available whenever the
@@ -284,13 +312,18 @@ public sealed class UsagePage : Border
 
     /// Shared with the island bar — the slots render whichever providers
     /// hold them, through the same per-provider assembly the panel uses.
-    internal static AppUsage UsageFor(DisplayProvider provider) => provider switch
+    internal static AppUsage UsageFor(
+        DisplayProvider provider,
+        IUsageStore? usageStore = null,
+        IAntigravityUsageStore? antigravityStore = null,
+        IGrokUsageStore? grokStore = null,
+        ICursorUsageStore? cursorStore = null) => provider switch
     {
-        DisplayProvider.Claude => UsageStore.Shared.Claude,
-        DisplayProvider.Codex => UsageStore.Shared.Codex,
-        DisplayProvider.Antigravity => AntigravityUsage(),
-        DisplayProvider.Grok => GrokUsage(),
-        DisplayProvider.Cursor => CursorUsage(),
+        DisplayProvider.Claude => (usageStore ?? (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore))?.Claude ?? AppUsage.Empty,
+        DisplayProvider.Codex => (usageStore ?? (App.Instance?.Services?.GetService(typeof(IUsageStore)) as IUsageStore))?.Codex ?? AppUsage.Empty,
+        DisplayProvider.Antigravity => AntigravityUsage(antigravityStore),
+        DisplayProvider.Grok => GrokUsage(grokStore),
+        DisplayProvider.Cursor => CursorUsage(cursorStore),
         _ => AppUsage.Empty,
     };
 
@@ -298,9 +331,10 @@ public sealed class UsagePage : Border
     /// Paid tiers provide both; free tiers may report only weekly.
     /// When both exist, they are displayed side-by-side (5h and week).
     /// If only one exists, it cleanly falls back to single-window display.
-    private static AppUsage AntigravityUsage()
+    private static AppUsage AntigravityUsage(IAntigravityUsageStore? antigravityStore = null)
     {
-        var store = AntigravityUsageStore.Shared;
+        var store = antigravityStore ?? (App.Instance?.Services?.GetService(typeof(IAntigravityUsageStore)) as IAntigravityUsageStore);
+        if (store is null) return AppUsage.Empty;
         var snapshot = store.Snapshot;
         var five = snapshot?.FiveHour;
         var week = snapshot?.Weekly;
@@ -325,9 +359,10 @@ public sealed class UsagePage : Border
 
     /// Grok meters one weekly credit pool; the monthly dollar budget is a
     /// caption elsewhere, not a second quota window.
-    private static AppUsage GrokUsage()
+    private static AppUsage GrokUsage(IGrokUsageStore? grokStore = null)
     {
-        var grok = GrokUsageStore.Shared;
+        var grok = grokStore ?? (App.Instance?.Services?.GetService(typeof(IGrokUsageStore)) as IGrokUsageStore);
+        if (grok is null) return AppUsage.Empty;
         var snapshot = grok.Snapshot;
         return new AppUsage(
             new WindowUsage(snapshot?.WeeklyUsedPercent ?? 0, snapshot?.WeeklyPeriodEnd, grok.ErrorCaption),
@@ -339,9 +374,10 @@ public sealed class UsagePage : Border
     /// store's own Window property carries CycleSeconds, which the tile would
     /// print as "week"; the cycle length is expressed by the "30d" label key
     /// instead.
-    private static AppUsage CursorUsage()
+    private static AppUsage CursorUsage(ICursorUsageStore? cursorStore = null)
     {
-        var cursor = CursorUsageStore.Shared;
+        var cursor = cursorStore ?? (App.Instance?.Services?.GetService(typeof(ICursorUsageStore)) as ICursorUsageStore);
+        if (cursor is null) return AppUsage.Empty;
         var snapshot = cursor.Snapshot;
         return new AppUsage(
             new WindowUsage(snapshot?.UsedPercent ?? 0, snapshot?.PeriodEnd, cursor.ErrorCaption),
@@ -459,7 +495,7 @@ internal sealed class DeepSeekBalanceBlock : StackPanel
         Children.Add(_status);
     }
 
-    internal void Update(DeepSeekBalanceStore store)
+    internal void Update(IDeepSeekBalanceStore store)
     {
         _hero.Text = store.Snapshot is { } snapshot
             ? DeepSeekBalanceText.Total(snapshot)

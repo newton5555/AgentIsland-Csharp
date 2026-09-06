@@ -29,6 +29,11 @@ public sealed partial class ReportWindow : Window
 
     private static ReportWindow? _current;
 
+    private readonly ICostStore? _costStore;
+    private readonly IProviderVisibilityStore? _visibilityStore;
+    private readonly TokenCountModeStore? _tokenModeStore;
+    private readonly ICostQueryService? _costQueryService;
+
     private Kind _kind;
     private readonly PagerCircle _back;
     private readonly PagerCircle _forward;
@@ -47,7 +52,12 @@ public sealed partial class ReportWindow : Window
     private readonly System.ComponentModel.PropertyChangedEventHandler _costChanged;
     private readonly System.ComponentModel.PropertyChangedEventHandler _providerSelectionChanged;
 
-    public static void Show(Kind kind)
+    public static void Show(
+        Kind kind,
+        ICostStore? costStore = null,
+        IProviderVisibilityStore? visibilityStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        ICostQueryService? costQueryService = null)
     {
         if (_current != null && _current.IsLoaded)
         {
@@ -55,7 +65,7 @@ public sealed partial class ReportWindow : Window
             WindowActivation.BringToFront(_current);
             return;
         }
-        var window = new ReportWindow(kind);
+        var window = new ReportWindow(kind, costStore, visibilityStore, tokenModeStore, costQueryService);
         _current = window;
         window.Closed += (_, _) =>
         {
@@ -65,8 +75,20 @@ public sealed partial class ReportWindow : Window
         WindowActivation.BringToFront(window);
     }
 
-    private ReportWindow(Kind kind)
+    public ReportWindow() : this(Kind.Weekly) { }
+
+    public ReportWindow(
+        Kind kind,
+        ICostStore? costStore = null,
+        IProviderVisibilityStore? visibilityStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        ICostQueryService? costQueryService = null)
     {
+        _costStore = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore);
+        _visibilityStore = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore);
+        _tokenModeStore = tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore);
+        _costQueryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService);
+
         InitializeComponent();
         _kind = kind;
         _display = CurrentData();
@@ -143,25 +165,25 @@ public sealed partial class ReportWindow : Window
                 RefreshForProviderSelection();
             }));
         };
-        AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged += _costChanged;
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _providerSelectionChanged;
+        if (_costStore != null) _costStore.PropertyChanged += _costChanged;
+        if (_visibilityStore != null) _visibilityStore.PropertyChanged += _providerSelectionChanged;
         Closed += (_, _) =>
         {
             CancelReportQuery();
             _pagerHideTimer.Stop();
             _coachTimer?.Stop();
-            AgentIsland.Backend.Cost.CostStore.Shared.PropertyChanged -= _costChanged;
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _providerSelectionChanged;
+            if (_costStore != null) _costStore.PropertyChanged -= _costChanged;
+            if (_visibilityStore != null) _visibilityStore.PropertyChanged -= _providerSelectionChanged;
         };
-        if (!Core.AppEnvironment.IsDemo) AgentIsland.Backend.Cost.CostStore.Shared.Refresh();
+        if (!Core.AppEnvironment.IsDemo) _costStore?.Refresh();
         AlignCurrentWeek();
 
         Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _ = ExportRender());
     }
 
     private object CurrentData() => _kind == Kind.Weekly
-        ? WeeklyReportData.Current()
-        : MonthlyReportData.Current();
+        ? WeeklyReportData.Current(_costStore, _tokenModeStore, _visibilityStore, _costQueryService)
+        : MonthlyReportData.Current(_costStore, _tokenModeStore, _visibilityStore);
 
     private FrameworkElement CardFor(object data, bool rounded) => _kind == Kind.Weekly
         ? ReportCards.Weekly((WeeklyReportData)data, rounded)
@@ -219,16 +241,16 @@ public sealed partial class ReportWindow : Window
         bool canGoForward;
         if (_anchorDate is { } anchor)
         {
-            var earliest = ReportPeriods.EarliestDataDay();
+            var earliest = ReportPeriods.EarliestDataDay(_costStore);
             canGoBack = !_loading && anchor > earliest;
             canGoForward = !_loading;
         }
         else
         {
             var interval = _kind == Kind.Weekly
-                ? ReportPeriods.WeekInterval(_pageOffset)
+                ? ReportPeriods.WeekInterval(_pageOffset, _costStore)
                 : ReportPeriods.MonthInterval(_pageOffset);
-            canGoBack = !_loading && ReportPeriods.HasData(interval.Start, ReportPeriods.EarliestDataDay());
+            canGoBack = !_loading && ReportPeriods.HasData(interval.Start, ReportPeriods.EarliestDataDay(_costStore));
             canGoForward = _pageOffset > 0 && !_loading;
         }
 
@@ -252,7 +274,7 @@ public sealed partial class ReportWindow : Window
         if (_anchorDate is { } anchor)
         {
             var prev = _kind == Kind.Weekly ? anchor.AddDays(-7) : anchor.AddMonths(-1);
-            if (prev >= ReportPeriods.EarliestDataDay())
+            if (prev >= ReportPeriods.EarliestDataDay(_costStore))
             {
                 SetAnchor(prev);
             }
@@ -306,15 +328,15 @@ public sealed partial class ReportWindow : Window
     private async void AlignCurrentWeek()
     {
         if (_kind != Kind.Weekly || Core.AppEnvironment.IsDemo) return;
-        var (start, end) = ReportPeriods.WeekInterval(0);
+        var (start, end) = ReportPeriods.WeekInterval(0, _costStore);
         if (end > DateTime.Today) return;
         var queryId = BeginReportQuery(out var cts);
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
             if (queryId != _querySequence || !IsLoaded
                 || _pageOffset != 0 || _anchorDate is not null || _loading) return;
-            _display = WeeklyReportData.ForInterval(start, end, slices);
+            _display = WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore);
             RebuildCard();
         }
         catch (OperationCanceledException)
@@ -357,17 +379,17 @@ public sealed partial class ReportWindow : Window
         _loading = true;
         UpdatePagerChrome();
         var (start, end) = _kind == Kind.Weekly
-            ? ReportPeriods.WeekInterval(target)
+            ? ReportPeriods.WeekInterval(target, _costStore)
             : ReportPeriods.MonthInterval(target);
         var accepted = false;
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
             if (queryId != _querySequence || !IsLoaded
                 || _pageOffset != target || _anchorDate is not null) return;
             _display = _kind == Kind.Weekly
-                ? WeeklyReportData.ForInterval(start, end, slices)
-                : MonthlyReportData.ForInterval(start, slices);
+                ? WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore)
+                : MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore);
             accepted = true;
         }
         catch (OperationCanceledException)
@@ -412,9 +434,9 @@ public sealed partial class ReportWindow : Window
     private void OpenCalendar()
     {
         var currentSelected = _anchorDate ?? (_kind == Kind.Weekly
-            ? ReportPeriods.WeekInterval(_pageOffset).Start
+            ? ReportPeriods.WeekInterval(_pageOffset, _costStore).Start
             : ReportPeriods.MonthInterval(_pageOffset).Start);
-        _calendar = new ReportCalendarPopup(ReportPeriods.EarliestDataDay(), SetAnchor, currentSelected)
+        _calendar = new ReportCalendarPopup(ReportPeriods.EarliestDataDay(_costStore), SetAnchor, currentSelected)
         {
             PlacementTarget = _calendarButton,
         };
@@ -459,7 +481,7 @@ public sealed partial class ReportWindow : Window
     {
         CancelReportQuery();
         var start = day.Date;
-        if (_kind == Kind.Weekly && start >= ReportPeriods.WeekInterval(0).Start)
+        if (_kind == Kind.Weekly && start >= ReportPeriods.WeekInterval(0, _costStore).Start)
         {
             Flip(0);
             return;
@@ -479,11 +501,11 @@ public sealed partial class ReportWindow : Window
         var accepted = false;
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, cts.Token);
+            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
             if (queryId != _querySequence || !IsLoaded || _anchorDate != start) return;
             _display = _kind == Kind.Weekly
-                ? WeeklyReportData.ForInterval(start, end, slices)
-                : MonthlyReportData.ForInterval(start, slices);
+                ? WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore)
+                : MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore);
             accepted = true;
         }
         catch (OperationCanceledException)
@@ -628,11 +650,16 @@ public sealed partial class ReportWindow : Window
         return bitmap;
     }
 
-    public static BitmapSource RenderCard(Kind kind)
+    public static BitmapSource RenderCard(
+        Kind kind,
+        ICostStore? costStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null,
+        ICostQueryService? costQueryService = null)
     {
         var card = kind == Kind.Weekly
-            ? ReportCards.Weekly(WeeklyReportData.Current(), rounded: false)
-            : ReportCards.Monthly(MonthlyReportData.Current(), rounded: false);
+            ? ReportCards.Weekly(WeeklyReportData.Current(costStore, tokenModeStore, visibilityStore, costQueryService), rounded: false)
+            : ReportCards.Monthly(MonthlyReportData.Current(costStore, tokenModeStore, visibilityStore), rounded: false);
         return Render(card);
     }
 

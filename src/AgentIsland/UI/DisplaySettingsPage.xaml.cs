@@ -18,21 +18,55 @@ public sealed partial class DisplaySettingsPage : UserControl
     public static string PositionLabel => L10n.Tr("Position").ToUpperInvariant();
 
     private readonly bool _initialized;
+    private readonly StylePreferenceStore _stylePrefStore;
+    private readonly QuotaDisplayModeStore _quotaDisplayModeStore;
+    private readonly ScreenPref _screenPref;
+    private readonly CostStylePreferenceStore _costStylePrefStore;
+    private readonly LowPowerModeStore _lowPowerModeStore;
+    private readonly IslandScaleStore _scaleStore;
+    private readonly AlwaysShowUsageStore _alwaysShowUsageStore;
+    private readonly IslandTargetDisplayStore _targetDisplayStore;
+    private readonly IslandPositionStore _positionStore;
+    private readonly GlowColorStore _glowColorStore;
 
-    public DisplaySettingsPage()
+    public DisplaySettingsPage() : this(null) { }
+
+    public DisplaySettingsPage(
+        StylePreferenceStore? stylePrefStore = null,
+        QuotaDisplayModeStore? quotaDisplayModeStore = null,
+        ScreenPref? screenPref = null,
+        CostStylePreferenceStore? costStylePrefStore = null,
+        LowPowerModeStore? lowPowerModeStore = null,
+        IslandScaleStore? scaleStore = null,
+        AlwaysShowUsageStore? alwaysShowUsageStore = null,
+        IslandTargetDisplayStore? targetDisplayStore = null,
+        IslandPositionStore? positionStore = null,
+        GlowColorStore? glowColorStore = null)
     {
+        var sp = App.Instance?.Services;
+        _stylePrefStore = stylePrefStore ?? (sp?.GetService(typeof(StylePreferenceStore)) as StylePreferenceStore) ?? new StylePreferenceStore();
+        _quotaDisplayModeStore = quotaDisplayModeStore ?? (sp?.GetService(typeof(QuotaDisplayModeStore)) as QuotaDisplayModeStore) ?? new QuotaDisplayModeStore();
+        _screenPref = screenPref ?? (sp?.GetService(typeof(ScreenPref)) as ScreenPref) ?? new ScreenPref();
+        _costStylePrefStore = costStylePrefStore ?? (sp?.GetService(typeof(CostStylePreferenceStore)) as CostStylePreferenceStore) ?? new CostStylePreferenceStore();
+        _lowPowerModeStore = lowPowerModeStore ?? (sp?.GetService(typeof(LowPowerModeStore)) as LowPowerModeStore) ?? new LowPowerModeStore();
+        _scaleStore = scaleStore ?? (sp?.GetService(typeof(IslandScaleStore)) as IslandScaleStore) ?? new IslandScaleStore();
+        _alwaysShowUsageStore = alwaysShowUsageStore ?? (sp?.GetService(typeof(AlwaysShowUsageStore)) as AlwaysShowUsageStore) ?? new AlwaysShowUsageStore();
+        _targetDisplayStore = targetDisplayStore ?? (sp?.GetService(typeof(IslandTargetDisplayStore)) as IslandTargetDisplayStore) ?? new IslandTargetDisplayStore();
+        _positionStore = positionStore ?? (sp?.GetService(typeof(IslandPositionStore)) as IslandPositionStore) ?? new IslandPositionStore();
+        _glowColorStore = glowColorStore ?? (sp?.GetService(typeof(GlowColorStore)) as GlowColorStore) ?? new GlowColorStore();
+
         InitializeComponent();
 
         // 1. Usage display
-        StylePicker.Select(StylePreferenceStore.Shared.Style);
+        StylePicker.Select(_stylePrefStore.Style);
         StylePicker.StyleSelected += style =>
         {
             if (!_initialized) return;
-            StylePreferenceStore.Shared.Style = style;
+            _stylePrefStore.Style = style;
         };
 
         // 2. Quota shows
-        var quotaMode = QuotaDisplayModeStore.Shared;
+        var quotaMode = _quotaDisplayModeStore;
         QuotaSeg.SetLabels(
             new[] { L10n.Tr("Used"), L10n.Tr("Remaining") },
             quotaMode.ShowsRemaining ? 1 : 0);
@@ -45,10 +79,10 @@ public sealed partial class DisplaySettingsPage : UserControl
         // 3. Cost display
         void RefreshCostPicker()
         {
-            if (ScreenPref.Shared.ShowCostPage)
+            if (_screenPref.ShowCostPage)
             {
-                var picker = new CostStylePickerControl(CostStylePreferenceStore.Shared.Style);
-                picker.StyleSelected += style => CostStylePreferenceStore.Shared.Style = style;
+                var picker = new CostStylePickerControl(_costStylePrefStore.Style);
+                picker.StyleSelected += style => _costStylePrefStore.Style = style;
                 CostPickerHost.Content = picker;
             }
             else
@@ -57,12 +91,12 @@ public sealed partial class DisplaySettingsPage : UserControl
             }
         }
 
-        CostToggle.IsOn = ScreenPref.Shared.ShowCostPage;
+        CostToggle.IsOn = _screenPref.ShowCostPage;
         RefreshCostPicker();
         CostToggle.Toggled += enabled =>
         {
             if (!_initialized) return;
-            ScreenPref.Shared.ShowCostPage = enabled;
+            _screenPref.ShowCostPage = enabled;
             RefreshCostPicker();
         };
 
@@ -70,7 +104,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         VisualModeCombo.Items.Add(L10n.Tr("Calm"));
         VisualModeCombo.Items.Add(L10n.Tr("Vivid"));
         VisualModeCombo.Items.Add(L10n.Tr("Follow model"));
-        VisualModeCombo.SelectedIndex = LowPowerModeStore.Shared.Mode switch
+        VisualModeCombo.SelectedIndex = _lowPowerModeStore.Mode switch
         {
             VisualMode.Calm => 0,
             VisualMode.Vivid => 1,
@@ -79,7 +113,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         };
 
         GlowColorRow.Trailing = GlowSwatches();
-        GlowColorRow.Visibility = LowPowerModeStore.Shared.Mode == VisualMode.Vivid
+        GlowColorRow.Visibility = _lowPowerModeStore.Mode == VisualMode.Vivid
             ? Visibility.Visible
             : Visibility.Collapsed;
 
@@ -93,7 +127,7 @@ public sealed partial class DisplaySettingsPage : UserControl
                 2 => VisualMode.FollowModel,
                 _ => VisualMode.Vivid,
             };
-            LowPowerModeStore.Shared.Mode = selectedMode;
+            _lowPowerModeStore.Mode = selectedMode;
             GlowColorRow.Visibility = selectedMode == VisualMode.Vivid
                 ? Visibility.Visible
                 : Visibility.Collapsed;
@@ -102,7 +136,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         // Interface scale
         var scaleSteps = new[] { 1.0, 1.15, 1.3, 1.5 };
         foreach (var step in scaleSteps) ScaleBox.Items.Add($"{Math.Round(step * 100)}%");
-        var currentScale = IslandScaleStore.Shared.Scale;
+        var currentScale = _scaleStore.Scale;
         var scaleIndex = Array.FindIndex(scaleSteps, s => Math.Abs(s - currentScale) < 0.01);
         ScaleBox.SelectedIndex = scaleIndex < 0 ? 0 : scaleIndex;
         ScaleBox.SelectionChanged += (_, _) =>
@@ -110,16 +144,16 @@ public sealed partial class DisplaySettingsPage : UserControl
             if (!_initialized) return;
             if (ScaleBox.SelectedIndex >= 0)
             {
-                IslandScaleStore.Shared.Scale = scaleSteps[ScaleBox.SelectedIndex];
+                _scaleStore.Scale = scaleSteps[ScaleBox.SelectedIndex];
             }
         };
 
         // Always show usage
-        AlwaysShowToggle.IsOn = AlwaysShowUsageStore.Shared.Enabled;
+        AlwaysShowToggle.IsOn = _alwaysShowUsageStore.Enabled;
         AlwaysShowToggle.Toggled += enabled =>
         {
             if (!_initialized) return;
-            AlwaysShowUsageStore.Shared.Enabled = enabled;
+            _alwaysShowUsageStore.Enabled = enabled;
         };
 
         // 5. Screen
@@ -129,7 +163,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         {
             DisplayCombo.Items.Add(screen.DeviceName.TrimStart('\\', '.') + (screen.Primary ? " ★" : ""));
         }
-        var choice = IslandTargetDisplayStore.Shared.Choice;
+        var choice = _targetDisplayStore.Choice;
         DisplayCombo.SelectedIndex = choice == "auto"
             ? 0
             : Math.Max(0, Array.FindIndex(screens, s => s.DeviceName == choice) + 1);
@@ -142,12 +176,12 @@ public sealed partial class DisplaySettingsPage : UserControl
             var selected = DisplayCombo.SelectedIndex <= 0
                 ? "auto"
                 : screens[DisplayCombo.SelectedIndex - 1].DeviceName;
-            IslandTargetDisplayStore.Shared.Choice = selected;
+            _targetDisplayStore.Choice = selected;
             UpdateShowOnSubtitle(selected);
         };
 
         // 6. Position
-        var position = IslandPositionStore.Shared;
+        var position = _positionStore;
         var placements = new[] { IslandPlacement.TopBar, IslandPlacement.Floating };
         foreach (var mode in placements) PlacementBox.Items.Add(PlacementLabel(mode));
         PlacementBox.SelectedIndex = Math.Max(0, Array.IndexOf(placements, position.Placement));
@@ -177,7 +211,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         _ => mode.ToString(),
     };
 
-    private static UIElement GlowSwatches()
+    private UIElement GlowSwatches()
     {
         var row = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
         var dots = new List<(GlowColorStore.Choice Choice, Ellipse Dot)>();
@@ -185,7 +219,7 @@ public sealed partial class DisplaySettingsPage : UserControl
         {
             foreach (var (choice, dot) in dots)
             {
-                var selected = GlowColorStore.Shared.Value == choice;
+                var selected = _glowColorStore.Value == choice;
                 dot.Stroke = IslandColors.Brush(IslandColors.White(selected ? 0.92 : 0.16));
                 dot.StrokeThickness = selected ? 1.5 : 0.5;
                 dot.Effect = selected
@@ -219,7 +253,7 @@ public sealed partial class DisplaySettingsPage : UserControl
             var captured = choice;
             puck.MouseLeftButtonDown += (_, e) =>
             {
-                GlowColorStore.Shared.Value = captured;
+                _glowColorStore.Value = captured;
                 Restyle();
                 e.Handled = true;
             };

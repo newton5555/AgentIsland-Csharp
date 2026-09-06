@@ -11,5 +11,3 @@ global using AgentIsland.Backend.Usage;
 global using AgentIsland.UI.Localization;
 global using AgentIsland.UI.Providers;
 
-[assembly: CollectionBehavior(DisableTestParallelization = true)]
-

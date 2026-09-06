@@ -10,15 +10,13 @@ namespace AgentIsland.Backend.Settings;
 /// macOS QuotaDisplayModeStore.)
 public sealed class QuotaDisplayModeStore : INotifyPropertyChanged
 {
-    public static QuotaDisplayModeStore Shared { get; } = new();
-
     private const string Key = "AgentIsland.quotaShowsRemaining";
 
     private bool _showsRemaining;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private QuotaDisplayModeStore()
+    public QuotaDisplayModeStore()
     {
         _showsRemaining = Preferences.Get<bool?>(Key) ?? false;
     }

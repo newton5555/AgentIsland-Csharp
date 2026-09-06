@@ -5,10 +5,21 @@ namespace AgentIsland.Backend.Alarms;
 /// Owns the single visible alarm panel. Additional finished turns queue in
 /// FIFO order; dismissing one recalls the next, so nothing gets swallowed
 /// and nothing stacks.
-public sealed class TurnAlarmWindowController
+public sealed class TurnAlarmWindowController : ITurnAlarmWindowController
 {
-    public static TurnAlarmWindowController Shared { get; } = new();
-    private TurnAlarmWindowController() { }
+    private readonly AgentReminderStore? _reminderStore;
+    private readonly IServiceProvider? _services;
+
+    public TurnAlarmWindowController(
+        AgentReminderStore? reminderStore = null,
+        IServiceProvider? services = null)
+    {
+        _reminderStore = reminderStore;
+        _services = services;
+    }
+
+    private IAgentReminderCenter? ResolvedReminderCenter =>
+        _services?.GetService(typeof(IAgentReminderCenter)) as IAgentReminderCenter;
 
     private TurnAlarmWindow? _current;
     private readonly List<(TriggerTool Provider, ActivityMonitor.ActiveThread? Thread, string DeliveryKey, TurnAlarmKind? Kind)> _queue = new();
@@ -68,7 +79,7 @@ public sealed class TurnAlarmWindowController
 
     private void Present(TriggerTool provider, ActivityMonitor.ActiveThread? thread, string deliveryKey, TurnAlarmKind? kind)
     {
-        var window = new TurnAlarmWindow(provider, thread, deliveryKey, kind);
+        var window = new TurnAlarmWindow(provider, thread, deliveryKey, kind, _reminderStore, ResolvedReminderCenter);
         window.Dismissed += OnDismissed;
         _current = window;
         window.Show();

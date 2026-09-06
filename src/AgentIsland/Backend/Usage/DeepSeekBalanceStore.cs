@@ -18,13 +18,14 @@ public sealed class DeepSeekCachedBalance
 /// Publishes DeepSeek's account-level currency balance. It rides the existing
 /// provider refresh cadence but stays separate from UsageStore because this is
 /// a balance snapshot, not a percentage quota window.
-public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
+public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
 {
-    public static DeepSeekBalanceStore Shared { get; } = new();
-
     private const string CacheKey = "DeepSeekBalanceStore.lastSnapshot.v1";
     private static readonly TimeSpan CacheMaxAge = TimeSpan.FromHours(24);
     private static readonly TimeSpan MinAttemptGap = TimeSpan.FromSeconds(120);
+
+    private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher? _dispatcher;
 
     private DeepSeekBalanceSnapshot? _snapshot;
     private string? _errorCaption;
@@ -36,11 +37,16 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private DeepSeekBalanceStore()
+    public DeepSeekBalanceStore(
+        IProviderVisibilityStore visibilityStore,
+        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null)
     {
+        _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _dispatcher = dispatcher;
+
         if (AppEnvironment.IsDemo)
         {
-            if (ProviderVisibilityStore.Shared.DeepSeekPanelShown)
+            if (_visibilityStore.DeepSeekPanelShown)
             {
                 _snapshot = new DeepSeekBalanceSnapshot(
                     true,
@@ -107,10 +113,12 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
     /// Shared refresh cadence entry point. No request is made unless DeepSeek
     /// occupies a detected island slot, and bursts are coalesced with a small
     /// floor so the manual button plus a timer tick cannot double-poll.
+    public void KickRefresh() => KickRefresh(force: false);
+
     public void KickRefresh(bool force = false)
     {
         if (AppEnvironment.IsDemo) return;
-        if (!ProviderVisibilityStore.Shared.DeepSeekPanelShown) return;
+        if (!_visibilityStore.DeepSeekPanelShown) return;
         if (Loading) return;
         if (!force && _lastAttempt is { } last && DateTimeOffset.Now - last < MinAttemptGap) return;
 
@@ -120,17 +128,19 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
         var generation = ++_refreshGeneration;
         var cts = new CancellationTokenSource();
         _refreshCts = cts;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        var dispatcher = _dispatcher != null
+            ? (Action<Action>)(act => _dispatcher.BeginInvoke(act))
+            : (Action<Action>)(act => (System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher).BeginInvoke(act));
         _ = Task.Run(async () =>
         {
             try
             {
                 var outcome = await DeepSeekBalanceFetcher.Fetch(cts.Token);
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
-                await dispatcher.BeginInvoke(() =>
+                dispatcher(() =>
                 {
                     if (cts.IsCancellationRequested || generation != _refreshGeneration
-                        || !ProviderVisibilityStore.Shared.DeepSeekPanelShown) return;
+                        || !_visibilityStore.DeepSeekPanelShown) return;
                     Apply(outcome);
                 });
             }
@@ -139,10 +149,10 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
                 if (cts.IsCancellationRequested || generation != _refreshGeneration) return;
                 try
                 {
-                    await dispatcher.BeginInvoke(() =>
+                    dispatcher(() =>
                     {
                         if (generation != _refreshGeneration
-                            || !ProviderVisibilityStore.Shared.DeepSeekPanelShown) return;
+                            || !_visibilityStore.DeepSeekPanelShown) return;
                         Apply(new DeepSeekBalanceFetcher.Outcome.Failed(error.Message));
                     });
                 }
@@ -155,7 +165,7 @@ public sealed class DeepSeekBalanceStore : INotifyPropertyChanged
                     _refreshCts = null;
                     if (generation == _refreshGeneration)
                     {
-                        try { _ = dispatcher.BeginInvoke(() => Loading = false); } catch { }
+                        try { dispatcher(() => Loading = false); } catch { }
                     }
                 }
                 cts.Dispose();

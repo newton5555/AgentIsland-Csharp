@@ -10,6 +10,8 @@ namespace AgentIsland.Backend.Monitoring;
 /// </summary>
 public interface IActivityMonitor : INotifyPropertyChanged
 {
+    ActivityState Claude { get; }
+    ActivityState Codex { get; }
     ActivityState StateFor(TriggerTool tool);
     ActiveThread? ThreadFor(TriggerTool tool);
     void Configure(IAgentCatalog catalog);

@@ -9,13 +9,11 @@ public sealed class IslandTargetDisplayStore : INotifyPropertyChanged
 {
     private const string Key = "AgentIsland.targetDisplay";
 
-    public static IslandTargetDisplayStore Shared { get; } = new();
-
     private string _choice;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    private IslandTargetDisplayStore()
+    public IslandTargetDisplayStore()
     {
         _choice = Preferences.Get<string?>(Key) ?? "auto";
     }

@@ -22,8 +22,16 @@ public partial class CodexAccountMenuControl : UserControl
     public MenuItem SaveAccountItem => SaveAccountMenuItem;
     public MenuItem AutoSwitchItem => AutoSwitchMenuItem;
 
-    public CodexAccountMenuControl()
+    private readonly AgentIsland.Backend.Usage.IUsageStore _usageStore;
+
+    public CodexAccountMenuControl() : this(null) { }
+
+    public CodexAccountMenuControl(AgentIsland.Backend.Usage.IUsageStore? usageStore = null)
     {
+        _usageStore = usageStore
+            ?? (App.Instance?.Services?.GetService(typeof(AgentIsland.Backend.Usage.IUsageStore)) as AgentIsland.Backend.Usage.IUsageStore)
+            ?? new AgentIsland.Backend.Usage.UsageStore();
+
         InitializeComponent();
         AccountLabel.Text = L10n.Tr("Accounts");
 
@@ -53,7 +61,7 @@ public partial class CodexAccountMenuControl : UserControl
     /// Preserves existing menu items and open menu state without replacing items under the mouse.
     public void RefreshStatus()
     {
-        var switched = UsageStore.Shared.CodexAutoSwitched;
+        var switched = _usageStore.CodexAutoSwitched;
         AccountLabel.Foreground = IslandColors.Brush(switched is null
             ? IslandColors.White(0.85)
             : IslandColors.Alpha(IslandColors.AlertAmber, 0.9));
@@ -120,8 +128,8 @@ public partial class CodexAccountMenuControl : UserControl
                 item.Click += (_, _) =>
                 {
                     if (!CodexAccountSwitcher.Activate(captured)) return;
-                    UsageStore.Shared.CodexAutoSwitched = null;
-                    UsageStore.Shared.Refresh();
+                    _usageStore.CodexAutoSwitched = null;
+                    _usageStore.Refresh();
                     RequestRefresh?.Invoke();
                 };
                 AccountContextMenu.Items.Insert(insertIndex++, item);
