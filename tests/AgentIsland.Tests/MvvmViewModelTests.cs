@@ -165,6 +165,7 @@ public class MvvmViewModelTests
         public bool RefreshCalled { get; private set; }
         public AppUsage Claude { get; set; } = new AppUsage(new WindowUsage(0.75, null, null), WindowUsage.Unknown);
         public AppUsage Codex { get; set; } = AppUsage.Empty;
+        public AppUsage Usage(DisplayProvider provider) => provider == DisplayProvider.Claude ? Claude : Codex;
         public DateTimeOffset? LastUpdated => DateTimeOffset.UtcNow;
         public string? RefreshWarning => null;
         public bool Loading => false;

@@ -16,6 +16,7 @@ using AgentIsland.Backend.Cost;
 using AgentIsland.Backend.Alarms;
 using AgentIsland.Backend.Settings;
 using AgentIsland.Backend.Updates;
+using AgentIsland.Backend.Providers;
 using AgentIsland.UI.ViewModels;
 
 namespace AgentIsland;
@@ -49,6 +50,8 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<IUiDispatcher, WpfUiDispatcher>();
                 services.AddHttpClient();
 
+                services.AddAgentProviders();
+
                 services.AddSingleton<IProviderVisibilityStore, ProviderVisibilityStore>();
                 services.AddSingleton<IUsageStore, UsageStore>();
                 services.AddSingleton<ICostStore, CostStore>();
@@ -76,42 +79,25 @@ public partial class App : System.Windows.Application
     private static IAgentCatalog CreateDefaultCatalog()
     {
         var catalog = new BuiltInAgentCatalog();
-        var sensors = new Dictionary<string, ISessionSensor>(StringComparer.OrdinalIgnoreCase)
+        var providers = new IAgentProvider[]
         {
-            ["claude"] = new Backend.Monitoring.Sensors.ClaudeSessionSensor(),
-            ["codex"] = new Backend.Monitoring.Sensors.CodexSessionSensor(),
-            ["antigravity"] = new Backend.Monitoring.Sensors.AntigravitySessionSensor(),
-            ["grok"] = new Backend.Monitoring.Sensors.GrokSessionSensor(),
-            ["cursor"] = new Backend.Monitoring.Sensors.CursorSessionSensor(),
-            ["deepseek"] = new Backend.Monitoring.Sensors.DeepSeekSessionSensor(),
-        };
-        var usageFetchers = new Dictionary<string, IUsageFetcher>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["claude"] = new Backend.Usage.Adapters.ClaudeUsageFetcherAdapter(),
-            ["codex"] = new Backend.Usage.Adapters.CodexUsageFetcherAdapter(),
-        };
-        var costReaders = new Dictionary<string, ICostLedgerReader>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["claude"] = new Backend.Cost.Adapters.ClaudeCostLedgerReader(),
-            ["codex"] = new Backend.Cost.Adapters.CodexCostLedgerReader(),
-            ["antigravity"] = new Backend.Cost.Adapters.AntigravityCostLedgerReader(),
-            ["grok"] = new Backend.Cost.Adapters.GrokCostLedgerReader(),
-            ["cursor"] = new Backend.Cost.Adapters.CursorCostLedgerReader(),
-            ["deepseek"] = new Backend.Cost.Adapters.DeepSeekCostLedgerReader(),
+            new ClaudeAgentProvider(),
+            new CodexAgentProvider(),
+            new AntigravityAgentProvider(),
+            new DeepSeekAgentProvider(),
+            new GrokAgentProvider(),
+            new CursorAgentProvider(),
         };
 
-        foreach (var module in catalog.Modules.ToList())
+        foreach (var provider in providers)
         {
-            var key = module.Descriptor.Key.Value;
-            sensors.TryGetValue(key, out var sensor);
-            usageFetchers.TryGetValue(key, out var usageFetcher);
-            costReaders.TryGetValue(key, out var costReader);
-
             catalog.Register(new BuiltInAgentModule(
-                module.Descriptor,
-                SessionSensor: sensor,
-                UsageFetcher: usageFetcher,
-                CostLedgerReader: costReader
+                provider.Descriptor,
+                SessionSensor: provider.SessionSensor,
+                UsageFetcher: provider.UsageFetcher,
+                CostLedgerReader: provider.CostLedgerReader,
+                SessionLauncher: provider.SessionLauncher,
+                ReauthHandler: provider.ReauthHandler
             ));
         }
         return catalog;

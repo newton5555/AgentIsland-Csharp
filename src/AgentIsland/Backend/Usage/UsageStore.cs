@@ -70,6 +70,9 @@ public sealed class UsageStore : IUsageStore
     private bool _networkMonitorArmed;
     private bool _powerMonitorArmed;
     private bool _lastNetworkAvailable = true;
+    private readonly Dictionary<DisplayProvider, AgentIsland.Core.Agents.IUsageFetcher> _injectedFetchers = new();
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+    private readonly Dictionary<DisplayProvider, AppUsage> _usages = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -80,6 +83,8 @@ public sealed class UsageStore : IUsageStore
         {
             _claude = snapshot.Claude;
             _codex = snapshot.Codex;
+            _usages[DisplayProvider.Claude] = _claude;
+            _usages[DisplayProvider.Codex] = _codex;
             _lastUpdated = snapshot.UpdatedAt;
             if (snapshot.ClaudeUpdatedAt is { } claudeAt)
                 _providerUpdatedAt[DisplayProvider.Claude] = claudeAt;
@@ -88,16 +93,36 @@ public sealed class UsageStore : IUsageStore
         }
     }
 
-    public AppUsage Claude { get => _claude; private set { _claude = value; Raise(nameof(Claude)); } }
-    public AppUsage Codex { get => _codex; private set { _codex = value; Raise(nameof(Codex)); } }
+    public UsageStore(
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null) : this()
+    {
+        _visibilityStore = visibilityStore;
+        if (providers is not null)
+        {
+            foreach (var p in providers)
+            {
+                if (p.UsageFetcher is null) continue;
+                var dp = DisplayProviders.Parse(p.Descriptor.Key.Value);
+                if (dp is not null)
+                {
+                    _injectedFetchers[dp.Value] = p.UsageFetcher;
+                }
+            }
+        }
+    }
+
+    public AppUsage Usage(DisplayProvider provider) =>
+        _usages.TryGetValue(provider, out var u) ? u : (provider == DisplayProvider.Claude ? _claude : provider == DisplayProvider.Codex ? _codex : AppUsage.Empty);
+
+    public AppUsage Claude { get => _claude; private set { _claude = value; _usages[DisplayProvider.Claude] = value; Raise(nameof(Claude)); Raise(nameof(Usage)); } }
+    public AppUsage Codex { get => _codex; private set { _codex = value; _usages[DisplayProvider.Codex] = value; Raise(nameof(Codex)); Raise(nameof(Usage)); } }
     public DateTimeOffset? LastUpdated { get => _lastUpdated; private set { _lastUpdated = value; Raise(nameof(LastUpdated)); } }
     public string? RefreshWarning { get => _refreshWarning; private set { _refreshWarning = value; Raise(nameof(RefreshWarning)); } }
     public bool Loading { get => _loading; private set { _loading = value; Raise(nameof(Loading)); } }
-
-    /// Set while a `claude auth login` flow is in progress; the UI hides the
-    /// re-auth button during this window so users don't double-tap.
     public bool ClaudeReauthInProgress { get => _claudeReauthInProgress; private set { _claudeReauthInProgress = value; Raise(nameof(ClaudeReauthInProgress)); } }
     public bool CodexReauthInProgress { get => _codexReauthInProgress; private set { _codexReauthInProgress = value; Raise(nameof(CodexReauthInProgress)); } }
+
 
     /// Why the last browser sign-in round failed, or null. This is the whole
     /// recovery surface for a failed web login — the Settings row shows it and
@@ -204,17 +229,45 @@ public sealed class UsageStore : IUsageStore
         if (_enabledProviders.Contains(DisplayProvider.Cursor)) CursorUsageStore.Shared.KickRefresh();
         if (_enabledProviders.Contains(DisplayProvider.DeepSeek)) DeepSeekBalanceStore.Shared.KickRefresh();
         var dispatcher = Dispatcher.CurrentDispatcher;
-        foreach (var provider in CoreProviders)
+        foreach (var provider in _enabledProviders)
         {
-            if (!_enabledProviders.Contains(provider)) continue;
-            StartCoreRefresh(provider, dispatcher);
+            if (CoreProviders.Contains(provider))
+            {
+                StartCoreRefresh(provider, dispatcher);
+            }
+            else if (_injectedFetchers.TryGetValue(provider, out var fetcher))
+            {
+                StartGenericRefresh(provider, fetcher, dispatcher);
+            }
         }
         UpdateLoading();
     }
 
+    private void StartGenericRefresh(
+        DisplayProvider provider,
+        AgentIsland.Core.Agents.IUsageFetcher fetcher,
+        Dispatcher dispatcher)
+    {
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                var usage = await fetcher.FetchUsageAsync().ConfigureAwait(false);
+                await dispatcher.BeginInvoke(() =>
+                {
+                    _usages[provider] = usage;
+                    _providerUpdatedAt[provider] = DateTimeOffset.Now;
+                    Raise(nameof(Usage));
+                });
+            }
+            catch { }
+        });
+    }
+
     private bool SyncProviderMode()
     {
-        var next = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToHashSet();
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var next = visibility.Enabled.ToHashSet();
         if (_enabledProviders.SetEquals(next)) return false;
 
         var removed = _enabledProviders.Except(next).ToArray();
@@ -307,14 +360,21 @@ public sealed class UsageStore : IUsageStore
         _ = ObserveCoreRefresh(provider, generation, task, cts, dispatcher);
     }
 
-    private static Task<AppUsage> FetchCore(
+    private Task<AppUsage> FetchCore(
         DisplayProvider provider,
-        CancellationToken cancellationToken) => provider switch
+        CancellationToken cancellationToken)
+    {
+        if (_injectedFetchers.TryGetValue(provider, out var fetcher))
+        {
+            return FetchWithRetry(ct => fetcher.FetchUsageAsync(ct).AsTask(), cancellationToken);
+        }
+        return provider switch
         {
             DisplayProvider.Claude => FetchWithRetry(UsageFetcher.FetchClaude, cancellationToken),
             DisplayProvider.Codex => FetchWithRetry(UsageFetcher.FetchCodex, cancellationToken),
             _ => Task.FromResult(AppUsage.Empty),
         };
+    }
 
     private async Task ObserveCoreRefresh(
         DisplayProvider provider,

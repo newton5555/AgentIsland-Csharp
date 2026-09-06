@@ -112,6 +112,7 @@ public static class Program
             ReportDuelTests.RunAll();
             SettingsXamlTests.RunAll();
             MvvmViewModelTests.RunAll();
+            ProviderPluginTests.RunAll();
             Console.WriteLine("ALL GREEN");
             return 0;
         }

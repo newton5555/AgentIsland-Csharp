@@ -47,10 +47,6 @@ public sealed class ActivityMonitor : IActivityMonitor
         TriggerTool.Cursor,
         TriggerTool.DeepSeek,
     };
-
-    // Becomes the selected subset once Start() binds to the visibility store.
-    // Keeping the available catalog separate lets the demo hooks continue to
-    // work before startup while the live monitor stays strictly opt-in.
     private TriggerTool[] _monitoredProviders =
     {
         TriggerTool.Claude,
@@ -60,6 +56,27 @@ public sealed class ActivityMonitor : IActivityMonitor
         TriggerTool.Cursor,
         TriggerTool.DeepSeek,
     };
+    private readonly Dictionary<TriggerTool, AgentIsland.Core.Agents.ISessionSensor> _injectedSensors = new();
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+
+    public ActivityMonitor(
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
+    {
+        _visibilityStore = visibilityStore;
+        if (providers is not null)
+        {
+            foreach (var p in providers)
+            {
+                if (p.SessionSensor is null) continue;
+                var tool = TriggerToolExtensions.FromRawValue(p.Descriptor.Key.Value);
+                if (tool is not null)
+                {
+                    _injectedSensors[tool.Value] = p.SessionSensor;
+                }
+            }
+        }
+    }
 
     /// Binds the legacy runtime enum to the stable Agent catalog at the
     /// composition root. Unknown future keys are ignored until their runtime
@@ -151,7 +168,8 @@ public sealed class ActivityMonitor : IActivityMonitor
         _started = true;
         _dispatcher = Dispatcher.CurrentDispatcher;
         _visibilityChanged = OnProviderVisibilityChanged;
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        visibility.PropertyChanged += _visibilityChanged;
         ApplyProviderMode();
     }
 
@@ -161,7 +179,8 @@ public sealed class ActivityMonitor : IActivityMonitor
         _started = false;
         if (_visibilityChanged is not null)
         {
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+            visibility.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
         _scanGeneration++;
@@ -193,7 +212,8 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private void ApplyProviderMode()
     {
-        var selected = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var selected = visibility.Enabled
             .Select(provider => provider.ToTriggerTool())
             .ToHashSet();
         var next = _availableProviders
@@ -345,7 +365,7 @@ public sealed class ActivityMonitor : IActivityMonitor
         // last-working stamp and downgrade a stall to idle.
         var lastWorkingSnapshot = new Dictionary<string, DateTimeOffset>(
             _lastWorking, StringComparer.OrdinalIgnoreCase);
-        Task.Run(() => SessionScanner.MonitoringScan(now, lastWorkingSnapshot, providersSnapshot))
+        Task.Run(() => ScanSensorsAsync(now, lastWorkingSnapshot, providersSnapshot))
             .ContinueWith(task =>
             {
                 var sessions = task.IsCompletedSuccessfully ? task.Result : new List<ScannedSession>();
@@ -387,13 +407,39 @@ public sealed class ActivityMonitor : IActivityMonitor
                 : TaskScheduler.Default);
     }
 
+    private async Task<List<ScannedSession>> ScanSensorsAsync(
+        DateTimeOffset now,
+        Dictionary<string, DateTimeOffset> lastWorkingSnapshot,
+        HashSet<TriggerTool> providersSnapshot)
+    {
+        if (_injectedSensors.Count > 0)
+        {
+            var results = new List<ScannedSession>();
+            foreach (var tool in providersSnapshot)
+            {
+                if (_injectedSensors.TryGetValue(tool, out var sensor))
+                {
+                    try
+                    {
+                        var sessions = await sensor.ScanSessionsAsync(now, lastWorkingSnapshot).ConfigureAwait(false);
+                        results.AddRange(sessions);
+                    }
+                    catch { }
+                }
+            }
+            results.Sort((a, b) => b.Modified.CompareTo(a.Modified));
+            return results;
+        }
+        return SessionScanner.MonitoringScan(now, lastWorkingSnapshot, providersSnapshot);
+    }
+
     internal void Apply(List<ScannedSession> sessions, DateTimeOffset now)
     {
         // Usage-level attention (rate-limited / auth-required red) only
         // applies to providers switched ON in Settings. Someone who only
         // runs Claude keeps Codex hidden - its missing login must not
         // pulse the island red forever.
-        var visibility = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
         UpdateLastWorking(sessions, now);
         var nextStates = new Dictionary<TriggerTool, ActivityState>();
         var nextRaw = new Dictionary<TriggerTool, ActivityState>();
@@ -404,7 +450,7 @@ public sealed class ActivityMonitor : IActivityMonitor
                 thread => AgentReminderCenter.Shared.HasAcknowledged(tool, thread));
             nextRaw[tool] = result.State;
             if (result.Thread is { } thread) nextThreads[tool] = thread;
-            nextStates[tool] = visibility.IsVisible(tool)
+            nextStates[tool] = visibility.IsShown(tool.ToDisplayProvider())
                 ? OverlayUsageAttention(result.State, UsageFor(tool))
                 : result.State;
             AgentReminderCenter.Shared.Handle(tool, NeedsYouThreads(sessions, tool));

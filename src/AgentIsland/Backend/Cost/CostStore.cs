@@ -25,6 +25,9 @@ public sealed class CostStore : ICostStore
     private readonly Dictionary<DisplayProvider, long> _providerModeVersions = new();
     private readonly Dictionary<DisplayProvider, Task<CostScanResult>> _inFlightProviders = new();
 
+    private readonly Dictionary<DisplayProvider, AgentIsland.Core.Agents.ICostLedgerReader> _injectedReaders = new();
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     public CostStore()
@@ -32,6 +35,25 @@ public sealed class CostStore : ICostStore
         foreach (var provider in DisplayProviders.All)
         {
             _summaries[provider] = ProviderCostSummary.Empty;
+        }
+    }
+
+    public CostStore(
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null) : this()
+    {
+        _visibilityStore = visibilityStore;
+        if (providers is not null)
+        {
+            foreach (var p in providers)
+            {
+                if (p.CostLedgerReader is null) continue;
+                var dp = DisplayProviders.Parse(p.Descriptor.Key.Value);
+                if (dp is not null)
+                {
+                    _injectedReaders[dp.Value] = p.CostLedgerReader;
+                }
+            }
         }
     }
 
@@ -62,7 +84,8 @@ public sealed class CostStore : ICostStore
         if (_autoRefreshStarted) return;
         _autoRefreshStarted = true;
         _visibilityChanged = OnProviderVisibilityChanged;
-        AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged += _visibilityChanged;
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        visibility.PropertyChanged += _visibilityChanged;
         _intervalChanged = OnRefreshIntervalChanged;
         RefreshIntervalStore.Shared.PropertyChanged += _intervalChanged;
         ApplyProviderMode();
@@ -76,7 +99,8 @@ public sealed class CostStore : ICostStore
         _pollTimer = null;
         if (_visibilityChanged is not null)
         {
-            AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.PropertyChanged -= _visibilityChanged;
+            var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+            visibility.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
         if (_intervalChanged is not null)
@@ -109,7 +133,8 @@ public sealed class CostStore : ICostStore
 
     private void ApplyProviderMode()
     {
-        var next = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared.Enabled.ToHashSet();
+        var visibility = _visibilityStore ?? AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
+        var next = visibility.Enabled.ToHashSet();
         var changed = !_activeProviders.SetEquals(next);
         var removed = _activeProviders.Except(next).ToArray();
         var changedProviders = _activeProviders
