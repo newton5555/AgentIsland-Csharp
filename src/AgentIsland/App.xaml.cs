@@ -72,6 +72,10 @@ public partial class App : System.Windows.Application
                 services.AddTransient<SettingsViewModel>();
 
                 services.AddHostedService<Backend.Host.AgentIslandHostedService>();
+                services.AddHostedService<Backend.Workers.ActivityMonitoringWorker>();
+                services.AddHostedService<Backend.Workers.UsagePollingWorker>();
+                services.AddHostedService<Backend.Workers.CostAggregationWorker>();
+                services.AddHostedService<Backend.Workers.UpdateCheckWorker>();
             })
             .Build();
     }
@@ -191,12 +195,8 @@ public partial class App : System.Windows.Application
             });
         TrayIcon.Current = _tray;
 
-        ActivityMonitor.Shared.Start();
-        UsageStore.Shared.StartAutoRefresh();
         AgentIsland.Backend.Alarms.UsageExhaustionAlarm.Shared.Start();
         AgentIsland.Backend.Updates.UpdateInstaller.CleanupAtStartup();
-        AgentIsland.Backend.Updates.UpdateChecker.Shared.Start();
-        AgentIsland.Backend.Cost.CostStore.Shared.StartAutoRefresh();
         AgentIsland.Backend.Settings.AlertEngine.Shared.Start();
 
         // Release card: once per version, shortly after the island lands

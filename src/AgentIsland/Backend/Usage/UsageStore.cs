@@ -243,6 +243,21 @@ public sealed class UsageStore : IUsageStore
         UpdateLoading();
     }
 
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        Refresh();
+        var inFlight = _refreshSlots.Values.Select(s => s.Task).Where(t => t != null).ToArray();
+        if (inFlight.Length > 0)
+        {
+            try
+            {
+                await Task.WhenAll(inFlight!).WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch { }
+        }
+    }
+
+
     private void StartGenericRefresh(
         DisplayProvider provider,
         AgentIsland.Core.Agents.IUsageFetcher fetcher,

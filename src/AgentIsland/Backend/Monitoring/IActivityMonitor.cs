@@ -16,4 +16,6 @@ public interface IActivityMonitor : INotifyPropertyChanged
     void Demo(ActivityState? state);
     void Start();
     void Stop();
+    void ScanNow();
 }
+

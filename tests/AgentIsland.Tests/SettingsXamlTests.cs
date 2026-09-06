@@ -95,7 +95,9 @@ public class SettingsXamlTests
         {
             _ = new Application();
         }
+        _ = AgentIsland.Backend.Settings.ProviderVisibilityStore.Shared;
     }
+
 
     private static void TestXamlResourceLoading()
     {

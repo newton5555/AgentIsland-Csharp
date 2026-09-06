@@ -59,7 +59,13 @@ public sealed class ActivityMonitor : IActivityMonitor
     private readonly Dictionary<TriggerTool, AgentIsland.Core.Agents.ISessionSensor> _injectedSensors = new();
     private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
 
+    /// <summary>
+    /// When true, internal DispatcherTimer is suppressed because an external BackgroundService worker drives ticks.
+    /// </summary>
+    public bool DisableInternalTimer { get; set; }
+
     public ActivityMonitor(
+
         IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
         AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
     {
@@ -271,15 +277,19 @@ public sealed class ActivityMonitor : IActivityMonitor
     private void EnsureMonitoringResources()
     {
         if (_dispatcher is null) return;
-        if (_timer is null)
+        if (!DisableInternalTimer)
         {
-            _timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+            if (_timer is null)
             {
-                Interval = TimeSpan.FromSeconds(6),
-            };
-            _timer.Tick += (_, _) => Tick();
+                _timer = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+                {
+                    Interval = TimeSpan.FromSeconds(6),
+                };
+                _timer.Tick += (_, _) => Tick();
+            }
+            if (!_timer.IsEnabled) _timer.Start();
         }
-        if (!_timer.IsEnabled) _timer.Start();
+
 
         if (_eventStream is null)
         {
@@ -344,8 +354,11 @@ public sealed class ActivityMonitor : IActivityMonitor
         trailing.Start();
     }
 
-    private void Tick()
+    public void ScanNow() => Tick();
+
+    internal void Tick()
     {
+
         if (_monitoredProviders.Length == 0) return;
         // One scan at a time; a kick that lands mid-scan queues exactly one
         // follow-up so the trailing write of a turn is never dropped.

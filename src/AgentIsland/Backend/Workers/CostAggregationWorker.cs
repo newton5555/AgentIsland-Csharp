@@ -1,0 +1,62 @@
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using AgentIsland.Backend.Cost;
+using AgentIsland.Backend.Usage;
+
+namespace AgentIsland.Backend.Workers;
+
+/// <summary>
+/// Background worker hosted by Generic Host that periodically aggregates provider costs.
+/// </summary>
+public sealed class CostAggregationWorker : BackgroundService
+{
+    private readonly ICostStore _costStore;
+    private readonly ILogger<CostAggregationWorker>? _logger;
+
+    public CostAggregationWorker(
+        ICostStore costStore,
+        ILogger<CostAggregationWorker>? logger = null)
+    {
+        _costStore = costStore;
+        _logger = logger;
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        _logger?.LogInformation("CostAggregationWorker starting.");
+
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
+            if (!stoppingToken.IsCancellationRequested)
+            {
+                _costStore.Refresh();
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            return;
+        }
+
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            var intervalSeconds = RefreshIntervalStore.Shared.Seconds;
+            if (intervalSeconds < 10) intervalSeconds = 300;
+
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(intervalSeconds));
+            try
+            {
+                if (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
+                {
+                    _costStore.Refresh();
+                }
+            }
+            catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+            {
+                break;
+            }
+        }
+
+        _logger?.LogInformation("CostAggregationWorker stopped.");
+    }
+}

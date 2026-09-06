@@ -20,5 +20,7 @@ public interface IUsageStore : INotifyPropertyChanged
     string? CodexAutoSwitched { get; set; }
     void Refresh();
     void RefreshIfStale();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
     void ClearClaudeReauthFailure();
 }
+

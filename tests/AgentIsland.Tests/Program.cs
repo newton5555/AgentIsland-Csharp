@@ -113,7 +113,9 @@ public static class Program
             SettingsXamlTests.RunAll();
             MvvmViewModelTests.RunAll();
             ProviderPluginTests.RunAll();
+            HostedWorkerTests.RunAll();
             Console.WriteLine("ALL GREEN");
+
             return 0;
         }
         catch (Exception error)

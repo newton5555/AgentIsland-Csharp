@@ -144,6 +144,7 @@ public class MvvmViewModelTests
         public void Demo(ActivityState? state) { }
         public void Start() { }
         public void Stop() { }
+        public void ScanNow() { }
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 
@@ -175,6 +176,11 @@ public class MvvmViewModelTests
         public string? CodexAutoSwitched { get; set; }
         public void Refresh() => RefreshCalled = true;
         public void RefreshIfStale() { }
+        public Task RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            RefreshCalled = true;
+            return Task.CompletedTask;
+        }
         public void ClearClaudeReauthFailure() { }
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
