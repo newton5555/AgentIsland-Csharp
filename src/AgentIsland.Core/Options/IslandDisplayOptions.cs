@@ -12,7 +12,7 @@ public sealed class IslandDisplayOptions
 
     public IslandSpacingMode SpacingMode { get; set; } = IslandSpacingMode.NotchStyle;
     public double SpacingScale { get; set; } = 1.0;
-    public bool AlwaysShowUsage { get; set; } = false;
+    public bool AlwaysShowUsage { get; set; } = true;
     public string GlowColor { get; set; } = "teal";
     public bool ShowCostPanelPage { get; set; } = false;
 }

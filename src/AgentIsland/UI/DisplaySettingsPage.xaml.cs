@@ -109,7 +109,7 @@ public sealed partial class DisplaySettingsPage : UserControl
             VisualMode.Calm => 0,
             VisualMode.Vivid => 1,
             VisualMode.FollowModel => 2,
-            _ => 1,
+            _ => 2,
         };
 
         GlowColorRow.Trailing = GlowSwatches();
@@ -125,7 +125,7 @@ public sealed partial class DisplaySettingsPage : UserControl
                 0 => VisualMode.Calm,
                 1 => VisualMode.Vivid,
                 2 => VisualMode.FollowModel,
-                _ => VisualMode.Vivid,
+                _ => VisualMode.FollowModel,
             };
             _lowPowerModeStore.Mode = selectedMode;
             GlowColorRow.Visibility = selectedMode == VisualMode.Vivid

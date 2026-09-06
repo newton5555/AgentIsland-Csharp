@@ -15,7 +15,7 @@ public sealed class AlwaysShowUsageStore : INotifyPropertyChanged
 
     public AlwaysShowUsageStore()
     {
-        _enabled = Preferences.Get<bool?>(Key) ?? false;
+        _enabled = Preferences.Get<bool?>(Key) ?? true;
     }
 
     public bool Enabled

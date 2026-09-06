@@ -18,7 +18,7 @@ public sealed class QuotaDisplayModeStore : INotifyPropertyChanged
 
     public QuotaDisplayModeStore()
     {
-        _showsRemaining = Preferences.Get<bool?>(Key) ?? false;
+        _showsRemaining = Preferences.Get<bool?>(Key) ?? true;
     }
 
     public bool ShowsRemaining

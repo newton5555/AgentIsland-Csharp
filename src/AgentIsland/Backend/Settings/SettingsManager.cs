@@ -149,7 +149,7 @@ public sealed class SettingsManager : ISettingsManager, IDisposable
         {
             SpacingMode = mode,
             SpacingScale = _storage.Get<double?>("AgentIsland.spacingScale") ?? 1.0,
-            AlwaysShowUsage = _storage.Get<bool?>("AgentIsland.alwaysShowUsage") ?? false,
+            AlwaysShowUsage = _storage.Get<bool?>("AgentIsland.alwaysShowUsage") ?? true,
             GlowColor = _storage.Get<string?>("AgentIsland.glowColor") ?? "teal",
             ShowCostPanelPage = _storage.Get<bool?>("AgentIsland.showCostPanelPage") ?? false,
         };

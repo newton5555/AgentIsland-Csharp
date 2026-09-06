@@ -32,14 +32,15 @@ public sealed class LowPowerModeStore : INotifyPropertyChanged
             _mode = rawMode switch
             {
                 "calm" => VisualMode.Calm,
+                "vivid" => VisualMode.Vivid,
                 "follow_model" or "followmodel" => VisualMode.FollowModel,
-                _ => VisualMode.Vivid,
+                _ => VisualMode.FollowModel,
             };
         }
         else
         {
             var oldCalm = Preferences.Get<bool?>(Key) ?? false;
-            _mode = oldCalm ? VisualMode.Calm : VisualMode.Vivid;
+            _mode = oldCalm ? VisualMode.Calm : VisualMode.FollowModel;
         }
 
         _systemLowPower = ReadSystemLowPower();
@@ -76,7 +77,7 @@ public sealed class LowPowerModeStore : INotifyPropertyChanged
     public bool Enabled
     {
         get => _mode == VisualMode.Calm;
-        set => Mode = value ? VisualMode.Calm : VisualMode.Vivid;
+        set => Mode = value ? VisualMode.Calm : VisualMode.FollowModel;
     }
 
     /// What render gating should read: the system battery saver forces Calm

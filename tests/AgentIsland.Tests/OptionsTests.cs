@@ -14,12 +14,34 @@ public class OptionsTests
     internal static void RunAll()
     {
         TestDefaultOptions();
+        TestFreshInstallDefaultStores();
         TestUpdateAndPersistDisplayOptions();
         TestUpdateAndPersistPollingOptions();
         TestUpdateAndPersistAlertOptions();
         TestUpdateAndPersistProviderVisibility();
         TestOptionsMonitorOnChangeFired();
         TestStorageExternalChangeSyncsToOptions();
+    }
+
+    private static void TestFreshInstallDefaultStores()
+    {
+        AgentIsland.Windows.Preferences.Remove("AgentIsland.quotaShowsRemaining");
+        AgentIsland.Windows.Preferences.Remove("AgentIsland.showCostPanelPage");
+        AgentIsland.Windows.Preferences.Remove("AgentIsland.visualMode");
+        AgentIsland.Windows.Preferences.Remove("AgentIsland.lowPowerMode");
+        AgentIsland.Windows.Preferences.Remove("AgentIsland.alwaysShowUsage");
+
+        var quotaStore = new QuotaDisplayModeStore();
+        Assert.True(quotaStore.ShowsRemaining);
+
+        var screenPref = new AgentIsland.UI.ScreenPref();
+        Assert.False(screenPref.ShowCostPage);
+
+        var lowPowerStore = new LowPowerModeStore();
+        Assert.Equal(VisualMode.FollowModel, lowPowerStore.Mode);
+
+        var alwaysShowStore = new AgentIsland.UI.AlwaysShowUsageStore();
+        Assert.True(alwaysShowStore.Enabled);
     }
 
     private static void TestDefaultOptions()
@@ -29,7 +51,7 @@ public class OptionsTests
 
         Assert.Equal(IslandSpacingMode.NotchStyle, manager.Display.SpacingMode);
         Assert.Equal(1.0, manager.Display.SpacingScale);
-        Assert.False(manager.Display.AlwaysShowUsage);
+        Assert.True(manager.Display.AlwaysShowUsage);
         Assert.Equal("teal", manager.Display.GlowColor);
 
         Assert.Equal(300, manager.Polling.RefreshIntervalSeconds);
