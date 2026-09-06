@@ -1,4 +1,4 @@
-﻿
+
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
@@ -20,28 +20,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "assets", "assets", "{042B67
 		assets\AgentIsland.ico = assets\AgentIsland.ico
 		assets\agentisland_logo.png = assets\agentisland_logo.png
 		assets\agentisland_logo_small.png = assets\agentisland_logo_small.png
-		assets\guide-brand.png = assets\guide-brand.png
-		assets\guide-cards-en.png = assets\guide-cards-en.png
-		assets\guide-cards.png = assets\guide-cards.png
-		assets\guide-cost-en.png = assets\guide-cost-en.png
-		assets\guide-cost.png = assets\guide-cost.png
-		assets\guide-personalize-en.png = assets\guide-personalize-en.png
-		assets\guide-personalize.png = assets\guide-personalize.png
-		assets\guide-status-en.png = assets\guide-status-en.png
-		assets\guide-status.png = assets\guide-status.png
-		assets\guide-usage-en.png = assets\guide-usage-en.png
-		assets\guide-usage.png = assets\guide-usage.png
 		assets\mark-antigravity.png = assets\mark-antigravity.png
 		assets\mark-claude.png = assets\mark-claude.png
 		assets\mark-cursor.png = assets\mark-cursor.png
 		assets\mark-grok.png = assets\mark-grok.png
 		assets\mark-openai.png = assets\mark-openai.png
-		assets\whatsnew-antigravity.png = assets\whatsnew-antigravity.png
-		assets\whatsnew-cost.png = assets\whatsnew-cost.png
-		assets\whatsnew-overview.png = assets\whatsnew-overview.png
-		assets\whatsnew-start.png = assets\whatsnew-start.png
-		assets\whatsnew-terminal.png = assets\whatsnew-terminal.png
-		assets\whatsnew-tones.png = assets\whatsnew-tones.png
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Report", "Report", "{DCA9B481-8B40-4608-B516-F24FA0836595}"
