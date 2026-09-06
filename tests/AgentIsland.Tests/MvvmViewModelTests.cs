@@ -121,7 +121,7 @@ public class MvvmViewModelTests
         Console.WriteLine("PASS Pure Constructor Injection without singletons or disk dependencies");
     }
 
-    private sealed class FakeVisibilityStore : AgentIsland.Backend.Settings.IProviderVisibilityStore
+    internal sealed class FakeVisibilityStore : AgentIsland.Backend.Settings.IProviderVisibilityStore
     {
         public IReadOnlyList<DisplayProvider> SlotProviders { get; set; } = new[] { DisplayProvider.Claude, DisplayProvider.Codex };
         public IReadOnlyList<DisplayProvider> Slots => SlotProviders;
@@ -135,7 +135,7 @@ public class MvvmViewModelTests
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 
-    private sealed class FakeActivityMonitor : AgentIsland.Backend.Monitoring.IActivityMonitor
+    internal sealed class FakeActivityMonitor : AgentIsland.Backend.Monitoring.IActivityMonitor
     {
         public ActivityState StateFor(TriggerTool tool) => tool == TriggerTool.Claude ? ActivityState.Working : ActivityState.Idle;
         public AgentIsland.Backend.Monitoring.ActivityMonitor.ActiveThread? ThreadFor(TriggerTool tool) =>
@@ -148,7 +148,7 @@ public class MvvmViewModelTests
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 
-    private sealed class FakeIslandModel : IIslandModel
+    internal sealed class FakeIslandModel : IIslandModel
     {
         public IslandState State { get; set; } = IslandState.Compact;
         public IslandSpacingMode SpacingMode { get; set; } = IslandSpacingMode.NotchStyle;
@@ -161,7 +161,7 @@ public class MvvmViewModelTests
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
     }
 
-    private sealed class FakeUsageStore : AgentIsland.Backend.Usage.IUsageStore
+    internal sealed class FakeUsageStore : AgentIsland.Backend.Usage.IUsageStore
     {
         public bool RefreshCalled { get; private set; }
         public AppUsage Claude { get; set; } = new AppUsage(new WindowUsage(0.75, null, null), WindowUsage.Unknown);

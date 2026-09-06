@@ -114,7 +114,9 @@ public static class Program
             MvvmViewModelTests.RunAll();
             ProviderPluginTests.RunAll();
             HostedWorkerTests.RunAll();
+            WindowServiceTests.RunAll();
             Console.WriteLine("ALL GREEN");
+
 
             return 0;
         }

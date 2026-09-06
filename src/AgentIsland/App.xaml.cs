@@ -18,6 +18,9 @@ using AgentIsland.Backend.Settings;
 using AgentIsland.Backend.Updates;
 using AgentIsland.Backend.Providers;
 using AgentIsland.UI.ViewModels;
+using AgentIsland.Core.Navigation;
+using AgentIsland.Core.Dialogs;
+using AgentIsland.UI.Services;
 
 namespace AgentIsland;
 
@@ -38,6 +41,8 @@ public partial class App : System.Windows.Application
     public IActivityMonitor Activity => Services.GetRequiredService<IActivityMonitor>();
     public IIslandModel IslandModel => Services.GetRequiredService<IIslandModel>();
     public IUpdateChecker Updates => Services.GetRequiredService<IUpdateChecker>();
+    public IWindowService WindowService => Services.GetRequiredService<IWindowService>();
+    public IDialogService DialogService => Services.GetRequiredService<IDialogService>();
 
     public App()
     {
@@ -58,6 +63,8 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<IActivityMonitor, ActivityMonitor>();
                 services.AddSingleton<IIslandModel, IslandModel>();
                 services.AddSingleton<IUpdateChecker, UpdateChecker>();
+                services.AddSingleton<IWindowService, WpfWindowService>();
+                services.AddSingleton<IDialogService, WpfDialogService>();
 
                 services.AddSingleton(GrokUsageStore.Shared);
                 services.AddSingleton(CursorUsageStore.Shared);
@@ -172,22 +179,9 @@ public partial class App : System.Windows.Application
         _island.Show();
 
         _tray = new TrayIcon(
-            showIsland: () => _island?.PopUp(),
-            toggleIsland: () =>
-            {
-                if (_island is null) return;
-                if (_island.IsVisible)
-                {
-                    _island.DeliberatelyHidden = true;
-                    _island.Hide();
-                }
-                else
-                {
-                    _island.DeliberatelyHidden = false;
-                    _island.Show();
-                }
-            },
-            openSettings: UI.SettingsWindow.Open,
+            showIsland: () => WindowService.ShowIsland(),
+            toggleIsland: () => WindowService.ToggleIsland(),
+            openSettings: () => WindowService.OpenSettings(),
             exit: () =>
             {
                 _tray?.Dispose();

@@ -34,21 +34,30 @@ public sealed partial class SettingsViewModel : ObservableObject
 
     private readonly ISettingsStorage _storage;
     private readonly IUpdateChecker _updateChecker;
+    private readonly AgentIsland.Core.Navigation.IWindowService? _windowService;
+    private readonly AgentIsland.Core.Dialogs.IDialogService? _dialogService;
 
     public SettingsViewModel() : this(
         Preferences.Storage,
-        UpdateChecker.Shared)
+        UpdateChecker.Shared,
+        null,
+        null)
     {
     }
 
     public SettingsViewModel(
         ISettingsStorage storage,
-        IUpdateChecker updateChecker)
+        IUpdateChecker updateChecker,
+        AgentIsland.Core.Navigation.IWindowService? windowService = null,
+        AgentIsland.Core.Dialogs.IDialogService? dialogService = null)
     {
         _storage = storage ?? throw new ArgumentNullException(nameof(storage));
         _updateChecker = updateChecker ?? throw new ArgumentNullException(nameof(updateChecker));
+        _windowService = windowService;
+        _dialogService = dialogService;
         LoadSettings();
     }
+
 
     public void LoadSettings()
     {

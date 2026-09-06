@@ -43,22 +43,27 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
     private readonly IProviderVisibilityStore _visibilityStore;
     private readonly IActivityMonitor _activityMonitor;
     private readonly IIslandModel _islandModel;
+    private readonly AgentIsland.Core.Navigation.IWindowService? _windowService;
 
     public IslandViewModel() : this(
         ProviderVisibilityStore.Shared,
         ActivityMonitor.Shared,
-        IslandModel.Shared)
+        IslandModel.Shared,
+        null)
     {
     }
 
     public IslandViewModel(
         IProviderVisibilityStore visibilityStore,
         IActivityMonitor activityMonitor,
-        IIslandModel islandModel)
+        IIslandModel islandModel,
+        AgentIsland.Core.Navigation.IWindowService? windowService = null)
     {
         _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
         _activityMonitor = activityMonitor ?? throw new ArgumentNullException(nameof(activityMonitor));
         _islandModel = islandModel ?? throw new ArgumentNullException(nameof(islandModel));
+        _windowService = windowService;
+
 
         _visibilityStore.PropertyChanged += OnVisibilityChanged;
         _activityMonitor.PropertyChanged += OnActivityChanged;
@@ -130,8 +135,16 @@ public sealed partial class IslandViewModel : ObservableObject, IDisposable
     [RelayCommand]
     private void OpenSettings()
     {
-        SettingsWindow.Open();
+        if (_windowService is not null)
+        {
+            _windowService.OpenSettings();
+        }
+        else
+        {
+            SettingsWindow.Open();
+        }
     }
+
 
     public void Dispose()
     {
