@@ -25,23 +25,30 @@ public class OptionsTests
 
     private static void TestFreshInstallDefaultStores()
     {
-        AgentIsland.Windows.Preferences.Remove("AgentIsland.quotaShowsRemaining");
-        AgentIsland.Windows.Preferences.Remove("AgentIsland.showCostPanelPage");
-        AgentIsland.Windows.Preferences.Remove("AgentIsland.visualMode");
-        AgentIsland.Windows.Preferences.Remove("AgentIsland.lowPowerMode");
-        AgentIsland.Windows.Preferences.Remove("AgentIsland.alwaysShowUsage");
+        var prevDataDir = Environment.GetEnvironmentVariable("AGENTISLAND_DATA_DIR");
+        var testDir = Path.Combine(Path.GetTempPath(), "AgentIsland_TestFreshInstall_" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(testDir);
+        try
+        {
+            Environment.SetEnvironmentVariable("AGENTISLAND_DATA_DIR", testDir);
 
-        var quotaStore = new QuotaDisplayModeStore();
-        Assert.True(quotaStore.ShowsRemaining);
+            var quotaStore = new QuotaDisplayModeStore();
+            Assert.True(quotaStore.ShowsRemaining);
 
-        var screenPref = new AgentIsland.UI.ScreenPref();
-        Assert.False(screenPref.ShowCostPage);
+            var screenPref = new AgentIsland.UI.ScreenPref();
+            Assert.False(screenPref.ShowCostPage);
 
-        var lowPowerStore = new LowPowerModeStore();
-        Assert.Equal(VisualMode.FollowModel, lowPowerStore.Mode);
+            var lowPowerStore = new LowPowerModeStore();
+            Assert.Equal(VisualMode.FollowModel, lowPowerStore.Mode);
 
-        var alwaysShowStore = new AgentIsland.UI.AlwaysShowUsageStore();
-        Assert.True(alwaysShowStore.Enabled);
+            var alwaysShowStore = new AgentIsland.UI.AlwaysShowUsageStore();
+            Assert.True(alwaysShowStore.Enabled);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("AGENTISLAND_DATA_DIR", prevDataDir);
+            try { Directory.Delete(testDir, recursive: true); } catch { }
+        }
     }
 
     private static void TestDefaultOptions()
