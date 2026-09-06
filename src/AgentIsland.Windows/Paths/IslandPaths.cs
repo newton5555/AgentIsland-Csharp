@@ -18,14 +18,15 @@ public static class IslandPaths
 
     /// Claude Code config roots, in priority order. CLAUDE_CONFIG_DIR
     /// (comma-separated) overrides, matching Claude Code's own behavior.
-    public static IReadOnlyList<string> ClaudeConfigRoots { get; } = ResolveClaudeConfigRoots();
+    public static IReadOnlyList<string> ClaudeConfigRoots => ResolveClaudeConfigRoots();
 
     public static IEnumerable<string> ClaudeProjectRoots =>
         ClaudeConfigRoots.Select(root => Path.Combine(root, "projects"));
 
     public static string ClaudeCredentialsFile => Path.Combine(ClaudeConfigRoots[0], ".credentials.json");
 
-    public static string ClaudeDesktopSessionsRoot => Path.Combine(RoamingAppData, "Claude", "claude-code-sessions");
+    public static string ClaudeDesktopSessionsRoot => OverrideOrDefault(
+        "CLAUDE_DESKTOP_DIR", Path.Combine(RoamingAppData, "Claude", "claude-code-sessions"));
 
     public static string CodexHome
     {

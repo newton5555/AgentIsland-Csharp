@@ -976,6 +976,7 @@ public partial class IslandWindow : Window
             // yank the popup shut mid-look. Hold the panel while it's up;
             // its Closed handler runs this collapse check again.
             if (_leftResetCards?.IsPopupOpen == true || _rightResetCards?.IsPopupOpen == true) return;
+            if (Environment.GetEnvironmentVariable("AGENTISLAND_PIN_EXPANDED") == "1") return;
             if (!_hovering && _model.State != IslandState.Compact)
             {
                 SetState(IslandState.Compact);
