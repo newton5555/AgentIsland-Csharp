@@ -210,11 +210,6 @@ public partial class App : System.Windows.Application
     private bool ClaimSingleInstance()
     {
         if (AppEnvironment.Current != AppMode.Normal) return true;
-        if (Environment.GetEnvironmentVariable("AGENTISLAND_STRESS_TEST") is not null
-            || Environment.GetEnvironmentVariable("AGENTISLAND_DATA_DIR") is not null)
-        {
-            return true;
-        }
         // One-shot headless card renders run beside the live instance and
         // exit on their own; preference writes merge (P15), so this is safe.
         if (Environment.GetEnvironmentVariable("AGENTISLAND_REPORT_SNAPSHOT") is not null
