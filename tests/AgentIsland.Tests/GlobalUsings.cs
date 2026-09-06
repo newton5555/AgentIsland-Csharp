@@ -1,4 +1,5 @@
 global using Xunit;
+global using System.IO;
 global using AgentIsland.Providers.Sessions;
 global using AgentIsland.Backend.Monitoring;
 global using AgentIsland.Core.Cost;

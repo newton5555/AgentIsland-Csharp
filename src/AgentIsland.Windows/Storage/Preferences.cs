@@ -7,10 +7,14 @@ namespace AgentIsland.Windows;
 /// <summary>
 /// Backward-compatible static facade for settings access, delegating to AtomicJsonSettingsStorage.
 /// Preserves zero-breakage for all existing UI stores, views, and unit tests.
-/// </summary>
 public static class Preferences
 {
-    public static ISettingsStorage Storage => AtomicJsonSettingsStorage.Default;
+    private static ISettingsStorage? _overrideStorage;
+    public static ISettingsStorage Storage
+    {
+        get => _overrideStorage ?? AtomicJsonSettingsStorage.Default;
+        set => _overrideStorage = value;
+    }
 
     public static T? Get<T>(string key) => Storage.Get<T>(key);
 

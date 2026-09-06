@@ -1,3 +1,4 @@
+using System.IO;
 using AgentIsland.Backend.Settings;
 using AgentIsland.Core.Options;
 using AgentIsland.Core.Storage;
@@ -25,13 +26,10 @@ public class OptionsTests
 
     private static void TestFreshInstallDefaultStores()
     {
-        var prevDataDir = Environment.GetEnvironmentVariable("AGENTISLAND_DATA_DIR");
-        var testDir = Path.Combine(Path.GetTempPath(), "AgentIsland_TestFreshInstall_" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(testDir);
+        var prevStorage = AgentIsland.Windows.Preferences.Storage;
+        AgentIsland.Windows.Preferences.Storage = new MemorySettingsStorage();
         try
         {
-            Environment.SetEnvironmentVariable("AGENTISLAND_DATA_DIR", testDir);
-
             var quotaStore = new QuotaDisplayModeStore();
             Assert.True(quotaStore.ShowsRemaining);
 
@@ -46,8 +44,7 @@ public class OptionsTests
         }
         finally
         {
-            Environment.SetEnvironmentVariable("AGENTISLAND_DATA_DIR", prevDataDir);
-            try { Directory.Delete(testDir, recursive: true); } catch { }
+            AgentIsland.Windows.Preferences.Storage = prevStorage;
         }
     }
 
