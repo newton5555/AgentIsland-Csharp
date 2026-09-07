@@ -53,9 +53,9 @@ public sealed class ActivityMonitor : IActivityMonitor
         TriggerTool.DeepSeek,
     };
     private readonly Dictionary<TriggerTool, AgentIsland.Core.Agents.ISessionSensor> _injectedSensors = new();
-    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore? _visibilityStore;
+    private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
     private readonly AgentIsland.Backend.Alarms.IAgentReminderCenter? _reminderCenter;
-    private readonly AgentIsland.Core.Threading.IUiDispatcher? _uiDispatcher;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
 
     /// <summary>
     /// When true, internal DispatcherTimer is suppressed because an external BackgroundService worker drives ticks.
@@ -68,9 +68,11 @@ public sealed class ActivityMonitor : IActivityMonitor
         AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
         IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null)
     {
-        _visibilityStore = visibilityStore;
+        _visibilityStore = visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         _reminderCenter = reminderCenter;
-        _uiDispatcher = uiDispatcher;
+        _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
+            ? new AgentIsland.UI.Threading.WpfUiDispatcher()
+            : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
         if (providers is not null)
         {
             foreach (var p in providers)
@@ -91,6 +93,11 @@ public sealed class ActivityMonitor : IActivityMonitor
     public void Configure(IAgentCatalog catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.Invoke(() => Configure(catalog));
+            return;
+        }
         var configured = catalog.Modules
             .Where(module => module.Descriptor.Supports(AgentCapabilities.Activity))
             .Select(module => TriggerToolExtensions.FromRawValue(module.Descriptor.Key.Value))
@@ -146,6 +153,12 @@ public sealed class ActivityMonitor : IActivityMonitor
     /// state, or clears the pin when passed null.
     public void Demo(ActivityState? state)
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            try { _uiDispatcher.BeginInvoke(() => Demo(state)); }
+            catch { }
+            return;
+        }
         var next = new Dictionary<TriggerTool, ActivityState>();
         if (state is { } forced)
         {
@@ -157,6 +170,7 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private DispatcherTimer? _timer;
     private DispatcherTimer? _trailingKickTimer;
+    private CancellationTokenSource? _trailingKickCts;
     private TranscriptEventStream? _eventStream;
     private Dispatcher? _dispatcher;
     private PropertyChangedEventHandler? _visibilityChanged;
@@ -168,29 +182,88 @@ public sealed class ActivityMonitor : IActivityMonitor
     private bool _rescanQueued;
     private long _scanGeneration;
     private bool _started;
+    private CancellationTokenSource? _scanCts;
+    private TaskCompletionSource? _scanTcs;
+    private TaskCompletionSource? _trailingTcs;
 
     public void Start()
     {
+        if (_uiDispatcher.CheckAccess())
+        {
+            StartCore();
+        }
+        else
+        {
+            try
+            {
+                _uiDispatcher.Invoke(StartCore);
+            }
+            catch
+            {
+                try { _uiDispatcher.BeginInvoke(StartCore); }
+                catch { }
+            }
+        }
+    }
+
+    private void StartCore()
+    {
         if (_started) return;
         _started = true;
-        _dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+        _dispatcher = System.Windows.Application.Current?.Dispatcher;
         _visibilityChanged = OnProviderVisibilityChanged;
-        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
-        visibility.PropertyChanged += _visibilityChanged;
+        _visibilityStore.PropertyChanged += _visibilityChanged;
         ApplyProviderMode();
     }
 
     public void Stop()
     {
+        if (_uiDispatcher.CheckAccess())
+        {
+            StopCore();
+            return;
+        }
+
+        try
+        {
+            _uiDispatcher.Invoke(StopCore);
+        }
+        catch
+        {
+            try
+            {
+                _uiDispatcher.BeginInvoke(StopCore);
+            }
+            catch
+            {
+                // The dispatcher is unavailable or shutting down. Finalize the
+                // background coordination state here so callers are not left
+                // waiting on a UI commit that can no longer be delivered.
+                StopBackgroundResources();
+            }
+        }
+    }
+
+    private void StopCore()
+    {
         if (!_started) return;
         _started = false;
-        if (_visibilityChanged is not null && _visibilityStore is not null)
+        if (_visibilityChanged is not null)
         {
             _visibilityStore.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
         _scanGeneration++;
         _rescanQueued = false;
+        if (_scanCts is { } inFlightCts)
+        {
+            _scanCts = null;
+            try
+            {
+                inFlightCts.Cancel();
+            }
+            catch { }
+        }
         StopMonitoringResources();
         foreach (var provider in _activeProviders) _pendingCacheClears.Add(provider);
         if (!_scanInFlight) FlushPendingCacheClears();
@@ -202,15 +275,63 @@ public sealed class ActivityMonitor : IActivityMonitor
         _rawStates = new();
         _threads = new();
         _demoStates = new();
+        _scanTcs?.TrySetResult();
+        _trailingTcs?.TrySetResult();
+        _scanTcs = null;
+        _trailingTcs = null;
         RaiseAll();
+    }
+
+    private void StopBackgroundResources()
+    {
+        _started = false;
+        if (_visibilityChanged is not null)
+        {
+            _visibilityStore.PropertyChanged -= _visibilityChanged;
+            _visibilityChanged = null;
+        }
+        if (_scanCts is { } inFlightCts)
+        {
+            _scanCts = null;
+            try
+            {
+                inFlightCts.Cancel();
+            }
+            catch { }
+        }
+
+        if (_trailingKickCts is { } kickCts)
+        {
+            _trailingKickCts = null;
+            try
+            {
+                kickCts.Cancel();
+            }
+            catch { }
+        }
+
+        try
+        {
+            _eventStream?.Dispose();
+        }
+        catch { }
+        _eventStream = null;
+
+        _scanInFlight = false;
+        _rescanQueued = false;
+        _scanTcs?.TrySetResult();
+        _trailingTcs?.TrySetResult();
+        _scanTcs = null;
+        _trailingTcs = null;
     }
 
     private void OnProviderVisibilityChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName != nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)) return;
-        if (_dispatcher is { } dispatcher && !dispatcher.CheckAccess())
+        if (!_uiDispatcher.CheckAccess())
         {
-            dispatcher.BeginInvoke(ApplyProviderMode);
+            try { _uiDispatcher.BeginInvoke(ApplyProviderMode); }
+            catch { }
             return;
         }
         ApplyProviderMode();
@@ -218,8 +339,16 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private void ApplyProviderMode()
     {
-        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
-        var selected = visibility.Enabled
+        if (!_uiDispatcher.CheckAccess())
+        {
+            try { _uiDispatcher.BeginInvoke(ApplyProviderMode); }
+            catch { }
+            return;
+        }
+
+        if (!_started) return;
+
+        var selected = _visibilityStore.Enabled
             .Select(provider => provider.ToTriggerTool())
             .ToHashSet();
         var next = _availableProviders
@@ -237,6 +366,15 @@ public sealed class ActivityMonitor : IActivityMonitor
         {
             _scanGeneration++;
             _rescanQueued = false;
+            if (_scanCts is { } inFlightCts)
+            {
+                _scanCts = null;
+                try
+                {
+                    inFlightCts.Cancel();
+                }
+                catch { }
+            }
             // A last-working stamp is only meaningful for the provider that
             // produced it. Drop only disabled providers so an active sibling
             // keeps its stall/turn baseline across a slot change.
@@ -276,8 +414,7 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private void EnsureMonitoringResources()
     {
-        if (_dispatcher is null) return;
-        if (!DisableInternalTimer)
+        if (!DisableInternalTimer && _dispatcher is not null)
         {
             if (_timer is null)
             {
@@ -290,13 +427,13 @@ public sealed class ActivityMonitor : IActivityMonitor
             if (!_timer.IsEnabled) _timer.Start();
         }
 
-
         if (_eventStream is null)
         {
             var stream = new TranscriptEventStream(() =>
             {
                 // File events arrive on watcher threads; hop to the UI thread.
-                _dispatcher?.BeginInvoke(EventKick);
+                try { _uiDispatcher.BeginInvoke(EventKick); }
+                catch { }
             });
             stream.Start(_activeProviders);
             _eventStream = stream;
@@ -309,6 +446,15 @@ public sealed class ActivityMonitor : IActivityMonitor
         _timer = null;
         _trailingKickTimer?.Stop();
         _trailingKickTimer = null;
+        if (_trailingKickCts is { } kickCts)
+        {
+            _trailingKickCts = null;
+            try
+            {
+                kickCts.Cancel();
+            }
+            catch { }
+        }
         _kickPending = false;
         _eventStream?.Dispose();
         _eventStream = null;
@@ -325,7 +471,13 @@ public sealed class ActivityMonitor : IActivityMonitor
 
     private void EventKick()
     {
-        if (_monitoredProviders.Length == 0) return;
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(EventKick);
+            return;
+        }
+
+        if (!_started || _monitoredProviders.Length == 0) return;
         var now = DateTimeOffset.UtcNow;
         var elapsed = now - _lastEventKick;
         if (elapsed >= EventKickSpacing)
@@ -338,28 +490,125 @@ public sealed class ActivityMonitor : IActivityMonitor
         _kickPending = true;
         var delay = TimeSpan.FromSeconds(
             Math.Max(EventKickSpacing.TotalSeconds - elapsed.TotalSeconds, 0.05));
-        var trailing = new DispatcherTimer(DispatcherPriority.Background, _dispatcher!)
+        if (_dispatcher is not null)
         {
-            Interval = delay,
-        };
-        _trailingKickTimer = trailing;
-        trailing.Tick += (_, _) =>
+            var trailing = new DispatcherTimer(DispatcherPriority.Background, _dispatcher)
+            {
+                Interval = delay,
+            };
+            _trailingKickTimer = trailing;
+            trailing.Tick += (_, _) =>
+            {
+                trailing.Stop();
+                if (ReferenceEquals(_trailingKickTimer, trailing)) _trailingKickTimer = null;
+                _kickPending = false;
+                _lastEventKick = DateTimeOffset.UtcNow;
+                Tick();
+            };
+            trailing.Start();
+        }
+        else
         {
-            trailing.Stop();
-            if (ReferenceEquals(_trailingKickTimer, trailing)) _trailingKickTimer = null;
-            _kickPending = false;
-            _lastEventKick = DateTimeOffset.UtcNow;
-            Tick();
-        };
-        trailing.Start();
+            var kickCts = new CancellationTokenSource();
+            _trailingKickCts = kickCts;
+            _ = Task.Delay(delay, kickCts.Token).ContinueWith(t =>
+            {
+                try { kickCts.Dispose(); } catch { }
+                if (t.IsCompletedSuccessfully)
+                {
+                    try
+                    {
+                        _uiDispatcher.BeginInvoke(() =>
+                        {
+                            if (ReferenceEquals(_trailingKickCts, kickCts)) _trailingKickCts = null;
+                            _kickPending = false;
+                            _lastEventKick = DateTimeOffset.UtcNow;
+                            Tick();
+                        });
+                    }
+                    catch { }
+                }
+            }, TaskScheduler.Default);
+        }
     }
 
-    public void ScanNow() => Tick();
+    public void ScanNow()
+    {
+        if (_uiDispatcher.CheckAccess())
+        {
+            Tick();
+        }
+        else
+        {
+            try { _uiDispatcher.BeginInvoke(Tick); }
+            catch { }
+        }
+    }
+
+    public async Task ScanNowAsync(CancellationToken cancellationToken = default)
+    {
+        Task task;
+        if (_uiDispatcher.CheckAccess())
+        {
+            task = StartOrJoinScan();
+        }
+        else
+        {
+            var tcs = new TaskCompletionSource<Task>(TaskCreationOptions.RunContinuationsAsynchronously);
+            try
+            {
+                _uiDispatcher.BeginInvoke(() =>
+                {
+                    try
+                    {
+                        tcs.SetResult(StartOrJoinScan());
+                    }
+                    catch (Exception ex)
+                    {
+                        tcs.SetException(ex);
+                    }
+                });
+            }
+            catch
+            {
+                return;
+            }
+            task = await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (task != Task.CompletedTask)
+        {
+            await task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+    }
+
+    private Task StartOrJoinScan()
+    {
+        if (!_started || _monitoredProviders.Length == 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        if (_scanInFlight)
+        {
+            _rescanQueued = true;
+            _trailingTcs ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _trailingTcs.Task;
+        }
+
+        Tick();
+        return _scanTcs?.Task ?? Task.CompletedTask;
+    }
 
     internal void Tick()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(Tick);
+            return;
+        }
 
-        if (_monitoredProviders.Length == 0) return;
+        if (!_started || _monitoredProviders.Length == 0) return;
         // One scan at a time; a kick that lands mid-scan queues exactly one
         // follow-up so the trailing write of a turn is never dropped.
         if (_scanInFlight)
@@ -368,6 +617,8 @@ public sealed class ActivityMonitor : IActivityMonitor
             return;
         }
         _scanInFlight = true;
+        _scanTcs ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var currentScanTcs = _scanTcs;
         var scanGeneration = _scanGeneration;
         var providersSnapshot = _monitoredProviders.ToHashSet();
         var now = DateTimeOffset.UtcNow;
@@ -378,7 +629,11 @@ public sealed class ActivityMonitor : IActivityMonitor
         // last-working stamp and downgrade a stall to idle.
         var lastWorkingSnapshot = new Dictionary<string, DateTimeOffset>(
             _lastWorking, StringComparer.OrdinalIgnoreCase);
-        Task.Run(() => ScanSensorsAsync(now, lastWorkingSnapshot, providersSnapshot))
+
+        var cts = new CancellationTokenSource();
+        _scanCts = cts;
+
+        Task.Run(async () => await ScanSensorsAsync(now, lastWorkingSnapshot, providersSnapshot, cts.Token).ConfigureAwait(false))
             .ContinueWith(task =>
             {
                 var sessions = task.IsCompletedSuccessfully ? task.Result : new List<ScannedSession>();
@@ -386,62 +641,128 @@ public sealed class ActivityMonitor : IActivityMonitor
                 {
                     try
                     {
+                        if (!_started)
+                        {
+                            return;
+                        }
+
                         if (scanGeneration == _scanGeneration
                             && providersSnapshot.SetEquals(_activeProviders))
                         {
-                            Apply(sessions, now);
+                            try
+                            {
+                                Apply(sessions, now);
+                            }
+                            catch
+                            {
+                                // A failed provider read must not latch the monitor off.
+                            }
                         }
-                    }
-                    catch
-                    {
-                        // A failed provider read must not latch the monitor off.
                     }
                     finally
                     {
+                        try { cts.Dispose(); } catch { }
+                        if (ReferenceEquals(_scanCts, cts))
+                        {
+                            _scanCts = null;
+                        }
                         _scanInFlight = false;
                         FlushPendingCacheClears();
+                        currentScanTcs.TrySetResult();
                     }
-                    var stale = scanGeneration != _scanGeneration
-                        || !providersSnapshot.SetEquals(_activeProviders);
-                    if (stale)
+
+                    if (!_started)
                     {
                         _rescanQueued = false;
-                        if (_monitoredProviders.Length > 0) Tick();
+                        _trailingTcs?.TrySetResult();
+                        _trailingTcs = null;
+                        _scanTcs = null;
+                        return;
                     }
-                    else if (_rescanQueued)
+
+                    var isCurrent = scanGeneration == _scanGeneration
+                        && providersSnapshot.SetEquals(_activeProviders);
+
+                    var needFollowUp = _monitoredProviders.Length > 0
+                        && (!isCurrent || _rescanQueued);
+
+                    if (needFollowUp)
                     {
                         _rescanQueued = false;
+                        if (_trailingTcs is not null)
+                        {
+                            _scanTcs = _trailingTcs;
+                            _trailingTcs = null;
+                        }
+                        else
+                        {
+                            _scanTcs = null;
+                        }
                         Tick();
+                    }
+                    else
+                    {
+                        _rescanQueued = false;
+                        _trailingTcs?.TrySetResult();
+                        _trailingTcs = null;
+                        _scanTcs = null;
                     }
                 };
 
-                if (_dispatcher is not null && !_dispatcher.CheckAccess())
-                {
-                    _dispatcher.BeginInvoke(DispatcherPriority.Background, commit);
-                }
-                else
+                if (_uiDispatcher.CheckAccess())
                 {
                     commit();
                 }
-            });
+                else
+                {
+                    try
+                    {
+                        _uiDispatcher.BeginInvoke(commit);
+                    }
+                    catch
+                    {
+                        AbandonScanAfterDispatcherFailure(cts, currentScanTcs);
+                    }
+                }
+            }, TaskScheduler.Default);
+    }
+
+    private void AbandonScanAfterDispatcherFailure(
+        CancellationTokenSource cts,
+        TaskCompletionSource currentScanTcs)
+    {
+        if (ReferenceEquals(_scanCts, cts)) _scanCts = null;
+        _scanInFlight = false;
+        _rescanQueued = false;
+        currentScanTcs.TrySetResult();
+        _trailingTcs?.TrySetResult();
+        _trailingTcs = null;
+        _scanTcs = null;
+        try { cts.Dispose(); } catch { }
     }
 
     private async Task<List<ScannedSession>> ScanSensorsAsync(
         DateTimeOffset now,
         Dictionary<string, DateTimeOffset> lastWorkingSnapshot,
-        HashSet<TriggerTool> providersSnapshot)
+        HashSet<TriggerTool> providersSnapshot,
+        CancellationToken ct = default)
     {
         if (_injectedSensors.Count > 0)
         {
             var results = new List<ScannedSession>();
             foreach (var tool in providersSnapshot)
             {
+                if (ct.IsCancellationRequested) break;
                 if (_injectedSensors.TryGetValue(tool, out var sensor))
                 {
                     try
                     {
-                        var sessions = await sensor.ScanSessionsAsync(now, lastWorkingSnapshot).ConfigureAwait(false);
+                        var sessions = await sensor.ScanSessionsAsync(now, lastWorkingSnapshot, ct).ConfigureAwait(false);
                         results.AddRange(sessions);
+                    }
+                    catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                    {
+                        break;
                     }
                     catch { }
                 }
@@ -458,7 +779,6 @@ public sealed class ActivityMonitor : IActivityMonitor
         // applies to providers switched ON in Settings. Someone who only
         // runs Claude keeps Codex hidden - its missing login must not
         // pulse the island red forever.
-        var visibility = _visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         UpdateLastWorking(sessions, now);
         var nextStates = new Dictionary<TriggerTool, ActivityState>();
         var nextRaw = new Dictionary<TriggerTool, ActivityState>();
@@ -469,7 +789,7 @@ public sealed class ActivityMonitor : IActivityMonitor
                 thread => _reminderCenter?.HasAcknowledged(tool, thread) ?? false);
             nextRaw[tool] = result.State;
             if (result.Thread is { } thread) nextThreads[tool] = thread;
-            nextStates[tool] = visibility.IsShown(tool.ToDisplayProvider())
+            nextStates[tool] = _visibilityStore.IsShown(tool.ToDisplayProvider())
                 ? OverlayUsageAttention(result.State, UsageFor(tool))
                 : result.State;
             _reminderCenter?.Handle(tool, NeedsYouThreads(sessions, tool));

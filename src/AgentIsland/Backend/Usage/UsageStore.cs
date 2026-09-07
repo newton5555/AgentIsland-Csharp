@@ -209,7 +209,7 @@ public sealed class UsageStore : IUsageStore
             _uiDispatcher.BeginInvoke(RefreshIfStale);
             return;
         }
-        if (AppEnvironment.IsDemo) return;
+        if (!_autoRefreshStarted || AppEnvironment.IsDemo) return;
         SyncProviderMode();
         var interval = TimeSpan.FromSeconds(_refreshIntervalStore.Seconds);
         var staleCore = CoreProviders.Any(provider =>
@@ -300,7 +300,8 @@ public sealed class UsageStore : IUsageStore
             {
                 StartCoreRefresh(provider);
             }
-            else if (_injectedFetchers.TryGetValue(provider, out var fetcher))
+            else if (!HasDedicatedGuestStore(provider)
+                && _injectedFetchers.TryGetValue(provider, out var fetcher))
             {
                 StartGenericRefresh(provider, fetcher);
             }
@@ -982,8 +983,8 @@ public sealed class UsageStore : IUsageStore
             return;
         }
 
-        StopAutoRefresh();
-        Refresh();
+        if (_autoRefreshStarted) StopAutoRefresh();
+        SyncProviderMode();
         _autoRefreshStarted = true;
         _visibilityChanged = (_, args) =>
         {
@@ -994,10 +995,12 @@ public sealed class UsageStore : IUsageStore
             {
                 _uiDispatcher.BeginInvoke(() =>
                 {
+                    if (!_autoRefreshStarted) return;
                     if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
                 });
                 return;
             }
+            if (!_autoRefreshStarted) return;
             if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
         };
         _visibilityStore.PropertyChanged += _visibilityChanged;
@@ -1028,6 +1031,9 @@ public sealed class UsageStore : IUsageStore
             _visibilityChanged = null;
         }
         CancelAllRefreshes();
+        _codexReauthCts?.Cancel();
+        _codexReauthCts = null;
+        foreach (var provider in _enabledProviders) ClearGuestMemory(provider);
         _pollTimer?.Stop();
         _pollTimer = null;
         _resetEdgeTimer?.Stop();
@@ -1066,6 +1072,7 @@ public sealed class UsageStore : IUsageStore
         if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
         _uiDispatcher.BeginInvoke(() =>
         {
+            if (!_autoRefreshStarted) return;
             // The dead in-flight request would block Refresh's early-return
             // for up to 2 minutes — supersede it outright.
             CancelAllRefreshes();
@@ -1081,7 +1088,7 @@ public sealed class UsageStore : IUsageStore
     private void ArmResetEdgeTimer()
     {
         _resetEdgeTimer?.Stop();
-        if (DisableInternalTimer) return;
+        if (DisableInternalTimer || !_autoRefreshStarted || _enabledProviders.Count == 0) return;
         _lastResetEdgeCheck = DateTimeOffset.Now;
         _resetEdgeTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -1120,7 +1127,7 @@ public sealed class UsageStore : IUsageStore
     private void ArmTimer()
     {
         _pollTimer?.Stop();
-        if (DisableInternalTimer) return;
+        if (DisableInternalTimer || !_autoRefreshStarted || _enabledProviders.Count == 0) return;
         _pollTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromSeconds(_refreshIntervalStore.Seconds),
@@ -1142,11 +1149,12 @@ public sealed class UsageStore : IUsageStore
 
     private void OnNetworkAvailabilityChanged(object? sender, NetworkAvailabilityEventArgs e)
     {
-        var was = _lastNetworkAvailable;
-        _lastNetworkAvailable = e.IsAvailable;
-        if (!e.IsAvailable || was) return;
         _uiDispatcher.BeginInvoke(() =>
         {
+            if (!_autoRefreshStarted) return;
+            var was = _lastNetworkAvailable;
+            _lastNetworkAvailable = e.IsAvailable;
+            if (!e.IsAvailable || was) return;
             // This lambda is async void on the dispatcher: anything it throws
             // past the first await lands on the dispatcher as an unhandled
             // exception, and the app's handler logs without marking it
@@ -1166,6 +1174,15 @@ public sealed class UsageStore : IUsageStore
             }
         });
     }
+
+    private bool HasDedicatedGuestStore(DisplayProvider provider) => provider switch
+    {
+        DisplayProvider.Grok => _grokUsageStore is not null,
+        DisplayProvider.Antigravity => _antigravityUsageStore is not null,
+        DisplayProvider.Cursor => _cursorUsageStore is not null,
+        DisplayProvider.DeepSeek => _deepSeekBalanceStore is not null,
+        _ => false,
+    };
 
     private void Raise(string name)
     {

@@ -7,6 +7,7 @@ using AgentIsland.Backend.Monitoring;
 using AgentIsland.Backend.Providers;
 using AgentIsland.Backend.Settings;
 using AgentIsland.Backend.Usage;
+using AgentIsland.Providers.Usage.Grok;
 using AgentIsland.UI.Providers;
 using Xunit;
 
@@ -22,6 +23,7 @@ public class ProviderPluginTests
     {
         TestBuiltInProvidersIntegrity();
         TestPolymorphicUsageCoordinator();
+        TestDedicatedUsageStoreOwnsGuestRefresh();
         TestPolymorphicActivityCoordinator();
         TestPolymorphicCostCoordinator();
         Console.WriteLine("PASS Provider plugin architecture & coordinator engines verify cleanly");
@@ -118,10 +120,34 @@ public class ProviderPluginTests
         );
 
         var fakeVisibility = new MockVisibilityStore(DisplayProvider.Claude);
-        var costStore = new CostStore(visibilityStore: fakeVisibility, providers: new[] { claudeProvider });
+        var costStore = new CostStore(
+            visibilityStore: fakeVisibility,
+            providers: new[] { claudeProvider },
+            uiDispatcher: AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
 
+        costStore.RefreshAsync().GetAwaiter().GetResult();
         var summary = costStore.Summary(DisplayProvider.Claude);
-        Assert(summary != null, "Summary must not be null");
+        Assert(summary.TodayDollars > 0, "Injected CostLedgerReader must feed CostStore summary");
+    }
+
+    private static void TestDedicatedUsageStoreOwnsGuestRefresh()
+    {
+        var provider = new MockAgentProvider(
+            new AgentDescriptor(new AgentKey("grok"), "Grok", AgentCapabilities.Usage),
+            customUsage: new AppUsage(new WindowUsage(0.31, null, null), WindowUsage.Unknown, "supergrok"));
+        var visibility = new MockVisibilityStore(DisplayProvider.Grok);
+        var dedicatedStore = new CountingGrokUsageStore();
+        var usageStore = new UsageStore(
+            visibilityStore: visibility,
+            providers: new[] { provider },
+            grokUsageStore: dedicatedStore,
+            uiDispatcher: AgentIsland.Core.Threading.DirectUiDispatcher.Instance,
+            settingsStorage: new AgentIsland.Core.Storage.MemorySettingsStorage());
+
+        usageStore.Refresh();
+
+        Assert(dedicatedStore.KickCount == 1, "Dedicated Grok store must receive the refresh kick");
+        Assert(provider.UsageCalls == 0, "Generic Grok fetcher must not duplicate dedicated store requests");
     }
 
     private sealed class MockAgentProvider : IAgentProvider, ISessionSensor, IUsageFetcher, ICostLedgerReader
@@ -143,8 +169,13 @@ public class ProviderPluginTests
             _customCostEvents = customCostEvents;
         }
 
-        public ValueTask<AppUsage> FetchUsageAsync(CancellationToken ct = default) =>
-            ValueTask.FromResult(_customUsage ?? AppUsage.Empty);
+        public int UsageCalls { get; private set; }
+
+        public ValueTask<AppUsage> FetchUsageAsync(CancellationToken ct = default)
+        {
+            UsageCalls++;
+            return ValueTask.FromResult(_customUsage ?? AppUsage.Empty);
+        }
 
         public ValueTask<IReadOnlyList<ScannedSession>> ScanSessionsAsync(
             DateTimeOffset now,
@@ -156,6 +187,22 @@ public class ProviderPluginTests
             int lookbackDays = 30,
             CancellationToken ct = default) =>
             ValueTask.FromResult(_customCostEvents ?? (IReadOnlyList<TokenEvent>)Array.Empty<TokenEvent>());
+    }
+
+    private sealed class CountingGrokUsageStore : IGrokUsageStore
+    {
+        public int KickCount { get; private set; }
+        public GrokBillingSnapshot? Snapshot => null;
+        public string? ErrorCaption => null;
+        public DateTimeOffset? LastUpdated => null;
+        public string? AccountEmail => null;
+        public string? AuthModeBadge => null;
+        public bool Loading => false;
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+
+        public void KickRefresh() => KickCount++;
+        public void ClearMemory() { }
     }
 
     private sealed class MockVisibilityStore : IProviderVisibilityStore

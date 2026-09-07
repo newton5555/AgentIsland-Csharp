@@ -447,6 +447,8 @@ public partial class App : System.Windows.Application
         _tray?.Dispose();
         try
         {
+            (Services.GetService(typeof(UsageStore)) as UsageStore)?.StopAutoRefresh();
+            (Services.GetService(typeof(CostStore)) as CostStore)?.StopAutoRefresh();
             Host.StopAsync(TimeSpan.FromSeconds(2)).GetAwaiter().GetResult();
             Host.Dispose();
         }

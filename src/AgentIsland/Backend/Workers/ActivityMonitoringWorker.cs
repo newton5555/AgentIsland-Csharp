@@ -37,8 +37,7 @@ public sealed class ActivityMonitoringWorker : BackgroundService
         {
             while (!stoppingToken.IsCancellationRequested && await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
             {
-                _activityMonitor.ScanNow();
-
+                await _activityMonitor.ScanNowAsync(stoppingToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

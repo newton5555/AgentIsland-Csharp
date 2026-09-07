@@ -30,7 +30,7 @@ public sealed class CostStore : ICostStore
     private readonly Dictionary<DisplayProvider, long> _providerModeVersions = new();
     private readonly Dictionary<DisplayProvider, CostInFlight> _inFlightProviders = new();
 
-    private readonly Dictionary<DisplayProvider, AgentIsland.Core.Agents.ICostLedgerReader> _injectedReaders = new();
+    private readonly IReadOnlyList<AgentIsland.Core.Agents.IAgentProvider> _providers;
     private readonly IProviderVisibilityStore? _visibilityStore;
     private readonly RefreshIntervalStore? _intervalStore;
     private readonly ICostQueryService? _costQueryService;
@@ -48,6 +48,7 @@ public sealed class CostStore : ICostStore
         _visibilityStore = visibilityStore;
         _intervalStore = intervalStore;
         _costQueryService = costQueryService;
+        _providers = providers?.ToArray() ?? Array.Empty<AgentIsland.Core.Agents.IAgentProvider>();
         _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
             ? new AgentIsland.UI.Threading.WpfUiDispatcher()
             : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
@@ -55,19 +56,6 @@ public sealed class CostStore : ICostStore
         foreach (var provider in DisplayProviders.All)
         {
             _summaries[provider] = ProviderCostSummary.Empty;
-        }
-
-        if (providers is not null)
-        {
-            foreach (var p in providers)
-            {
-                if (p.CostLedgerReader is null) continue;
-                var dp = DisplayProviders.Parse(p.Descriptor.Key.Value);
-                if (dp is not null)
-                {
-                    _injectedReaders[dp.Value] = p.CostLedgerReader;
-                }
-            }
         }
 
         ApplyProviderMode();
@@ -123,7 +111,6 @@ public sealed class CostStore : ICostStore
             _intervalStore.PropertyChanged += _intervalChanged;
         }
         ApplyProviderMode();
-        Refresh();
     }
 
     public void StopAutoRefresh()
@@ -134,7 +121,7 @@ public sealed class CostStore : ICostStore
             return;
         }
 
-        if (!_autoRefreshStarted) return;
+        if (!_autoRefreshStarted && _inFlightProviders.Count == 0) return;
         _autoRefreshStarted = false;
         _pollTimer?.Stop();
         _pollTimer = null;
@@ -279,7 +266,9 @@ public sealed class CostStore : ICostStore
         {
             if (_inFlightProviders.ContainsKey(provider)) continue;
             var providerModeVersion = CurrentProviderModeVersion(provider);
-            var queryService = _costQueryService ?? new CostQueryService(_visibilityStore ?? new ProviderVisibilityStore());
+            var queryService = _costQueryService ?? new CostQueryService(
+                _visibilityStore ?? new ProviderVisibilityStore(),
+                _providers);
             var task = queryService.ScanAsync(provider, lookback, now);
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 

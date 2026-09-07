@@ -37,7 +37,7 @@ public sealed class CostAggregationWorker : BackgroundService
             await Task.Delay(TimeSpan.FromSeconds(5), stoppingToken).ConfigureAwait(false);
             if (!stoppingToken.IsCancellationRequested)
             {
-                _costStore.Refresh();
+                await _costStore.RefreshAsync(stoppingToken).ConfigureAwait(false);
             }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
@@ -55,7 +55,7 @@ public sealed class CostAggregationWorker : BackgroundService
             {
                 if (await timer.WaitForNextTickAsync(stoppingToken).ConfigureAwait(false))
                 {
-                    _costStore.Refresh();
+                    await _costStore.RefreshAsync(stoppingToken).ConfigureAwait(false);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

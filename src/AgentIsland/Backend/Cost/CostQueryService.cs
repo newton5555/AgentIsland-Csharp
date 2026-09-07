@@ -1,4 +1,5 @@
 using AgentIsland.Core.Cost;
+using AgentIsland.Core.Agents;
 using AgentIsland.Backend.Settings;
 using AgentIsland.UI.Providers;
 
@@ -19,6 +20,7 @@ public sealed record CostScanResult(
 public sealed class CostQueryService : ICostQueryService
 {
     private readonly IProviderVisibilityStore _visibilityStore;
+    private readonly IReadOnlyDictionary<DisplayProvider, ICostLedgerReader> _readers;
 
     private sealed class ProviderState
     {
@@ -31,9 +33,16 @@ public sealed class CostQueryService : ICostQueryService
     private readonly Dictionary<DisplayProvider, ProviderState> _states =
         new();
 
-    public CostQueryService(IProviderVisibilityStore visibilityStore)
+    public CostQueryService(
+        IProviderVisibilityStore visibilityStore,
+        IEnumerable<IAgentProvider>? providers = null)
     {
         _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
+        _readers = (providers ?? Array.Empty<IAgentProvider>())
+            .Where(provider => provider.CostLedgerReader is not null)
+            .Select(provider => (Provider: DisplayProviders.Parse(provider.Descriptor.Key.Value), Reader: provider.CostLedgerReader!))
+            .Where(pair => pair.Provider is not null)
+            .ToDictionary(pair => pair.Provider!.Value, pair => pair.Reader);
     }
 
     /// Starts or joins the current provider scan. `consumerCancellation` only
@@ -76,7 +85,7 @@ public sealed class CostQueryService : ICostQueryService
                 var cts = new CancellationTokenSource();
                 var version = state.Version;
                 shared = Task.Run(
-                    () => ScanCore(provider, version, lookbackDays, now, cts.Token),
+                    () => ScanCoreAsync(provider, version, lookbackDays, now, cts.Token),
                     CancellationToken.None);
                 state.ScanCts = cts;
                 state.ScanTask = shared;
@@ -175,7 +184,7 @@ public sealed class CostQueryService : ICostQueryService
         }
     }
 
-    private static CostScanResult ScanCore(
+    private async Task<CostScanResult> ScanCoreAsync(
         DisplayProvider provider,
         long providerVersion,
         int lookbackDays,
@@ -183,16 +192,25 @@ public sealed class CostQueryService : ICostQueryService
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var events = provider switch
+        IReadOnlyList<TokenEvent> events;
+        if (_readers.TryGetValue(provider, out var reader))
         {
-            DisplayProvider.Claude => ClaudeLogReader.Scan(lookbackDays, cancellationToken),
-            DisplayProvider.Codex => CodexLogReader.Scan(lookbackDays, cancellationToken),
-            DisplayProvider.Antigravity => AntigravityLogReader.Scan(lookbackDays, cancellationToken),
-            DisplayProvider.Grok => GrokLogReader.Scan(lookbackDays, cancellationToken),
-            DisplayProvider.Cursor => CursorLogReader.Scan(lookbackDays, cancellationToken),
-            DisplayProvider.DeepSeek => DeepSeekLogReader.Scan(lookbackDays, cancellationToken),
-            _ => new List<TokenEvent>(),
-        };
+            events = await reader.ReadCostEventsAsync(lookbackDays, cancellationToken)
+                .ConfigureAwait(false);
+        }
+        else
+        {
+            events = provider switch
+            {
+                DisplayProvider.Claude => ClaudeLogReader.Scan(lookbackDays, cancellationToken),
+                DisplayProvider.Codex => CodexLogReader.Scan(lookbackDays, cancellationToken),
+                DisplayProvider.Antigravity => AntigravityLogReader.Scan(lookbackDays, cancellationToken),
+                DisplayProvider.Grok => GrokLogReader.Scan(lookbackDays, cancellationToken),
+                DisplayProvider.Cursor => CursorLogReader.Scan(lookbackDays, cancellationToken),
+                DisplayProvider.DeepSeek => DeepSeekLogReader.Scan(lookbackDays, cancellationToken),
+                _ => Array.Empty<TokenEvent>(),
+            };
+        }
         cancellationToken.ThrowIfCancellationRequested();
         return new CostScanResult(
             provider,

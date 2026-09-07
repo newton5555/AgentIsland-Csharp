@@ -19,5 +19,6 @@ public interface IActivityMonitor : INotifyPropertyChanged
     void Start();
     void Stop();
     void ScanNow();
+    Task ScanNowAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 }
 
