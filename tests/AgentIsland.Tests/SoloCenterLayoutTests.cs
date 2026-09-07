@@ -60,6 +60,11 @@ public class SoloCenterLayoutTests
             Expect(model.Size.Width == 484, $"peek/hover expands to full original width 200+(38+104)*2=484, got {model.Size.Width}");
             model.State = IslandState.Compact;
 
+            // When AlwaysShowUsage is enabled, compact bar displays usage pills with collapsed 16px center gap (16+(38+104)*2 = 300)
+            alwaysShow.Enabled = true;
+            Expect(model.Size.Width == 300, $"compact with always-show-usage must be 16+(38+104)*2=300, got {model.Size.Width}");
+            alwaysShow.Enabled = false;
+
             visibility.CodexVisible = true;
             position.Placement = IslandPlacement.Floating;
             Expect(model.Size.Width == 92, $"floating solo keeps 16+38*2, got {model.Size.Width}");

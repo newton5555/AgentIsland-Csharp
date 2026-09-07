@@ -147,7 +147,7 @@ public partial class IslandWindow : Window
     private bool _closed;
     private readonly DispatcherTimer _idleCollapseTimer = new()
     {
-        Interval = TimeSpan.FromSeconds(30),
+        Interval = TimeSpan.FromSeconds(15),
     };
 
     public IslandWindow() : this(
@@ -974,7 +974,24 @@ public partial class IslandWindow : Window
         _hovering = false;
         _hoverIntent?.Stop();
         UpdateHalo();
-        ResetIdleTimer();
+
+        // 鼠标移出灵动岛区域：自动缩回紧凑岛
+        var delay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        delay.Tick += (_, _) =>
+        {
+            delay.Stop();
+            if (_leftResetCards?.IsPopupOpen == true || _rightResetCards?.IsPopupOpen == true) return;
+            if (Environment.GetEnvironmentVariable("AGENTISLAND_PIN_EXPANDED") == "1") return;
+            if (!_hovering && _model.State != IslandState.Compact)
+            {
+                SetState(IslandState.Compact);
+            }
+        };
+        if (_model.State == IslandState.Peek)
+        {
+            FadePills(visible: _alwaysShowStore.Enabled, delayMs: 0, seconds: 0.08);
+        }
+        delay.Start();
     }
 
     /// In Floating mode a left-press either drags the window (and persists
@@ -1281,6 +1298,7 @@ public partial class IslandWindow : Window
         return _model.State switch
         {
             IslandState.Peek => IslandModel.PillSlotWidth,
+            IslandState.Compact when _alwaysShowStore.Enabled => IslandModel.PillSlotWidth,
             _ => 0,
         };
     }
@@ -1307,7 +1325,8 @@ public partial class IslandWindow : Window
     {
         var leftSolo = _leftTool is not null && _rightTool is null;
         var rightSolo = _rightTool is not null && _leftTool is null;
-        var slotted = _model.State == IslandState.Peek;
+        var slotted = _model.State == IslandState.Peek
+            || (_model.State == IslandState.Compact && _alwaysShowStore.Enabled);
 
         // Claude logo: home is column 1 (centered tab); solo puts it in the
         // left slot, tucked to the edge.
