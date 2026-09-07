@@ -9,6 +9,7 @@ using AgentIsland.Windows;
 
 namespace AgentIsland.Tests;
 
+[Collection("SettingsDiskTests")]
 public class SettingsXamlTests
 {
     [WpfFact]

@@ -26,5 +26,22 @@ jobs:
       - name: Build
         run: dotnet build .\AgentIsland.sln --configuration Release --no-restore
 
-      - name: Run console test suite
-        run: dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build
+      - name: Run Unit Tests
+        env:
+          AGENTISLAND_DATA_DIR: ${{ runner.temp }}/agentisland-unit-data
+          AGENTISLAND_CACHE_DIR: ${{ runner.temp }}/agentisland-unit-cache
+        run: dotnet test .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName!~AgentStressAndResourceTests" --logger "trx;LogFileName=unit-tests.trx" --results-directory TestResults
+
+      - name: Run Stress Tests
+        env:
+          AGENTISLAND_DATA_DIR: ${{ runner.temp }}/agentisland-stress-data
+          AGENTISLAND_CACHE_DIR: ${{ runner.temp }}/agentisland-stress-cache
+        run: dotnet test .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName~AgentStressAndResourceTests" --logger "trx;LogFileName=stress-tests.trx" --results-directory TestResults
+
+      - name: Upload Test Results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: TestResults/*.trx
+          if-no-files-found: ignore

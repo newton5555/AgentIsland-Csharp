@@ -126,25 +126,28 @@ public sealed class IslandModel : IIslandModel
         }
     }
 
-    /// The black center region between the logo tabs. The 200 gap is a notch
-    /// lookalike and only makes sense when the bar hugs the top edge like a
-    /// Mac menu bar; a floating island has no camera housing to mimic, so it
-    /// tightens to a compact spacer.
+    /// Standard wide notch space (200pt) used during normal/hover/active state.
+    public const double StandardNotchWidth = 200;
+    /// Minimal gap (16pt) used when idle-collapsed after 30s of inactivity.
+    public const double CompactCenterGap = 16;
+
     public double NotchWidth =>
         (_positionStore?.Placement == IslandPlacement.Floating)
             ? 64
-            : (_spacingMode == IslandSpacingMode.NotchStyle ? 200 : 100);
+            : (_spacingMode == IslandSpacingMode.CompactStyle ? 100 : StandardNotchWidth);
 
     public Size Size => _state switch
     {
-        // "Always show usage" keeps the compact bar at peek width so the
-        // percentages have their outboard slots even without a hover.
-        IslandState.Compact when (_alwaysShowUsageStore?.Enabled ?? false) =>
-            new Size(NotchWidth + (TabWidth + PillSlotWidth) * 2, SilhouetteHeight),
-        IslandState.Compact => new Size(NotchWidth + TabWidth * 2, SilhouetteHeight),
+        // 超过 30s 没操作收缩时：以中间黑区收拢为限制，单双 Agent 宽度一致 (92px)
+        IslandState.Compact => new Size(CompactCenterGap + TabWidth * 2, SilhouetteHeight),
+
+        // 默认 / 鼠标悬停 (Peek 或正常活跃状态)：恢复原来的完整展开宽度 (200 + (38+104)*2 = 484px)
         IslandState.Peek => new Size(NotchWidth + (TabWidth + PillSlotWidth) * 2, SilhouetteHeight),
+
+        // 点击展开 (Expanded)：原来的完整大看板宽度 (800px)
         IslandState.Expanded => new Size(ExpandedWidth, SilhouetteHeight + _expandedContentHeight),
-        _ => new Size(NotchWidth + TabWidth * 2, SilhouetteHeight),
+
+        _ => new Size(CompactCenterGap + TabWidth * 2, SilhouetteHeight),
     };
 
     /// Re-emit Size when "always show usage" flips so the compact bar

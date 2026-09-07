@@ -145,6 +145,10 @@ public partial class IslandWindow : Window
     private int _visualUpdateFlags;
     private int _visualUpdateQueued;
     private bool _closed;
+    private readonly DispatcherTimer _idleCollapseTimer = new()
+    {
+        Interval = TimeSpan.FromSeconds(30),
+    };
 
     public IslandWindow() : this(
         (App.Instance?.Services?.GetService(typeof(ViewModels.IslandViewModel)) as ViewModels.IslandViewModel) ?? new ViewModels.IslandViewModel(),
@@ -222,6 +226,12 @@ public partial class IslandWindow : Window
         Loaded += OnLoaded;
         LocationChanged += OnLocationChanged;
         SizeChanged += OnWindowSizeChanged;
+        _idleCollapseTimer.Tick += (_, _) => OnIdleCollapseTick();
+        _teardown.Add(_idleCollapseTimer.Stop);
+        PreviewMouseMove += (_, _) => ResetIdleTimer();
+        PreviewMouseDown += (_, _) => ResetIdleTimer();
+        PreviewMouseWheel += (_, _) => ResetIdleTimer();
+        PreviewKeyDown += (_, _) => ResetIdleTimer();
     }
 
     private void OnLocationChanged(object? sender, EventArgs e) =>
@@ -248,6 +258,7 @@ public partial class IslandWindow : Window
         Interlocked.Exchange(ref _visualUpdateFlags, 0);
         _mouseHitTestTimer?.Stop();
         _mouseHitTestTimer = null;
+        _idleCollapseTimer.Stop();
         SetMouseClickThrough(false);
         _windowSource?.RemoveHook(WindowMessageHook);
         _windowSource = null;
@@ -485,6 +496,8 @@ public partial class IslandWindow : Window
         ApplyProviderVisibility();
         UpdateActivityVisuals();
         UpdatePills();
+        SetState(IslandState.Peek);
+        ResetIdleTimer();
 
         // Scripted layout diagnosis: dump geometry once a second.
         if (Environment.GetEnvironmentVariable("AGENTISLAND_DEBUG_LAYOUTLOG") == "1")
@@ -940,13 +953,8 @@ public partial class IslandWindow : Window
     {
         _hovering = true;
         UpdateHalo();
+        ResetIdleTimer();
         if (_model.State != IslandState.Compact) return;
-        // Hover intent: unlike the macOS notch, this island sits where the
-        // cursor routinely passes straight THROUGH it (especially floating
-        // placement mid-screen). Peeking on raw enter made every pass-over
-        // pop the bar open and snap it shut. The halo still lights up
-        // instantly above; the size morph waits until the cursor has
-        // actually settled on the island.
         _hoverIntent?.Stop();
         var intent = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
         _hoverIntent = intent;
@@ -966,29 +974,7 @@ public partial class IslandWindow : Window
         _hovering = false;
         _hoverIntent?.Stop();
         UpdateHalo();
-        // Pills fade first (~80ms), then the silhouette springs back.
-        var delay = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(80) };
-        delay.Tick += (_, _) =>
-        {
-            delay.Stop();
-            // The reset-card popup steals the mouse the instant it opens,
-            // which reads as a MouseLeave here — folding the panel would
-            // yank the popup shut mid-look. Hold the panel while it's up;
-            // its Closed handler runs this collapse check again.
-            if (_leftResetCards?.IsPopupOpen == true || _rightResetCards?.IsPopupOpen == true) return;
-            if (Environment.GetEnvironmentVariable("AGENTISLAND_PIN_EXPANDED") == "1") return;
-            if (!_hovering && _model.State != IslandState.Compact)
-            {
-                SetState(IslandState.Compact);
-            }
-        };
-        if (_model.State == IslandState.Peek)
-        {
-            // With "always show usage" the percentages stay painted on the
-            // compact bar, so nothing fades on the way out.
-            FadePills(visible: _alwaysShowStore.Enabled, delayMs: 0, seconds: 0.08);
-        }
-        delay.Start();
+        ResetIdleTimer();
     }
 
     /// In Floating mode a left-press either drags the window (and persists
@@ -1091,6 +1077,10 @@ public partial class IslandWindow : Window
         if (_model.State != IslandState.Expanded) return;
         switch (e.Key)
         {
+            case Key.Escape:
+                SetState(IslandState.Compact);
+                e.Handled = true;
+                break;
             case Key.Right:
                 _screenPref.ShowNext(1);
                 e.Handled = true;
@@ -1168,6 +1158,36 @@ public partial class IslandWindow : Window
                 break;
         }
         if (state != IslandState.Expanded) StopPanelHeartbeat();
+        if (state != IslandState.Compact)
+        {
+            ResetIdleTimer();
+        }
+        else
+        {
+            _idleCollapseTimer.Stop();
+        }
+    }
+
+    private void OnIdleCollapseTick()
+    {
+        _idleCollapseTimer.Stop();
+        if (_model.State == IslandState.Compact) return;
+        if (_leftResetCards?.IsPopupOpen == true || _rightResetCards?.IsPopupOpen == true) return;
+        if (Environment.GetEnvironmentVariable("AGENTISLAND_PIN_EXPANDED") == "1") return;
+        SetState(IslandState.Compact);
+    }
+
+    private void ResetIdleTimer()
+    {
+        if (_model.State != IslandState.Compact)
+        {
+            _idleCollapseTimer.Stop();
+            _idleCollapseTimer.Start();
+        }
+        else
+        {
+            _idleCollapseTimer.Stop();
+        }
     }
 
     // Heartbeat failsafe for the black expanded panel (macOS IslandRootView):
@@ -1261,7 +1281,6 @@ public partial class IslandWindow : Window
         return _model.State switch
         {
             IslandState.Peek => IslandModel.PillSlotWidth,
-            IslandState.Compact when _alwaysShowStore.Enabled => IslandModel.PillSlotWidth,
             _ => 0,
         };
     }
@@ -1288,8 +1307,7 @@ public partial class IslandWindow : Window
     {
         var leftSolo = _leftTool is not null && _rightTool is null;
         var rightSolo = _rightTool is not null && _leftTool is null;
-        var slotted = _model.State == IslandState.Peek
-            || (_model.State == IslandState.Compact && _alwaysShowStore.Enabled);
+        var slotted = _model.State == IslandState.Peek;
 
         // Claude logo: home is column 1 (centered tab); solo puts it in the
         // left slot, tucked to the edge.

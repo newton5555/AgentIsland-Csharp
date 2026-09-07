@@ -17,4 +17,5 @@ public interface ICostStore : INotifyPropertyChanged
     void Refresh();
     void StartAutoRefresh();
     void StopAutoRefresh();
+    Task RefreshAsync(CancellationToken cancellationToken = default);
 }

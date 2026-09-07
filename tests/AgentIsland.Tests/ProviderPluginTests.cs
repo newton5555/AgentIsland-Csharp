@@ -12,6 +12,7 @@ using Xunit;
 
 namespace AgentIsland.Tests;
 
+[Collection("SettingsDiskTests")]
 public class ProviderPluginTests
 {
     [Fact]
@@ -66,7 +67,7 @@ public class ProviderPluginTests
             customUsage: new AppUsage(new WindowUsage(0.88, null, null), WindowUsage.Unknown, "pro")
         );
 
-        var usageStore = new UsageStore(new[] { claudeProvider, mockProvider }, fakeVisibility);
+        var usageStore = new UsageStore(new[] { claudeProvider, mockProvider }, fakeVisibility, settingsStorage: new AgentIsland.Core.Storage.MemorySettingsStorage());
         Assert(usageStore.Claude == AppUsage.Empty, "Claude must be empty initially in fresh store");
 
         var claudeUsage = usageStore.Usage(DisplayProvider.Claude);

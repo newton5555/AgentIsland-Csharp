@@ -20,14 +20,21 @@ public sealed class CostStore : ICostStore
     private PropertyChangedEventHandler? _visibilityChanged;
     private PropertyChangedEventHandler? _intervalChanged;
     private bool _autoRefreshStarted;
+    private sealed class CostInFlight
+    {
+        public long Version;
+        public Task<CostScanResult> ScanTask = null!;
+        public TaskCompletionSource CompletionTcs = null!;
+    }
+
     private readonly Dictionary<DisplayProvider, long> _providerModeVersions = new();
-    private readonly Dictionary<DisplayProvider, Task<CostScanResult>> _inFlightProviders = new();
+    private readonly Dictionary<DisplayProvider, CostInFlight> _inFlightProviders = new();
 
     private readonly Dictionary<DisplayProvider, AgentIsland.Core.Agents.ICostLedgerReader> _injectedReaders = new();
     private readonly IProviderVisibilityStore? _visibilityStore;
     private readonly RefreshIntervalStore? _intervalStore;
     private readonly ICostQueryService? _costQueryService;
-    private readonly AgentIsland.Core.Threading.IUiDispatcher? _uiDispatcher;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -41,7 +48,9 @@ public sealed class CostStore : ICostStore
         _visibilityStore = visibilityStore;
         _intervalStore = intervalStore;
         _costQueryService = costQueryService;
-        _uiDispatcher = uiDispatcher;
+        _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
+            ? new AgentIsland.UI.Threading.WpfUiDispatcher()
+            : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
 
         foreach (var provider in DisplayProviders.All)
         {
@@ -95,6 +104,12 @@ public sealed class CostStore : ICostStore
 
     public void StartAutoRefresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(StartAutoRefresh);
+            return;
+        }
+
         if (_autoRefreshStarted) return;
         _autoRefreshStarted = true;
         _visibilityChanged = OnProviderVisibilityChanged;
@@ -108,10 +123,17 @@ public sealed class CostStore : ICostStore
             _intervalStore.PropertyChanged += _intervalChanged;
         }
         ApplyProviderMode();
+        Refresh();
     }
 
     public void StopAutoRefresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(StopAutoRefresh);
+            return;
+        }
+
         if (!_autoRefreshStarted) return;
         _autoRefreshStarted = false;
         _pollTimer?.Stop();
@@ -128,29 +150,51 @@ public sealed class CostStore : ICostStore
         }
         foreach (var provider in _activeProviders)
         {
+            _providerModeVersions.TryGetValue(provider, out var version);
+            _providerModeVersions[provider] = version + 1;
             _costQueryService?.Invalidate(provider);
             ClearProviderMemory(provider);
+        }
+        foreach (var inFlight in _inFlightProviders.Values)
+        {
+            inFlight.CompletionTcs.TrySetResult();
         }
         _inFlightProviders.Clear();
         MemoryReclaimer.ScheduleReclaim();
     }
 
-    private void OnRefreshIntervalChanged(object? sender, PropertyChangedEventArgs args) => ArmPollTimer();
+    private void OnRefreshIntervalChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(() => ArmPollTimer());
+            return;
+        }
+        ArmPollTimer();
+    }
 
     private void OnProviderVisibilityChanged(object? sender, PropertyChangedEventArgs args)
     {
         if (args.PropertyName != nameof(ProviderVisibilityStore.Enabled)) return;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher is not null && !dispatcher.CheckAccess())
+        if (!_uiDispatcher.CheckAccess())
         {
-            dispatcher.BeginInvoke(ApplyProviderMode);
+            _uiDispatcher.BeginInvoke(() =>
+            {
+                if (ApplyProviderMode() && _activeProviders.Count > 0) Refresh();
+            });
             return;
         }
-        ApplyProviderMode();
+        if (ApplyProviderMode() && _activeProviders.Count > 0) Refresh();
     }
 
-    private void ApplyProviderMode()
+    private bool ApplyProviderMode()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(() => ApplyProviderMode());
+            return false;
+        }
+
         var enabled = _visibilityStore?.Enabled ?? (IReadOnlyList<DisplayProvider>)DisplayProviders.All;
         var next = enabled.ToHashSet();
         var changed = !_activeProviders.SetEquals(next);
@@ -174,7 +218,10 @@ public sealed class CostStore : ICostStore
             {
                 SetSummary(provider, ProviderCostSummary.Empty);
                 _costQueryService?.Invalidate(provider);
-                _inFlightProviders.Remove(provider);
+                if (_inFlightProviders.Remove(provider, out var inFlight))
+                {
+                    inFlight.CompletionTcs.TrySetResult();
+                }
                 ClearProviderMemory(provider);
             }
             if (removed.Length > 0)
@@ -184,15 +231,15 @@ public sealed class CostStore : ICostStore
             if (_activeProviders.Count == 0) LastUpdated = null;
         }
 
-        if (!_autoRefreshStarted) return;
+        if (!_autoRefreshStarted) return changed;
         if (_activeProviders.Count == 0)
         {
             _pollTimer?.Stop();
             _pollTimer = null;
-            return;
+            return changed;
         }
         ArmPollTimer();
-        Refresh();
+        return changed;
     }
 
     public bool DisableInternalTimer { get; set; }
@@ -212,29 +259,81 @@ public sealed class CostStore : ICostStore
 
     public void Refresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(Refresh);
+            return;
+        }
+
         if (AppEnvironment.IsDemo)
         {
             InjectDemoData();
             return;
         }
-        if (_activeProviders.Count == 0)
-        {
-            ApplyProviderMode();
-        }
+        ApplyProviderMode();
         if (_activeProviders.Count == 0) return;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
+
         var now = DateTimeOffset.Now;
         var lookback = CostSummarizer.YearHistoryDays(now);
         foreach (var provider in _activeProviders.ToArray())
         {
             if (_inFlightProviders.ContainsKey(provider)) continue;
-            var providerModeVersion = _providerModeVersions.TryGetValue(provider, out var version)
-                ? version
-                : 0;
+            var providerModeVersion = CurrentProviderModeVersion(provider);
             var queryService = _costQueryService ?? new CostQueryService(_visibilityStore ?? new ProviderVisibilityStore());
             var task = queryService.ScanAsync(provider, lookback, now);
-            _inFlightProviders[provider] = task;
-            _ = ObserveProviderScan(provider, providerModeVersion, task, dispatcher, queryService);
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+            _inFlightProviders[provider] = new CostInFlight
+            {
+                Version = providerModeVersion,
+                ScanTask = task,
+                CompletionTcs = tcs
+            };
+
+            _ = ObserveProviderScan(provider, providerModeVersion, task, tcs, queryService);
+        }
+    }
+
+    public async Task RefreshAsync(CancellationToken cancellationToken = default)
+    {
+        Task[] inFlight;
+        if (_uiDispatcher.CheckAccess())
+        {
+            Refresh();
+            inFlight = _inFlightProviders.Values.Select(x => x.CompletionTcs.Task).ToArray();
+        }
+        else
+        {
+            var tcs = new TaskCompletionSource<Task[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _uiDispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    Refresh();
+                    tcs.SetResult(_inFlightProviders.Values.Select(x => x.CompletionTcs.Task).ToArray());
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+            try
+            {
+                inFlight = await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                return;
+            }
+        }
+
+        if (inFlight.Length > 0)
+        {
+            try
+            {
+                await Task.WhenAll(inFlight).WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch { }
         }
     }
 
@@ -242,7 +341,7 @@ public sealed class CostStore : ICostStore
         DisplayProvider provider,
         long providerModeVersion,
         Task<CostScanResult> task,
-        Dispatcher dispatcher,
+        TaskCompletionSource tcs,
         ICostQueryService queryService)
     {
         CostScanResult? result = null;
@@ -258,52 +357,56 @@ public sealed class CostStore : ICostStore
 
         try
         {
-            Action commit = () =>
+            _uiDispatcher.BeginInvoke(() =>
             {
                 try
                 {
-                    if (result is not null
-                        && providerModeVersion == CurrentProviderModeVersion(provider)
-                        && _activeProviders.Contains(provider)
-                        && queryService.IsCurrent(provider, result.ProviderVersion))
-                    {
-                        SetSummary(provider, result.Summary);
-                        LastUpdated = DateTimeOffset.Now;
-                    }
+                    CommitProviderScan(provider, providerModeVersion, task, result, queryService);
                 }
                 finally
                 {
-                    if (_inFlightProviders.TryGetValue(provider, out var current)
-                        && ReferenceEquals(current, task))
-                    {
-                        _inFlightProviders.Remove(provider);
-                    }
+                    tcs.TrySetResult();
                 }
-                if (providerModeVersion != CurrentProviderModeVersion(provider)
-                    && _activeProviders.Contains(provider))
-                {
-                    Refresh();
-                }
-            };
-
-            if (dispatcher.CheckAccess())
-            {
-                commit();
-            }
-            else
-            {
-                await dispatcher.InvokeAsync(commit);
-            }
+            });
         }
         catch
         {
-            if (_inFlightProviders.TryGetValue(provider, out var current)
-                && ReferenceEquals(current, task))
-            {
-                _inFlightProviders.Remove(provider);
-            }
+            tcs.TrySetResult();
         }
     }
+
+    private void CommitProviderScan(
+        DisplayProvider provider,
+        long providerModeVersion,
+        Task<CostScanResult> task,
+        CostScanResult? result,
+        ICostQueryService queryService)
+    {
+        if (!_inFlightProviders.TryGetValue(provider, out var inFlight)
+            || !ReferenceEquals(inFlight.ScanTask, task)
+            || inFlight.Version != providerModeVersion)
+        {
+            return;
+        }
+
+        _inFlightProviders.Remove(provider);
+
+        if (result is not null
+            && providerModeVersion == CurrentProviderModeVersion(provider)
+            && _activeProviders.Contains(provider)
+            && queryService.IsCurrent(provider, result.ProviderVersion))
+        {
+            SetSummary(provider, result.Summary);
+            LastUpdated = DateTimeOffset.Now;
+        }
+
+        if (providerModeVersion != CurrentProviderModeVersion(provider)
+            && _activeProviders.Contains(provider))
+        {
+            Refresh();
+        }
+    }
+
 
     private long CurrentProviderModeVersion(DisplayProvider provider) =>
         _providerModeVersions.TryGetValue(provider, out var version) ? version : 0;
@@ -389,5 +492,15 @@ public sealed class CostStore : ICostStore
             Array.Empty<string>());
     }
 
-    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private void Raise(string name)
+    {
+        if (_uiDispatcher.CheckAccess())
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+        else
+        {
+            _uiDispatcher.BeginInvoke(() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)));
+        }
+    }
 }

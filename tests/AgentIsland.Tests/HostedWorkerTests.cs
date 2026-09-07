@@ -211,8 +211,14 @@ public class HostedWorkerTests
         public void Refresh() => RefreshCallCount++;
         public void StartAutoRefresh() { }
         public void StopAutoRefresh() { }
+        public Task RefreshAsync(CancellationToken cancellationToken = default)
+        {
+            Refresh();
+            return Task.CompletedTask;
+        }
         public event PropertyChangedEventHandler? PropertyChanged;
     }
+
 
     private sealed class MockUpdateChecker : IUpdateChecker
     {

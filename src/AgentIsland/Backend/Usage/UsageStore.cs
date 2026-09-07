@@ -27,6 +27,7 @@ public sealed class UsageStore : IUsageStore
         public long Generation;
         public CancellationTokenSource? Cancellation;
         public Task<AppUsage>? Task;
+        public TaskCompletionSource? CompletionTcs;
     }
 
     private AppUsage _claude = AppUsage.Empty;
@@ -42,6 +43,16 @@ public sealed class UsageStore : IUsageStore
     private readonly Dictionary<DisplayProvider, DateTimeOffset> _providerUpdatedAt = new();
     private readonly Dictionary<DisplayProvider, RefreshSlot> _refreshSlots =
         CoreProviders.ToDictionary(provider => provider, _ => new RefreshSlot());
+
+    private RefreshSlot GetSlot(DisplayProvider provider)
+    {
+        if (!_refreshSlots.TryGetValue(provider, out var slot))
+        {
+            slot = new RefreshSlot();
+            _refreshSlots[provider] = slot;
+        }
+        return slot;
+    }
 
     /// Accounts tried since the current exhaustion episode began; cleared the
     /// moment a reading comes back under 100%, so each episode walks the pool
@@ -76,19 +87,23 @@ public sealed class UsageStore : IUsageStore
     private readonly ICursorUsageStore? _cursorUsageStore;
     private readonly IDeepSeekBalanceStore? _deepSeekBalanceStore;
     private readonly IClaudeWebLogin? _claudeWebLogin;
-    private readonly AgentIsland.Core.Threading.IUiDispatcher? _uiDispatcher;
+    private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
+    private readonly AgentIsland.Core.Storage.ISettingsStorage _settingsStorage;
     private readonly Dictionary<DisplayProvider, AppUsage> _usages = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
-    public UsageStore() : this(null, null)
+    public UsageStore() : this(
+        (AgentIsland.Backend.Settings.IProviderVisibilityStore?)null,
+        (RefreshIntervalStore?)null)
     {
     }
 
     public UsageStore(
         IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers,
-        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null)
-        : this(visibilityStore, null, providers)
+        AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null,
+        AgentIsland.Core.Storage.ISettingsStorage? settingsStorage = null)
+        : this(visibilityStore, null, providers, settingsStorage: settingsStorage)
     {
     }
 
@@ -101,7 +116,8 @@ public sealed class UsageStore : IUsageStore
         ICursorUsageStore? cursorUsageStore = null,
         IDeepSeekBalanceStore? deepSeekBalanceStore = null,
         IClaudeWebLogin? claudeWebLogin = null,
-        AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null)
+        AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
+        AgentIsland.Core.Storage.ISettingsStorage? settingsStorage = null)
     {
         _visibilityStore = visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         _refreshIntervalStore = refreshIntervalStore ?? new RefreshIntervalStore();
@@ -110,7 +126,10 @@ public sealed class UsageStore : IUsageStore
         _cursorUsageStore = cursorUsageStore;
         _deepSeekBalanceStore = deepSeekBalanceStore;
         _claudeWebLogin = claudeWebLogin;
-        _uiDispatcher = uiDispatcher;
+        _settingsStorage = settingsStorage ?? Preferences.Storage;
+        _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
+            ? new AgentIsland.UI.Threading.WpfUiDispatcher()
+            : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
 
         if (providers is not null)
         {
@@ -165,7 +184,15 @@ public sealed class UsageStore : IUsageStore
     /// Clears the failure caption after the paste-code fallback succeeds —
     /// the row must drop back to its healthy state, not keep explaining a
     /// round that has since been recovered.
-    public void ClearClaudeReauthFailure() => ClaudeReauthFailureCaption = null;
+    public void ClearClaudeReauthFailure()
+    {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(ClearClaudeReauthFailure);
+            return;
+        }
+        ClaudeReauthFailureCaption = null;
+    }
 
     /// Label the auto-switcher rotated to most recently, shown on the Codex
     /// card until the next manual action. Real state, not explanation.
@@ -177,6 +204,11 @@ public sealed class UsageStore : IUsageStore
     /// any faster than the background schedule already would.
     public void RefreshIfStale()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(RefreshIfStale);
+            return;
+        }
         if (AppEnvironment.IsDemo) return;
         SyncProviderMode();
         var interval = TimeSpan.FromSeconds(_refreshIntervalStore.Seconds);
@@ -191,6 +223,12 @@ public sealed class UsageStore : IUsageStore
 
     public void Refresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(Refresh);
+            return;
+        }
+
         SyncProviderMode();
         if (_enabledProviders.Count == 0)
         {
@@ -256,16 +294,15 @@ public sealed class UsageStore : IUsageStore
         if (_enabledProviders.Contains(DisplayProvider.Antigravity)) _antigravityUsageStore?.KickRefresh();
         if (_enabledProviders.Contains(DisplayProvider.Cursor)) _cursorUsageStore?.KickRefresh();
         if (_enabledProviders.Contains(DisplayProvider.DeepSeek)) _deepSeekBalanceStore?.KickRefresh();
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         foreach (var provider in _enabledProviders)
         {
             if (CoreProviders.Contains(provider))
             {
-                StartCoreRefresh(provider, dispatcher);
+                StartCoreRefresh(provider);
             }
             else if (_injectedFetchers.TryGetValue(provider, out var fetcher))
             {
-                StartGenericRefresh(provider, fetcher, dispatcher);
+                StartGenericRefresh(provider, fetcher);
             }
         }
         UpdateLoading();
@@ -273,50 +310,139 @@ public sealed class UsageStore : IUsageStore
 
     public async Task RefreshAsync(CancellationToken cancellationToken = default)
     {
-        Refresh();
-        var inFlight = _refreshSlots.Values.Select(s => s.Task).Where(t => t != null).ToArray();
+        Task[] inFlight;
+        if (_uiDispatcher.CheckAccess())
+        {
+            Refresh();
+            inFlight = _refreshSlots.Values
+                .Select(s => s.CompletionTcs?.Task)
+                .Where(t => t != null)
+                .Cast<Task>()
+                .ToArray();
+        }
+        else
+        {
+            var tcs = new TaskCompletionSource<Task[]>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _uiDispatcher.BeginInvoke(() =>
+            {
+                try
+                {
+                    Refresh();
+                    var tasks = _refreshSlots.Values
+                        .Select(s => s.CompletionTcs?.Task)
+                        .Where(t => t != null)
+                        .Cast<Task>()
+                        .ToArray();
+                    tcs.SetResult(tasks);
+                }
+                catch (Exception ex)
+                {
+                    tcs.SetException(ex);
+                }
+            });
+            try
+            {
+                inFlight = await tcs.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+            }
+            catch
+            {
+                return;
+            }
+        }
+
         if (inFlight.Length > 0)
         {
             try
             {
-                await Task.WhenAll(inFlight!).WaitAsync(cancellationToken).ConfigureAwait(false);
+                await Task.WhenAll(inFlight).WaitAsync(cancellationToken).ConfigureAwait(false);
             }
             catch { }
         }
     }
 
-
     private void StartGenericRefresh(
         DisplayProvider provider,
-        AgentIsland.Core.Agents.IUsageFetcher fetcher,
-        Dispatcher dispatcher)
+        AgentIsland.Core.Agents.IUsageFetcher fetcher)
     {
-        _ = Task.Run(async () =>
+        var slot = GetSlot(provider);
+        if (slot.Task is not null) return;
+
+        var generation = slot.Generation;
+        var cts = new CancellationTokenSource();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var task = Task.Run(
+            async () => await fetcher.FetchUsageAsync(cts.Token).ConfigureAwait(false),
+            CancellationToken.None);
+        slot.Cancellation = cts;
+        slot.Task = task;
+        slot.CompletionTcs = tcs;
+        _ = ObserveGenericRefresh(provider, generation, task, cts, tcs);
+    }
+
+    private async Task ObserveGenericRefresh(
+        DisplayProvider provider,
+        long generation,
+        Task<AppUsage> task,
+        CancellationTokenSource cts,
+        TaskCompletionSource tcs)
+    {
+        AppUsage? result = null;
+        try
         {
-            try
+            result = await task.ConfigureAwait(false);
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            _uiDispatcher.BeginInvoke(() =>
             {
-                var usage = await fetcher.FetchUsageAsync().ConfigureAwait(false);
-                Action apply = () =>
+                try
                 {
-                    _usages[provider] = usage;
+                    var slot = GetSlot(provider);
+                    if (!ReferenceEquals(slot.Task, task) || slot.Generation != generation)
+                    {
+                        return;
+                    }
+
+                    slot.Task = null;
+                    slot.Cancellation = null;
+                    slot.CompletionTcs = null;
+                    if (!_enabledProviders.Contains(provider) || result is null)
+                    {
+                        UpdateLoading();
+                        return;
+                    }
+
+                    _usages[provider] = result;
                     _providerUpdatedAt[provider] = DateTimeOffset.Now;
                     Raise(nameof(Usage));
-                };
-                if (dispatcher.CheckAccess())
-                {
-                    apply();
+                    UpdateLoading();
                 }
-                else
+                finally
                 {
-                    await dispatcher.BeginInvoke(apply);
+                    cts.Dispose();
+                    tcs.TrySetResult();
                 }
-            }
-            catch { }
-        });
+            });
+        }
+        catch
+        {
+            cts.Dispose();
+            tcs.TrySetResult();
+        }
     }
 
     private bool SyncProviderMode()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(() => SyncProviderMode());
+            return false;
+        }
+
         var visibility = _visibilityStore;
         var next = visibility.Enabled.ToHashSet();
         if (_enabledProviders.SetEquals(next)) return false;
@@ -334,6 +460,8 @@ public sealed class UsageStore : IUsageStore
                 slot.Cancellation?.Cancel();
                 slot.Cancellation = null;
                 slot.Task = null;
+                slot.CompletionTcs?.TrySetResult();
+                slot.CompletionTcs = null;
             }
 
             if (provider == DisplayProvider.Claude) Claude = AppUsage.Empty;
@@ -345,6 +473,7 @@ public sealed class UsageStore : IUsageStore
                 CodexAutoSwitched = null;
             }
             _providerUpdatedAt.Remove(provider);
+            _usages.Remove(provider);
             ClearGuestMemory(provider);
         }
 
@@ -391,11 +520,9 @@ public sealed class UsageStore : IUsageStore
         }
     }
 
-    private void StartCoreRefresh(
-        DisplayProvider provider,
-        Dispatcher dispatcher)
+    private void StartCoreRefresh(DisplayProvider provider)
     {
-        var slot = _refreshSlots[provider];
+        var slot = GetSlot(provider);
         // Keep a completed task attached until its dispatcher completion has
         // released it. This prevents a timer tick from attaching a duplicate
         // observer in the small completion window.
@@ -403,12 +530,14 @@ public sealed class UsageStore : IUsageStore
 
         var generation = slot.Generation;
         var cts = new CancellationTokenSource();
+        var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var task = Task.Run(
             () => FetchCore(provider, cts.Token),
             CancellationToken.None);
         slot.Cancellation = cts;
         slot.Task = task;
-        _ = ObserveCoreRefresh(provider, generation, task, cts, dispatcher);
+        slot.CompletionTcs = tcs;
+        _ = ObserveCoreRefresh(provider, generation, task, cts, tcs);
     }
 
     private Task<AppUsage> FetchCore(
@@ -432,7 +561,7 @@ public sealed class UsageStore : IUsageStore
         long generation,
         Task<AppUsage> task,
         CancellationTokenSource cts,
-        Dispatcher dispatcher)
+        TaskCompletionSource tcs)
     {
         AppUsage result;
         try
@@ -446,65 +575,58 @@ public sealed class UsageStore : IUsageStore
 
         try
         {
-            Action apply = () =>
+            _uiDispatcher.BeginInvoke(() =>
             {
-                var slot = _refreshSlots[provider];
-                if (!ReferenceEquals(slot.Task, task) || slot.Generation != generation)
+                try
+                {
+                    var slot = GetSlot(provider);
+                    if (!ReferenceEquals(slot.Task, task) || slot.Generation != generation)
+                    {
+                        return;
+                    }
+
+                    slot.Task = null;
+                    slot.Cancellation = null;
+                    slot.CompletionTcs = null;
+                    if (!_enabledProviders.Contains(provider))
+                    {
+                        UpdateLoading();
+                        return;
+                    }
+
+                    var failed = IsErrorOnly(result);
+                    if (provider == DisplayProvider.Claude)
+                    {
+                        var merged = MergedUsage(Claude, result);
+                        Claude = merged;
+                        SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
+                    }
+                    else
+                    {
+                        var merged = MergedUsage(Codex, result);
+                        Codex = merged;
+                        SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
+                        if (!failed) MaybeAutoSwitchCodex(merged);
+                    }
+
+                    if (!failed) _providerUpdatedAt[provider] = DateTimeOffset.Now;
+                    RefreshWarning = WarningFor(
+                        IsErrorOnly(Claude),
+                        IsErrorOnly(Codex));
+                    UpdateLastUpdated();
+                    UpdateLoading();
+                }
+                finally
                 {
                     cts.Dispose();
-                    return;
+                    tcs.TrySetResult();
                 }
-
-                slot.Task = null;
-                slot.Cancellation = null;
-                cts.Dispose();
-                if (!_enabledProviders.Contains(provider))
-                {
-                    UpdateLoading();
-                    return;
-                }
-
-                var failed = IsErrorOnly(result);
-                if (provider == DisplayProvider.Claude)
-                {
-                    var merged = MergedUsage(Claude, result);
-                    Claude = merged;
-                    SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
-                }
-                else
-                {
-                    var merged = MergedUsage(Codex, result);
-                    Codex = merged;
-                    SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
-                    if (!failed) MaybeAutoSwitchCodex(merged);
-                }
-
-                if (!failed) _providerUpdatedAt[provider] = DateTimeOffset.Now;
-                RefreshWarning = WarningFor(
-                    IsErrorOnly(Claude),
-                    IsErrorOnly(Codex));
-                UpdateLastUpdated();
-                UpdateLoading();
-            };
-
-            if (dispatcher.CheckAccess())
-            {
-                apply();
-            }
-            else
-            {
-                await dispatcher.BeginInvoke(apply);
-            }
+            });
         }
         catch
         {
-            var slot = _refreshSlots[provider];
-            if (ReferenceEquals(slot.Task, task))
-            {
-                slot.Task = null;
-                slot.Cancellation = null;
-                cts.Dispose();
-            }
+            cts.Dispose();
+            tcs.TrySetResult();
         }
     }
 
@@ -527,15 +649,16 @@ public sealed class UsageStore : IUsageStore
             && slot.Task is not null);
     }
 
-    private void CancelCoreRefreshes()
+    private void CancelAllRefreshes()
     {
-        foreach (var provider in CoreProviders)
+        foreach (var slot in _refreshSlots.Values)
         {
-            var slot = _refreshSlots[provider];
             slot.Generation++;
             slot.Cancellation?.Cancel();
             slot.Cancellation = null;
             slot.Task = null;
+            slot.CompletionTcs?.TrySetResult();
+            slot.CompletionTcs = null;
         }
         UpdateLoading();
     }
@@ -680,14 +803,14 @@ public sealed class UsageStore : IUsageStore
 
     // MARK: - Cache
 
-    private static UsageCacheSnapshot? LoadCachedSnapshot()
+    private UsageCacheSnapshot? LoadCachedSnapshot()
     {
-        var snapshot = Preferences.Get<UsageCacheSnapshot?>(CacheKey);
+        var snapshot = _settingsStorage.Get<UsageCacheSnapshot?>(CacheKey);
         if (snapshot is null) return null;
         return UsageCachePolicy.RestoredSnapshot(snapshot, DateTimeOffset.Now, CacheMaxAge);
     }
 
-    private static void SaveCachedSnapshot(
+    private void SaveCachedSnapshot(
         AppUsage claude,
         AppUsage codex,
         bool fetchedClaude = true,
@@ -697,7 +820,7 @@ public sealed class UsageStore : IUsageStore
         var snapshot = UsageCachePolicy.SnapshotForSave(
             claude, codex, existing, DateTimeOffset.Now, fetchedClaude, fetchedCodex);
         if (snapshot is null) return;
-        Preferences.Set(CacheKey, snapshot);
+        _settingsStorage.Set(CacheKey, snapshot);
     }
 
     // MARK: - Preview injection (status guide)
@@ -707,6 +830,11 @@ public sealed class UsageStore : IUsageStore
     /// real provider crossing. The next scheduled poll overwrites them.
     public void InjectPreviewUsage(double claudeFiveHour, double codexFiveHour)
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(() => InjectPreviewUsage(claudeFiveHour, codexFiveHour));
+            return;
+        }
         var now = DateTimeOffset.Now;
         var fiveHourReset = now.AddSeconds(2 * 3600 + 14 * 60);
         var weeklyReset = now.AddSeconds(4 * 86400 + 6 * 3600);
@@ -736,10 +864,14 @@ public sealed class UsageStore : IUsageStore
     /// which the Settings row offers only after a failed round.
     public void ReauthenticateClaude()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(ReauthenticateClaude);
+            return;
+        }
         if (ClaudeReauthInProgress) return;
         ClaudeReauthFailureCaption = null;
         ClaudeReauthInProgress = true;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
             // Nothing observes this task, so a throw anywhere below would
@@ -748,22 +880,22 @@ public sealed class UsageStore : IUsageStore
             // Re-authenticate button until the app restarts.
             try
             {
-                var outcome = await (_claudeWebLogin ?? new ClaudeWebLogin()).Start();
+                var outcome = await (_claudeWebLogin ?? new ClaudeWebLogin()).Start().ConfigureAwait(false);
                 if (outcome is ClaudeWebLogin.Outcome.Failed failure)
                 {
-                    await dispatcher.BeginInvoke(() =>
+                    _uiDispatcher.BeginInvoke(() =>
                     {
                         ClaudeReauthInProgress = false;
                         ClaudeReauthFailureCaption = failure.Reason;
                     });
                     return;
                 }
-                await dispatcher.BeginInvoke(() => { ClaudeReauthFailureCaption = null; });
-                await FinishClaudeReauth(dispatcher);
+                _uiDispatcher.BeginInvoke(() => { ClaudeReauthFailureCaption = null; });
+                await FinishClaudeReauth().ConfigureAwait(false);
             }
             catch
             {
-                try { await dispatcher.BeginInvoke(() => { ClaudeReauthInProgress = false; }); }
+                try { _uiDispatcher.BeginInvoke(() => { ClaudeReauthInProgress = false; }); }
                 catch { }
             }
         });
@@ -771,6 +903,11 @@ public sealed class UsageStore : IUsageStore
 
     public bool ReauthenticateCodex()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(() => ReauthenticateCodex());
+            return true;
+        }
         if (CodexReauthInProgress) return true;
         var initialStamp = CodexCredentials.AuthModificationStamp();
         if (!CodexCredentials.SpawnReauth()) return false;
@@ -778,7 +915,6 @@ public sealed class UsageStore : IUsageStore
         _codexReauthCts?.Cancel();
         var cts = new CancellationTokenSource();
         _codexReauthCts = cts;
-        var dispatcher = System.Windows.Application.Current?.Dispatcher ?? Dispatcher.CurrentDispatcher;
         _ = Task.Run(async () =>
         {
             // Same latch hazard as the Claude flow: nobody observes this task,
@@ -788,28 +924,28 @@ public sealed class UsageStore : IUsageStore
             {
                 for (var i = 0; i < 40; i++)
                 {
-                    try { await Task.Delay(TimeSpan.FromSeconds(3), cts.Token); }
+                    try { await Task.Delay(TimeSpan.FromSeconds(3), cts.Token).ConfigureAwait(false); }
                     catch (TaskCanceledException) { return; }
                     var currentStamp = CodexCredentials.AuthModificationStamp();
                     if (currentStamp is null || currentStamp == initialStamp) continue;
-                    await FinishCodexReauth(dispatcher);
+                    await FinishCodexReauth().ConfigureAwait(false);
                     return;
                 }
-                await FinishCodexReauth(dispatcher);
+                await FinishCodexReauth().ConfigureAwait(false);
             }
             catch
             {
-                try { await dispatcher.BeginInvoke(() => { CodexReauthInProgress = false; }); }
+                try { _uiDispatcher.BeginInvoke(() => { CodexReauthInProgress = false; }); }
                 catch { }
             }
         });
         return true;
     }
 
-    private async Task FinishClaudeReauth(Dispatcher dispatcher)
+    private async Task FinishClaudeReauth()
     {
-        var fetched = await UsageFetcher.FetchClaude();
-        await dispatcher.BeginInvoke(() =>
+        var fetched = await UsageFetcher.FetchClaude().ConfigureAwait(false);
+        _uiDispatcher.BeginInvoke(() =>
         {
             var merged = MergedUsage(Claude, fetched);
             Claude = merged;
@@ -820,10 +956,10 @@ public sealed class UsageStore : IUsageStore
         });
     }
 
-    private async Task FinishCodexReauth(Dispatcher dispatcher)
+    private async Task FinishCodexReauth()
     {
-        var fetched = await UsageFetcher.FetchCodex();
-        await dispatcher.BeginInvoke(() =>
+        var fetched = await UsageFetcher.FetchCodex().ConfigureAwait(false);
+        _uiDispatcher.BeginInvoke(() =>
         {
             var merged = MergedUsage(Codex, fetched);
             Codex = merged;
@@ -840,6 +976,12 @@ public sealed class UsageStore : IUsageStore
 
     public void StartAutoRefresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(StartAutoRefresh);
+            return;
+        }
+
         StopAutoRefresh();
         Refresh();
         _autoRefreshStarted = true;
@@ -848,6 +990,14 @@ public sealed class UsageStore : IUsageStore
             if (args.PropertyName is not (
                 nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.Enabled)
                 or nameof(AgentIsland.Backend.Settings.ProviderVisibilityStore.SlotProviders))) return;
+            if (!_uiDispatcher.CheckAccess())
+            {
+                _uiDispatcher.BeginInvoke(() =>
+                {
+                    if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
+                });
+                return;
+            }
             if (SyncProviderMode() && _enabledProviders.Count > 0) Refresh();
         };
         _visibilityStore.PropertyChanged += _visibilityChanged;
@@ -865,13 +1015,19 @@ public sealed class UsageStore : IUsageStore
 
     public void StopAutoRefresh()
     {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(StopAutoRefresh);
+            return;
+        }
+
         _autoRefreshStarted = false;
         if (_visibilityChanged is not null)
         {
             _visibilityStore.PropertyChanged -= _visibilityChanged;
             _visibilityChanged = null;
         }
-        CancelCoreRefreshes();
+        CancelAllRefreshes();
         _pollTimer?.Stop();
         _pollTimer = null;
         _resetEdgeTimer?.Stop();
@@ -898,7 +1054,7 @@ public sealed class UsageStore : IUsageStore
     private void OnSessionSwitch(object? sender, Microsoft.Win32.SessionSwitchEventArgs e)
     {
         if (e.Reason != Microsoft.Win32.SessionSwitchReason.SessionUnlock) return;
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(RefreshIfStale);
+        _uiDispatcher.BeginInvoke(RefreshIfStale);
     }
 
     /// Refresh right after waking from sleep — the poll timer's schedule
@@ -908,11 +1064,11 @@ public sealed class UsageStore : IUsageStore
     private void OnPowerModeChanged(object? sender, Microsoft.Win32.PowerModeChangedEventArgs e)
     {
         if (e.Mode != Microsoft.Win32.PowerModes.Resume) return;
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(() =>
+        _uiDispatcher.BeginInvoke(() =>
         {
             // The dead in-flight request would block Refresh's early-return
             // for up to 2 minutes — supersede it outright.
-            CancelCoreRefreshes();
+            CancelAllRefreshes();
             Loading = false;
             Refresh();
         });
@@ -924,6 +1080,8 @@ public sealed class UsageStore : IUsageStore
     /// within a minute of the reset instead of up to a poll interval late.
     private void ArmResetEdgeTimer()
     {
+        _resetEdgeTimer?.Stop();
+        if (DisableInternalTimer) return;
         _lastResetEdgeCheck = DateTimeOffset.Now;
         _resetEdgeTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -949,7 +1107,15 @@ public sealed class UsageStore : IUsageStore
 
     public bool DisableInternalTimer { get; set; }
 
-    private void OnIntervalChanged(object? sender, PropertyChangedEventArgs e) => ArmTimer();
+    private void OnIntervalChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (!_uiDispatcher.CheckAccess())
+        {
+            _uiDispatcher.BeginInvoke(ArmTimer);
+            return;
+        }
+        ArmTimer();
+    }
 
     private void ArmTimer()
     {
@@ -979,7 +1145,7 @@ public sealed class UsageStore : IUsageStore
         var was = _lastNetworkAvailable;
         _lastNetworkAvailable = e.IsAvailable;
         if (!e.IsAvailable || was) return;
-        System.Windows.Application.Current?.Dispatcher.BeginInvoke(async () =>
+        _uiDispatcher.BeginInvoke(() =>
         {
             // This lambda is async void on the dispatcher: anything it throws
             // past the first await lands on the dispatcher as an unhandled
@@ -991,7 +1157,7 @@ public sealed class UsageStore : IUsageStore
                 // Cancel any in-flight refresh — it was started on the dead
                 // path and will return an error. Wait for it to finalize so
                 // its loading=false lands before the replacement starts.
-                CancelCoreRefreshes();
+                CancelAllRefreshes();
                 Refresh();
             }
             catch
@@ -1001,5 +1167,15 @@ public sealed class UsageStore : IUsageStore
         });
     }
 
-    private void Raise(string name) => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+    private void Raise(string name)
+    {
+        if (_uiDispatcher.CheckAccess())
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
+        }
+        else
+        {
+            _uiDispatcher.BeginInvoke(() => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name)));
+        }
+    }
 }
