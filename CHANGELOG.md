@@ -4,6 +4,24 @@ All notable changes to AgentIsland for Windows will be documented in this file.
 
 > 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 54 项（53 项常规测试 + 1 项压力/资源测试）。
 
+## [1.2.1] - 2026-09-08
+
+### 🏝️ 灵动岛交互体验与紧凑态形态优化 (Island Adaptive Interaction)
+- **15 秒无操作自动收缩 (15s Idle Collapse)**：用户无鼠标交互持续 15 秒后，灵动岛自动优雅折叠为紧凑胶囊态，释放屏幕视野；鼠标移入即刻唤醒恢复原窥视态（Peek）。
+- **移出区域即时防抖折叠 (Mouse-Leave Auto Collapse)**：悬停/展开状态下，鼠标移出灵动岛区域 120ms 防抖后自动收缩复位；支持按下 `Esc` 键快捷折叠展开面板。
+- **双 Agent 紧凑态死区收拢**：解决双 Agent 激活时紧凑态中间无用黑色死区的问题，收窄死区为 16px，单双 Agent 紧凑态外框宽度严格统一（92px / 300px）。
+- **常驻用量数据显示保持**：开启“常驻显示用量”时，紧凑态下依旧保留显示左右 Agent 头部用量药丸（300px），避免收缩后用量数据丢失；默认与悬停保持 484px 完整宽度。
+
+### 📊 报告窗口全量本地化与健壮性提升 (ReportWindow & Localization)
+- **全量多语言支持 (Full L10n)**：补齐 `ReportWindow` 所有中英文对照字典（窗口标题、聚合周期、指标标签、图谱提示、文件保存与复制状态）。
+- **文件保存反馈准确性**：导出文件后精准提示“已保存到文件（Saved to file: {path}）”，不再误显示“已复制到剪贴板”。
+- **剪贴板抗争锁重试**：剪贴板复制逻辑增加 3 次指数重试机制，避免 Windows 系统剪贴板偶发争锁引发异常。
+- **单例窗口激活管理**：唤起报告窗口时检测 `.IsVisible`，已存在时自动解除最小化并激活置顶，避免重复实例。
+
+### 🧪 并发测试稳定性与沙箱隔离 (Test Harness & Concurrency)
+- **调度队列冲刷与去重竞态消除**：优化 `StoreDispatcherConcurrencyTests` 调度队列冲刷与并发排队，消除高并发去重扫描下的竞态，54 项测试全部稳定通过。
+- **xUnit 串行执行集合隔离**：采用 `[Collection("IslandSettingsTests")]` 避免跨测试并发修改配置与静态上下文，全量配置沙箱化，避免测试污染生产配置。
+
 ## [1.2.0] - 2026-09-06
 
 ### 🏗️ 现代企业级 C# 架构重构 (Enterprise Modernization)

@@ -161,10 +161,10 @@ dotnet test AgentIsland.sln
 .\Launch-StressUI.bat
 
 # 4. Package self-contained release executable
-.\build.ps1 -Runtime win-x64 -Version 1.2.0
+.\build.ps1 -Runtime win-x64 -Version 1.2.1
 ```
 
-The compiled release artifact will be output to `dist/AgentIsland-1.2.0-win-x64.zip`.
+The compiled release artifact will be output to `dist/AgentIsland-1.2.1-win-x64.zip`.
 
 ---
 

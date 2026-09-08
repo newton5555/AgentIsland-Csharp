@@ -9,7 +9,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>AgentIsland</RootNamespace>
     <AssemblyName>AgentIsland</AssemblyName>
-    <Version>1.2.0</Version>
+    <Version>1.2.1</Version>
     <InvariantGlobalization>false</InvariantGlobalization>
     <ApplicationIcon Condition="Exists('Assets\AgentIsland.ico')">Assets\AgentIsland.ico</ApplicationIcon>
   </PropertyGroup>

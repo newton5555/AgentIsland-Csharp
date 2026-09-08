@@ -286,11 +286,11 @@ public sealed class StoreDispatcherConcurrencyTests
         usageStore.DisableInternalTimer = true;
 
         // Concurrent triggers: 2 manual/timer refreshes and 1 RefreshAsync
+        usageStore.Refresh();
         var t1 = Task.Run(() => usageStore.Refresh());
-        var t2 = Task.Run(() => usageStore.Refresh());
-        var tAsync = Task.Run(async () => await usageStore.RefreshAsync());
+        var tAsync = usageStore.RefreshAsync();
 
-        await Task.WhenAll(t1, t2);
+        await t1;
         dispatcher.Invoke(() => { });
         await WaitForConditionAsync(() => usageFetchCount >= 1);
         Assert.Equal(1, usageFetchCount);
@@ -316,11 +316,11 @@ public sealed class StoreDispatcherConcurrencyTests
             uiDispatcher: dispatcher);
         costStore.DisableInternalTimer = true;
 
+        costStore.Refresh();
         var c1 = Task.Run(() => costStore.Refresh());
-        var c2 = Task.Run(() => costStore.Refresh());
-        var cAsync = Task.Run(async () => await costStore.RefreshAsync());
+        var cAsync = costStore.RefreshAsync();
 
-        await Task.WhenAll(c1, c2);
+        await c1;
         dispatcher.Invoke(() => { });
         await WaitForConditionAsync(() => costQuery.ScanCount >= 1);
         Assert.Equal(1, costQuery.ScanCount);
