@@ -58,6 +58,7 @@ public class ProviderLogoAnimationTests
         TestDeepSeekWorkingActivatesSwim();
         TestDeepSeekStateTransitionsAndCleanup();
         TestDeepSeekWorkingRendersPixelChangesBetweenFrames();
+        TestGrokBotStatesAndRendering();
         TestClaudeAndCodexContinueSpin();
         TestAntigravityStateTransitionsAndCleanup();
         TestToolSwitchWhileWorking();
@@ -70,6 +71,88 @@ public class ProviderLogoAnimationTests
         TestDualPaletteRendersBothProviderHues();
         TestFollowModelSweepPaletteSelectionRules();
         Console.WriteLine("ProviderLogoAnimationTests GREEN");
+    }
+
+    private static void TestGrokBotStatesAndRendering()
+    {
+        var logo = new ProviderLogo { Tool = TriggerTool.Grok };
+        var bot = logo.GrokBot!;
+        Expect(bot is not null, "Grok must use the bot even when idle");
+        var window = new Window
+        {
+            Width = 100, Height = 100, WindowStyle = WindowStyle.None,
+            ShowActivated = false, Content = logo, Background = Brushes.Black,
+        };
+        var frames = new List<BitmapSource>();
+        void Capture()
+        {
+            var bitmap = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
+            bitmap.Render(logo);
+            bitmap.Freeze();
+            frames.Add(bitmap);
+        }
+        try
+        {
+            window.Show();
+            PumpDispatcher(TimeSpan.FromMilliseconds(80));
+            Expect(bot!.Expression == 0, "Idle bot uses default eyes");
+            Capture();
+            logo.SetState(ActivityState.Working);
+            PumpDispatcher(TimeSpan.FromMilliseconds(80));
+            Expect(bot.IsMoving && bot.EyesAnimated && !logo.IsSpinActive,
+                "Working bot must bounce and change eyes without generic spin");
+            var firstEye = bot.LeftEye;
+            Capture();
+            PumpDispatcher(TimeSpan.FromMilliseconds(500));
+            Expect(!ReferenceEquals(firstEye, bot.LeftEye), "Working eyes must advance after 450ms");
+            Capture();
+            foreach (var state in new[] { ActivityState.Stalled, ActivityState.RateLimited, ActivityState.AuthRequired, ActivityState.NeedsYou })
+            {
+                logo.SetState(state);
+                PumpDispatcher(TimeSpan.FromMilliseconds(60));
+                var expression = state == ActivityState.AuthRequired ? 4 : state == ActivityState.NeedsYou ? 0 : 3;
+                Expect(bot.Expression == expression && !bot.EyesAnimated, "Bot expression must follow state");
+                Expect(!logo.IsSpinActive, "Bot must never use generic spin");
+                Capture();
+            }
+            Expect(!bot.IsMoving, "NeedsYou bot is still");
+            logo.SetState(ActivityState.Working);
+            logo.Tool = TriggerTool.Claude;
+            Expect(!bot.IsMoving && !bot.EyesAnimated && logo.IsSpinActive, "Switching provider must detach all bot clocks");
+            logo.Tool = TriggerTool.Grok;
+            Expect(bot.IsMoving && !logo.IsSpinActive, "Switching back while working must resume the bot");
+            window.Content = null;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(!bot.IsMoving && !bot.EyesAnimated, "Unloading must remove bot clocks");
+            window.Content = logo;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(bot.IsMoving && bot.EyesAnimated, "Reloading must resume the current state");
+            logo.SetState(ActivityState.AuthRequired);
+            logo.Tool = TriggerTool.Claude;
+            logo.Tool = TriggerTool.Grok;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(bot.Expression == 4 && !bot.IsMoving && !bot.EyesAnimated,
+                "Switching to Grok while auth-required must stay still with login eyes");
+
+            // Optional visual QA artifact: idle, two working frames, stalled, limited, auth, needs-you.
+            if (Environment.GetEnvironmentVariable("AGENTISLAND_GROK_PREVIEW") is { Length: > 0 } output)
+            {
+                var visual = new DrawingVisual();
+                using (var context = visual.RenderOpen())
+                {
+                    context.DrawRectangle(Brushes.Black, null, new Rect(0, 0, frames.Count * 200, 200));
+                    for (var i = 0; i < frames.Count; i++)
+                        context.DrawImage(frames[i], new Rect(i * 200, 0, 200, 200));
+                }
+                var sheet = new RenderTargetBitmap(frames.Count * 200, 200, 96, 96, PixelFormats.Pbgra32);
+                sheet.Render(visual);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(sheet));
+                using var stream = System.IO.File.Create(output);
+                encoder.Save(stream);
+            }
+        }
+        finally { window.Close(); }
     }
 
     private static void TestAntigravityWorkingDoesNotSpin()
