@@ -6,13 +6,20 @@
 
 - 构建使用相同的 Release 配置、运行时、显示缩放和透明模式。
 - `AGENTISLAND_DATA_DIR` 和 `AGENTISLAND_CACHE_DIR` 仅覆盖 AgentIsland 自身的配置和缓存目录，须在进程启动前设置；它们不自动隔离 Agent 的日志或凭据。测试扫描/请求应使用固定输入和替身。
-- 默认测试入口应在任何单例初始化前创建独立的临时目录。`dotnet test` 不是本仓库控制台测试套件的执行入口。
+- 标准测试入口是 `dotnet test`；测试 fixture 应在初始化依赖前创建独立的临时目录。压力/资源测试通过过滤器单独执行，便于区分常规回归和长耗时场景。
 - 工作集（Working Set）、私有提交（Private Bytes）、托管存活堆、每轮分配量分开记录。减少临时分配不代表任务管理器内存必然等比例下降；Windows/WPF 渲染资源也不等同于托管堆。
 
 ```powershell
 dotnet build .\AgentIsland.sln -c Release
-dotnet run --project .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj -c Release --no-build
+dotnet test .\AgentIsland.sln -c Release --filter "FullyQualifiedName!~AgentStressAndResourceTests"
+dotnet test .\AgentIsland.sln -c Release --filter "FullyQualifiedName~AgentStressAndResourceTests"
 ```
+
+## 当前代码基线（2026-09-08）
+
+- `dotnet build .\AgentIsland.sln -c Release --no-restore`：0 个错误，10 个测试项目警告（现存的 `CS8602` / `CS0067`，不阻断构建）。
+- 常规回归测试：53 项通过；压力/资源测试：1 项通过；合计 54 项通过。
+- 以上是当前主分支的工程验证基线，不代表 WPF 工作集、GPU 显存或 UI 帧时间已经完成实机性能验收。
 
 ## 自动回归重点
 
@@ -101,5 +108,5 @@ Get-Process AgentIsland | Select-Object Id, ProcessName
 - 托盘图标已按实际徽标视觉状态缓存；同一徽标状态不再重复创建 Bitmap、Graphics、HICON 或替换托盘图标，并保留旧图标的释放路径。
 - `IsPointInsideSilhouette()` 已缓存屏幕矩形；窗口位置/尺寸、Silhouette 尺寸、形状状态、缩放及 `WM_DPICHANGED` 会使缓存失效，鼠标 watchdog 仍保持 16ms。
 - 新增首行读取、命中区域几何和托盘视觉状态边界测试。
-- `AgentIsland.sln` 与 `AgentIsland.slnx` 的 Release 构建均为 0 警告 / 0 错误，控制台测试套件为 `ALL GREEN`，包含新增性能优化测试。
+- 性能优化测试与构建在当时的固定输入下通过；该记录是 2026-09-05 的历史快照，当前编译器警告和测试基线以本文“当前代码基线”一节为准。
 - 本轮没有 profiler 原始工件，因此不报告 CPU、LOH、Gen 2 或 UI 帧时间的百分比收益；这些仍需在相同 Release 场景和真实桌面上采样确认。

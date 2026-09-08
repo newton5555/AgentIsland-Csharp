@@ -1,6 +1,8 @@
 # AgentIsland `dev` 分支重构与现代化改造总结报告
 
-> **目标**：将 AgentIsland 从旧有混合式静态单例架构全面升级为现代化、健壮、易测试的纯依赖注入（Pure Dependency Injection）架构，彻底消除全局可变状态与测试干扰，完善后台服务生命周期、网络弹性、配置中心与测试体系。
+> **历史快照说明**：本报告记录 `dev` 分支阶段的改造结果，不是当前 `main` 的实时质量报告。报告当时的测试基线为 41 项；当前主分支基线为 54 项（53 项常规测试 + 1 项压力/资源测试）。
+
+> **目标**：将 AgentIsland 从旧有混合式静态单例架构全面升级为现代化、健壮、易测试的 DI 主导架构，消除业务全局可变状态与测试干扰，完善后台服务生命周期、网络弹性、配置中心与测试体系。
 
 ---
 
@@ -20,7 +22,7 @@
 
 | 指标 / 维度 | 重构前 (Legacy) | 重构后 (Modernized) |
 | :--- | :--- | :--- |
-| **单例与静态状态** | 17+ 业务 Store 广泛采用 `.Shared` 静态实例 | **100% Pure DI**：领域层 `.Shared` 归零（仅保留标准 BCL `ArrayPool<byte>.Shared`） |
+| **单例与静态状态** | 17+ 业务 Store 广泛采用 `.Shared` 静态实例 | 业务 Store 的 `.Shared` 归零；保留少量平台工具、缓存和 UI 兼容静态入口 |
 | **应用宿主** | `App.xaml.cs` 过程式加载，分散的手工 `new` | `Microsoft.Extensions.Hosting` (`IHost` / `IServiceProvider`) 标准组合根 |
 | **后台轮询任务** | 依赖各 Store 内部的 `DispatcherTimer` 在 UI 线程轮询 | `IHostedService` (`BackgroundService`) + `PeriodicTimer` 在线程池运行 |
 | **Provider 扩展性** | Provider 逻辑直接硬编码在各业务 Store 内部 | 统一抽取 `IAgentProvider` 系列契约，多态协调调度 |
@@ -28,13 +30,13 @@
 | **网络请求质量** | 原生 `HttpClient`，网络闪断易卡死或报异常 | `IHttpClientFactory` + Polly 弹性管线（重试/熔断/超时）+ 离线快断 |
 | **窗口与弹窗解耦** | ViewModel 直接持有或打开具体 WPF Window | 抽象 `IWindowService` 与 `IDialogService` 接口驱动 |
 | **单元测试体系** | 自定义控制台 `Program.cs` + 串行禁用 + 磁盘文件读写 | 标准 xUnit 类库 + **全并发并行执行** + 纯内存存储隔离 |
-| **测试通过率** | 需特定单线程环境、易相互污染 | **41 / 41 (100% Pass)**，秒级全绿通过 |
+| **测试通过率** | 需特定单线程环境、易相互污染 | 报告时 **41 / 41 (100% Pass)**；当前主分支为 54 项通过 |
 
 ---
 
 ## 2. 分阶段改造详情
 
-### Phase 1 ~ 5: 业务领域单例消除与纯依赖注入体系
+### Phase 1 ~ 5: 业务领域单例消除与依赖注入体系
 - **彻底根除业务 `.Shared`**：
   - 改造了全部 17 个 Store（`ProviderVisibilityStore`, `UsageStore`, `CostStore`, `ActivityMonitor`, `IslandModel`, `AgentReminderStore`, `AlertThresholdStore`, `RefreshIntervalStore`, `IslandPositionStore`, `IslandScaleStore`, `LowPowerModeStore`, `GlowColorStore`, `QuotaDisplayModeStore`, `AlwaysShowUsageStore`, `AntigravityUsageStore`, `GrokUsageStore`, `CursorUsageStore`, `DeepSeekBalanceStore` 等）。
   - 移除了所有 Store 的静态 `Instance`/`Shared` 属性。
@@ -44,7 +46,7 @@
   - `IslandWindow`, `UsagePage`, `CostPage`, `PanelFooter`, `TrayIcon`, `ReportWindow` 等全改为接收依赖注入实例。
   - 保留参数为空的默认构造函数（内部委托 `App.Instance?.Services` 或 Fallback 实例），既保证了运行时 DI 容器的高内聚，又无缝兼容 WPF XAML 编译器与设计器。
 
-### Phase 6: Provider 插件化架构与协调引擎
+### Phase 6: Provider 能力架构与协调引擎
 - 在 `AgentIsland.Core` 沉淀 Provider 核心抽象：
   - `IAgentProvider`、`ISessionSensor`、`IUsageFetcher`、`ICostLedgerReader`、`ISessionLauncher`、`IAgentCatalog`。
 - 在 `AgentIsland.Providers` 集中实现 6 大主流 Agent 适配器：Claude, Codex, Antigravity, DeepSeek, Grok, Cursor。
@@ -159,11 +161,11 @@
 
 ### 1. 编译状态
 - **命令**：`dotnet build AgentIsland.sln`
-- **结果**：**0 警告，0 错误**（所有 5 个工程全部编译通过）。
+- **结果**：报告当时记录为 **0 警告，0 错误**（所有 5 个工程全部编译通过）；这不是当前主分支的警告基线。
 
 ### 2. 自动化测试结果
 - **命令**：`dotnet test AgentIsland.sln`
-- **结果**：**41 个测试全部并行通过，0 失败，0 跳过，用时 ~1-2 秒**。
+- **结果**：报告当时 **41 个测试全部并行通过，0 失败，0 跳过，用时 ~1-2 秒**；当前测试数量见报告顶部的主分支基线。
   ```text
   已通过! - 失败: 0，通过: 41，已跳过: 0，总计: 41，持续时间: 1 s - AgentIsland.Tests.dll (net8.0)
   ```
@@ -175,4 +177,4 @@
 ---
 
 ## 总结
-`dev` 分支的现代化改造已经完全达成预定目标：完成了企业级的 **100% 纯依赖注入架构**改造，彻底消除了历史技术债务与静态单例，修复了潜在激活歧义异常，并通过了 100% 全绿的并发自动化测试套件。当前代码库结构清晰、性能卓越、扩展简易，具备极高的生产稳定性。
+`dev` 分支的现代化改造完成了预定的核心目标：业务 Store 已转向 DI 组合，消除了历史业务静态单例，修复了潜在激活歧义异常，并通过了当时全绿的并发自动化测试套件。应用仍保留少量平台工具、缓存和 UI 兼容静态入口；当前主分支的验证结果不应直接用本历史报告中的 41 项和 0 警告数字代替。

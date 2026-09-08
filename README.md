@@ -4,7 +4,7 @@
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078D6?style=flat&logo=windows)](https://www.microsoft.com/windows)
-[![Tests](https://img.shields.io/badge/Tests-42%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
+[![Tests](https://img.shields.io/badge/Tests-54%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
 [![Memory Footprint](https://img.shields.io/badge/Working%20Set-~100MB%20(down%20from%20200MB+)-success?style=flat)](docs/performance.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -18,7 +18,7 @@
   This project originally originated from the upstream open-source project [Agent Island](https://github.com/agent-island/agent-island) at baseline **v2.1.2**. Upstream was primarily architected around a macOS (Swift) application, with an early, incomplete Windows prototype located in a subfolder (`windows/`).
 * **Why an Independent Reimplementation in Modern C#?**  
   In real-world 24/7 background usage on Windows, the early prototype exhibited noticeable engineering bottlenecks: pervasive global static singletons, hardcoded provider enums, absence of automated testing, Large Object Heap (LOH) fragmentation from naive log reading, and **physical memory ballooning well beyond 200MB+** over extended sessions.  
-  This repository completely decoupled the Windows client into an **independent, top-level .NET 8 C# solution**, delivering a ground-up enterprise-grade modernization engineered specifically for the Windows desktop environment with minimal resource consumption, high reliability, and extensible plugin architecture.
+  This repository completely decoupled the Windows client into an **independent, top-level .NET 8 C# solution**, delivering a ground-up modernization engineered specifically for the Windows desktop environment with minimal resource consumption, high reliability, and a capability-driven provider architecture.
 
 ---
 
@@ -31,9 +31,9 @@ AgentIsland strictly adheres to a **Local-First** privacy commitment: session st
 | **Claude Code** | ✅ Real-time | ✅ Full tracking | ✅ Official API | ✅ Ledger analysis | `%USERPROFILE%\.claude\projects` |
 | **OpenAI Codex** | ✅ Status sensor | ✅ Full tracking | ✅ Session metadata | ✅ Ledger analysis | `%USERPROFILE%\.codex\sessions` |
 | **DeepSeek Harness** | ✅ Multi-gateway | ✅ Event parser | ✅ Official Balance API | ✅ Cost calculation | `%USERPROFILE%\.dsh\sessions` (zstd streams) |
-| **Google Antigravity**| ✅ Turn capture | ✅ Token counting | ➖ (Platform bound) | ➖ | `%USERPROFILE%\.gemini` (IDE & CLI transcripts) |
-| **xAI Grok** | ✅ Sensor hooked | ✅ Token counting | ✅ Usage fetch | ➖ | `%USERPROFILE%\.grok` |
-| **Cursor IDE** | ✅ Sensor hooked | ✅ Aggregated tokens | ✅ Quota status | ➖ | `%APPDATA%\Cursor\...\state.vscdb` (SQLite WAL) |
+| **Google Antigravity**| ✅ Turn capture | ✅ Token counting | ✅ Dedicated fetcher | ✅ Ledger analysis | `%USERPROFILE%\.gemini` (IDE & CLI transcripts) |
+| **xAI Grok** | ✅ Sensor hooked | ✅ Token counting | ✅ Usage fetch | ✅ Ledger analysis | `%USERPROFILE%\.grok` |
+| **Cursor IDE** | ✅ Sensor hooked | ✅ Aggregated tokens | ✅ Quota status | ✅ Ledger analysis | `%APPDATA%\Cursor\...\state.vscdb` (SQLite WAL) |
 
 ---
 
@@ -41,7 +41,7 @@ AgentIsland strictly adheres to a **Local-First** privacy commitment: session st
 
 The legacy prototype relied on rigid enums (`enum TriggerTool`) and cascading `switch-case` statements across numerous modules, while erroneously assuming every agent conforms to an identical "5-hour quota + 7-day period" structure.
 
-Our modernization transformed this into a flexible, **Capability-Driven** plugin architecture:
+Our modernization transformed this into a flexible, **Capability-Driven** provider architecture. Built-in providers are registered in source and expose only the capability contracts they support; dynamic DLL loading is intentionally not part of the current design:
 
 ### 1. Fine-Grained Capability Flags (`AgentCapabilities`)
 Different agents provide different levels of integration without forced coupling:
@@ -55,25 +55,31 @@ Different agents provide different levels of integration without forced coupling
 - **`IUsageFetcher`**: Retrieves official quotas and balances on-demand;
 - **`ICostLedgerReader`**: Reads and incrementally parses local billing ledgers.
 
-### 3. Effortless 4-Step Onboarding for New Agents
-Adding support for new AI coding agents (such as Windsurf, Cline, Roo Code, Doubao MarsCode, etc.) requires just 4 clean steps, with **zero modifications** to the core UI rendering pipeline, 60fps spring animations, or background schedulers:
+### 3. Four-Step Onboarding for New Agents
+Adding support for a new AI coding agent (such as Windsurf, Cline, Roo Code, or Doubao MarsCode) requires four focused steps. The core UI rendering pipeline, 60fps spring animations, and background schedulers do not need to change:
 
 ```csharp
-// Step 1: Register descriptor and declared capability flags in BuiltInAgentCatalog
-Module("doubao", "Doubao MarsCode", 
-    AgentCapabilities.Activity | AgentCapabilities.Cost, 
-    cliName: "marscode");
-
-// Step 2: Implement only the capabilities supported by the agent
-public class DoubaoSessionSensor : ISessionSensor
+// Step 1: Implement one provider and only the capabilities it supports
+public sealed class DoubaoProvider : IAgentProvider, ISessionSensor, ICostLedgerReader
 {
+    public AgentDescriptor Descriptor { get; } = new(
+        new AgentKey("doubao"), "Doubao MarsCode",
+        AgentCapabilities.Activity | AgentCapabilities.Cost,
+        "marscode");
+
     public ValueTask<IReadOnlyList<ScannedSession>> ScanSessionsAsync(...) { ... }
+    public ValueTask<IReadOnlyList<TokenEvent>> ReadCostEventsAsync(...) { ... }
 }
 
-// Step 3: Register the adapter in the Dependency Injection container
-services.AddSingleton<ISessionSensor, DoubaoSessionSensor>();
+// Step 2: Register the provider in the WPF composition root
+services.AddSingleton<IAgentProvider, DoubaoProvider>();
 
-// Step 4: Add unit tests verifying transcript parsing and turn detection rules
+// Step 3: Register the matching descriptor/module in BuiltInAgentCatalog
+catalog.Register(new BuiltInAgentModule(
+    new AgentDescriptor(new AgentKey("doubao"), "Doubao MarsCode",
+        AgentCapabilities.Activity | AgentCapabilities.Cost, "marscode")));
+
+// Step 4: Add unit tests for transcript parsing, turn detection, and cost rules
 ```
 
 ---
@@ -106,7 +112,7 @@ As a desktop utility designed to run continuously in the background, minimizing 
 
 This codebase strictly adheres to modern .NET design standards:
 
-* **100% Pure Dependency Injection**: Completely eradicated all static singletons (`_instance` / `Shared`), wiring all stores and services cleanly through `Microsoft.Extensions.DependencyInjection`.
+* **DI-first composition**: Business Stores no longer expose the legacy `.Shared` singleton pattern. The WPF host registers the runtime graph through `Microsoft.Extensions.DependencyInjection`; a small number of static platform helpers and UI compatibility accessors remain intentionally.
 * **Generic Host Orchestration**: Leverages `Microsoft.Extensions.Hosting` to manage the application lifecycle, with all background polling executed via `PeriodicTimer`-driven hosted workers (`ActivityMonitoringWorker`, `UsagePollingWorker`, `CostAggregationWorker`, `UpdateCheckWorker`).
 * **Resilient Network Pipeline & Fast-Fail**: Combines `IHttpClientFactory` with **Polly** resilience policies (exponential backoff, circuit breaking) and `INetworkConnectivityService` for instant fast-failing during offline states without freezing UI or worker threads.
 * **Strongly-Typed Options Pattern**: Utilizes `IOptions<T>` and `IOptionsMonitor<T>` for reactive settings reloads, paired with `AtomicJsonSettingsStorage` for thread-safe file persistence.
@@ -118,7 +124,7 @@ This codebase strictly adheres to modern .NET design standards:
 
 The repository includes a comprehensive, deterministic test suite covering core domain logic, concurrency safety, and STA UI dispatcher interactions:
 
-* **42 Automated Tests Passing (ALL GREEN)**;
+* **54 Automated Tests Passing (ALL GREEN)** — 53 regular tests plus 1 stress/resource test;
 * **Coverage Scope**: Domain calculators, reverse stream slicers, circuit breaker faults, MVVM ViewModels, STA UI rendering, and 1-year worst-case stress benchmarks;
 * **Sandboxed Test Isolation**: Tests execute in isolated temporary data directories, preventing interference with running application instances.
 
@@ -148,7 +154,7 @@ dotnet test AgentIsland.sln
 # 1. Restore and build solution
 dotnet build AgentIsland.sln
 
-# 2. Run full test suite (All 42 tests passing)
+# 2. Run full test suite (54 tests: 53 regular + 1 stress/resource)
 dotnet test AgentIsland.sln
 
 # 3. Launch 1-Year Stress Test UI
@@ -168,11 +174,11 @@ The compiled release artifact will be output to `dist/AgentIsland-1.2.0-win-x64.
 AgentIsland-Csharp/
 ├─ src/
 │  ├─ AgentIsland.Core/         # Cross-platform models, AgentCapabilities, calculation policies
-│  ├─ AgentIsland.Providers/    # 6 Agent adapter plugins, transcript parsers, catalog registry
+│  ├─ AgentIsland.Providers/    # Provider payload parsers, built-in catalog descriptors
 │  ├─ AgentIsland.Windows/      # Windows path resolution, winsqlite3 driver, kernel memory APIs
 │  └─ AgentIsland/              # WPF presentation host, IslandWindow, ViewModels, dashboard
 ├─ tests/
-│  └─ AgentIsland.Tests/        # 42 automated tests (STA UI, circuit breaker & stress benchmarks)
+│  └─ AgentIsland.Tests/        # 54 automated tests (53 regular + 1 stress/resource test)
 ├─ scripts/
 │  ├─ Launch-StressTestUI.ps1   # 1-Year worst-case stress launcher script
 │  └─ Measure-ProcessResources.ps1 # Process CPU and working set profiling script

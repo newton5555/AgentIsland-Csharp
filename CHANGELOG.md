@@ -2,14 +2,16 @@
 
 All notable changes to AgentIsland for Windows will be documented in this file.
 
+> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 54 项（53 项常规测试 + 1 项压力/资源测试）。
+
 ## [1.2.0] - 2026-09-06
 
 ### 🏗️ 现代企业级 C# 架构重构 (Enterprise Modernization)
-- **100% 纯依赖注入 (Pure DI)**：彻底清除全局静态单例（`_instance` / `Shared`），全面迁移至 `Microsoft.Extensions.DependencyInjection` 容器进行服务注册与解析。
+- **以 DI 为主的运行时组合**：移除业务 Store 的全局 `.Shared` 单例模式，并迁移至 `Microsoft.Extensions.DependencyInjection` 容器进行服务注册与解析；少量平台工具和 UI 兼容访问入口仍保留静态实现。
 - **Generic Host 应用宿主**：基于 `Microsoft.Extensions.Hosting` 统一编排应用生命周期，将轮询任务统一改造为基于 `PeriodicTimer` 的托管后台工作者（`ActivityMonitoringWorker`, `UsagePollingWorker`, `CostAggregationWorker`, `UpdateCheckWorker`）。
 - **弹性网络管线与离线快速失败**：接入 `IHttpClientFactory` 与 Polly 弹性策略（指数退避重试、断路器机制），配合 `INetworkConnectivityService` 实现离线状态下的毫秒级快速失败，避免后台网络挂起。
 - **强类型配置模式**：引入 `IOptions<T>` 与 `IOptionsMonitor<T>` 响应式配置监听，配合 `AtomicJsonSettingsStorage` 原子化持久化。
-- **提供商插件化架构**：使用 `IAgentProvider` 插件体系与 `IAgentCatalog` 动态注册中心替代硬编码枚举，Agent 能力显式声明。
+- **提供商能力架构**：使用 `IAgentProvider` 与 `IAgentCatalog` 的显式源码注册替代硬编码枚举，Agent 能力显式声明；当前不启用动态 DLL 加载。
 - **MVVM 规范化与窗口服务抽象**：规范 View 与 ViewModel（`IslandViewModel`, `SettingsViewModel`, `UsagePageViewModel`, `CostPageViewModel`），抽离 `IWindowService` 与 `IDialogService` 接口，解耦 UI 弹窗与核心逻辑。
 
 ### ⚡ 极限负载保障与压力测试 (Stress Testing & Worst-Case I/O)
@@ -24,7 +26,7 @@ All notable changes to AgentIsland for Windows will be documented in this file.
 - 灵动岛胶囊条默认开启**常驻显示用量（Always Show Usage）**。
 
 ### 🧪 自动化测试体系全面跃升 (Test Automation)
-- 自动化测试套件扩展至 **42 项测试**，涵盖单元测试、STA 线程 UI 渲染测试、MVVM ViewModel 交互测试、网络断路器与 1 年极限并发基准测试。
+- 发布时自动化测试套件为 **42 项测试**，涵盖单元测试、STA 线程 UI 渲染测试、MVVM ViewModel 交互测试、网络断路器与 1 年极限并发基准测试；后续主分支已扩展为 54 项，详见上方当前基线。
 - 引入沙箱数据隔离机制，杜绝测试过程与运行中实例的数据互扰。
 
 ## [1.0.1] - 2026-09-05

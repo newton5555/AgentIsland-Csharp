@@ -4,7 +4,7 @@
 
 本仓库是基于 Agent Island 2.1.2 的独立 Windows fork。2.1.2 提供产品交互、状态语义、报告结构和视觉方向的参考；本仓库没有继续携带 macOS 的 Xcode、SwiftUI、Sparkle 或 Keychain 运行时，而是在同一产品目标下重做 Windows 宿主。
 
-相对 2.1.2，当前 1.0.1 的重要变化是：
+相对 2.1.2，当前 1.2.0 的重要变化是：
 
 1. **平台替换**：SwiftUI/macOS 宿主替换为 .NET 8/WPF；路径、托盘、开机启动、Win32 窗口跳转和 SQLite 访问均由 Windows 层负责。
 2. **模块化**：跨平台模型、聚合和规则进入 `AgentIsland.Core`，Provider 解析进入 `AgentIsland.Providers`，Windows 能力进入 `AgentIsland.Windows`，WPF 只负责界面和组合。
@@ -21,7 +21,7 @@
 6. 将 Windows 路径、文件系统容错、进程、启动项、Cursor 对话数据库和 Cursor token 数据库访问集中到 Windows 项目。
 7. 将 WPF 项目整理为 `UI/` 与 `Backend/` 两块，并把后台监控命名空间明确为 `AgentIsland.Backend.Monitoring`。
 8. 用显式 `BuiltInAgentCatalog` 建立可扩展的 Agent 注册点，并由 WPF 组合根绑定当前活动能力。
-9. 保留一个兼容测试入口，Debug/Release 构建和现有测试均通过。
+9. 测试工程已迁移为标准 xUnit 入口；当前基线为 54 项测试（53 项常规测试 + 1 项压力/资源测试），通过 `dotnet test` 执行。
 10. 已完成 Antigravity（`agy`）、DeepSeek Harness（`dsh`）和 Codex 的实际运行验证，确认统计与状态展示链路可用。
 
 ## 当前边界
@@ -31,10 +31,10 @@
 - `AgentIsland.Windows`：Windows 目录、SQLite、进程、注册表和文件系统边界。
 - `AgentIsland`：WPF UI、宿主后台编排和组合根。
 
-UsageStore、CostStore、ActivityMonitor 仍由 WPF 宿主管理，因为它们直接绑定 Dispatcher、设置存储或现有 UI 兼容面；这不是未完成的项目拆分，而是小工具保持简单的刻意边界。
+UsageStore、CostStore、ActivityMonitor 仍位于 WPF 宿主的 Backend 命名空间，因为它们直接接触 Dispatcher、设置存储或现有 UI 兼容面；它们已经通过构造函数和接口接入 DI，并由 Generic Host 的后台 Worker 编排。这不是未完成的跨平台拆分，而是小工具保持简单的刻意边界。
 
 ## 后续只属于功能演进
 
 1. 新 Agent 按 `AgentKey`、能力描述、Provider 解析器和测试接入。
-2. 如果未来需要无 UI 宿主，再为后台 Store 引入构造注入和接口；当前不为 IoC 预先增加 `Application` 项目。
+2. 如果未来需要完全无 UI 宿主，再进一步拆分 WPF Dispatcher、计时器和 UI 兼容面；当前 Store 的构造注入和接口已经存在，不为 IoC 预先增加 `Application` 项目。
 3. 设置页等高变页面可在有实际维护收益时逐步转为 XAML + ViewModel；IslandWindow 和高频绘制控件继续保留代码控制。

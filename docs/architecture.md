@@ -3,7 +3,7 @@
 ## 依赖方向
 
 ```text
-AgentIsland (WPF)
+AgentIsland (WPF / Generic Host)
 ├── AgentIsland.Core
 ├── AgentIsland.Providers ──> AgentIsland.Core
 └── AgentIsland.Windows  ──> AgentIsland.Core
@@ -40,4 +40,4 @@ Agent 不要求实现一套固定的“5 小时 + 7 天”数据模型。目录�
 3. 在组合根接入适配器；
 4. 为解析/聚合规则补测试。
 
-当前不引入动态 DLL 插件加载，也不把每个小功能拆成独立项目；新增 Agent 先以源码内置模块形式接入，等真实需求出现再演进插件机制。
+当前不引入动态 DLL 插件加载，也不把每个小功能拆成独立项目；新增 Agent 先以源码内置模块形式接入：在 WPF 组合根注册 `IAgentProvider`，并在 `BuiltInAgentCatalog` 注册匹配的描述符/模块，等真实需求出现再演进插件机制。
