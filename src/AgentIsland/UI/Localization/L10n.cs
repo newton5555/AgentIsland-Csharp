@@ -439,6 +439,21 @@ public static class L10n
         // an English sentence appeared inside an otherwise Chinese AgentIsland.Backend.Alarms.
         ["Couldn't open the thread — is the claude/codex CLI on your PATH?"] =
             "无法打开会话——claude / codex 命令是否在 PATH 中？",
+
+        // Report window share cards and pager chrome
+        ["Weekly report"] = "周报",
+        ["Share monthly report"] = "分享月报",
+        ["Copy image"] = "复制图片",
+        ["Save PNG"] = "保存 PNG",
+        ["Copied"] = "已复制",
+        ["Previous period (←)"] = "上一周期 (←)",
+        ["Next period (→)"] = "下一周期 (→)",
+        ["Select date..."] = "选择指定日期 (日历)",
+        ["Click to return to current period"] = "点击回到最新周期",
+        ["Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"] =
+            "已复制！分享给朋友一起登岛 🏝️ 感谢你的支持",
+        ["Saved! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"] =
+            "已保存至本地！分享给朋友一起登岛 🏝️ 感谢你的支持",
         // ClaudeWebLogin failure reasons are internal contract strings like the
         // provider error sentinels, so they are localized at display time by
         // ErrorDisplay.Localize rather than looked up here.
@@ -480,6 +495,7 @@ public static class L10n
         ["Usage tiles and top-bar percentages follow this."] = "Usage tiles and top-bar percentages follow this",
         ["Percent readouts count down what's left of each window rather than up what's spent."] = "Percent readouts count down what's left of each window rather than up what's spent",
         ["Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"] = "Copied! Post it — bring a friend to the island 🏝️",
+        ["Saved! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"] = "Saved to file — bring a friend to the island 🏝️",
         ["Details unavailable right now."] = "Details unavailable right now",
         ["Earned resets appear here with their expiry."] = "Earned resets appear here with their expiry",
         ["You're out until it resets at {0}."] = "You're out until it resets at {0}",

@@ -290,13 +290,15 @@ public sealed class StoreDispatcherConcurrencyTests
         var t2 = Task.Run(() => usageStore.Refresh());
         var tAsync = Task.Run(async () => await usageStore.RefreshAsync());
 
+        await Task.WhenAll(t1, t2);
+        dispatcher.Invoke(() => { });
         await WaitForConditionAsync(() => usageFetchCount >= 1);
         Assert.Equal(1, usageFetchCount);
 
         var expectedUsage = new AppUsage(new WindowUsage(0.65, null, null), WindowUsage.Unknown, "tier-pro");
         usageTcs.SetResult(expectedUsage);
 
-        await Task.WhenAll(t1, t2, tAsync);
+        await tAsync;
         Assert.Equal(1, usageFetchCount);
         Assert.Equal(0.65, usageStore.Claude.FiveHour.UsedPercent);
 
@@ -318,6 +320,8 @@ public sealed class StoreDispatcherConcurrencyTests
         var c2 = Task.Run(() => costStore.Refresh());
         var cAsync = Task.Run(async () => await costStore.RefreshAsync());
 
+        await Task.WhenAll(c1, c2);
+        dispatcher.Invoke(() => { });
         await WaitForConditionAsync(() => costQuery.ScanCount >= 1);
         Assert.Equal(1, costQuery.ScanCount);
 
@@ -327,7 +331,7 @@ public sealed class StoreDispatcherConcurrencyTests
 
         costTcs.SetResult(new CostScanResult(DisplayProvider.Claude, 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), expectedCost));
 
-        await Task.WhenAll(c1, c2, cAsync);
+        await cAsync;
         Assert.Equal(1, costQuery.ScanCount);
         Assert.Equal(25.50, costStore.Claude.TodayDollars);
     }

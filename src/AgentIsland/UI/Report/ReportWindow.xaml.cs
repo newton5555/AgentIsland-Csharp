@@ -59,7 +59,7 @@ public sealed partial class ReportWindow : Window
         TokenCountModeStore? tokenModeStore = null,
         ICostQueryService? costQueryService = null)
     {
-        if (_current != null && _current.IsLoaded)
+        if (_current != null && (_current.IsLoaded || _current.IsVisible))
         {
             _current.SwitchKind(kind);
             WindowActivation.BringToFront(_current);
@@ -97,17 +97,15 @@ public sealed partial class ReportWindow : Window
             ? AgentIsland.UI.Localization.L10n.Tr("Weekly report")
             : AgentIsland.UI.Localization.L10n.Tr("Share monthly report");
 
-        var zh = AgentIsland.UI.Localization.L10n.IsChinese;
-
-        _back = new PagerCircle("\uE76B", zh ? "上一周期 (←)" : "Previous period (←)");
+        _back = new PagerCircle("\uE76B", AgentIsland.UI.Localization.L10n.Tr("Previous period (←)"));
         _back.Clicked += OnBackClicked;
         BackSlot.Child = _back;
 
-        _forward = new PagerCircle("", zh ? "下一周期 (→)" : "Next period (→)");
+        _forward = new PagerCircle("", AgentIsland.UI.Localization.L10n.Tr("Next period (→)"));
         _forward.Clicked += OnForwardClicked;
         ForwardSlot.Child = _forward;
 
-        _calendarButton = new PagerCircle("", zh ? "选择指定日期 (日历)" : "Select date...");
+        _calendarButton = new PagerCircle("", AgentIsland.UI.Localization.L10n.Tr("Select date..."));
         _calendarButton.Clicked += OpenCalendar;
         CalendarSlot.Child = _calendarButton;
 
@@ -261,7 +259,7 @@ public sealed partial class ReportWindow : Window
 
         var isHistorical = _pageOffset > 0 || _anchorDate is not null;
         PeriodBadge.ToolTip = isHistorical
-            ? (AgentIsland.UI.Localization.L10n.IsChinese ? "点击回到最新周期" : "Click to return to current period")
+            ? AgentIsland.UI.Localization.L10n.Tr("Click to return to current period")
             : null;
         PeriodBadge.Cursor = isHistorical ? Cursors.Hand : Cursors.Arrow;
 
@@ -665,15 +663,19 @@ public sealed partial class ReportWindow : Window
 
     private bool CopyImage()
     {
-        try
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            Clipboard.SetImage(ExportRender());
-            return true;
+            try
+            {
+                Clipboard.SetImage(ExportRender());
+                return true;
+            }
+            catch
+            {
+                if (attempt < 2) System.Threading.Thread.Sleep(50);
+            }
         }
-        catch
-        {
-            return false;
-        }
+        return false;
     }
 
     private void SavePng()
@@ -692,7 +694,7 @@ public sealed partial class ReportWindow : Window
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(ExportRender()));
             encoder.Save(stream);
-            ShowCoach(AgentIsland.UI.Localization.L10n.Tr("Copied! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
+            ShowCoach(AgentIsland.UI.Localization.L10n.Tr("Saved! Post it and bring a friend to the island 🏝️ Thanks for spreading the word"));
         }
         catch
         {
