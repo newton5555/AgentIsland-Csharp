@@ -18,7 +18,7 @@ dotnet test .\AgentIsland.sln -c Release --filter "FullyQualifiedName~AgentStres
 ## 当前代码基线（2026-09-08）
 
 - `dotnet build .\AgentIsland.sln -c Release --no-restore`：0 个错误，10 个测试项目警告（现存的 `CS8602` / `CS0067`，不阻断构建）。
-- 常规回归测试：53 项通过；压力/资源测试：1 项通过；合计 54 项通过。
+- 常规回归测试：55 项通过；压力/资源测试：1 项通过；合计 56 项通过。
 - 以上是当前主分支的工程验证基线，不代表 WPF 工作集、GPU 显存或 UI 帧时间已经完成实机性能验收。
 
 ## 自动回归重点

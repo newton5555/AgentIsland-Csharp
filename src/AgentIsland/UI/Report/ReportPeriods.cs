@@ -79,6 +79,13 @@ public static class ReportPeriods
     public static bool HasData(DateTime intervalStart, DateTime? earliestDataDay) =>
         earliestDataDay is { } earliest && intervalStart > earliest;
 
+    public static DateTimeOffset AtLocalBoundary(DateTime date, TimeZoneInfo timeZone)
+    {
+        var wallTime = DateTime.SpecifyKind(date, DateTimeKind.Unspecified);
+        return new DateTimeOffset(wallTime, timeZone.GetUtcOffset(wallTime));
+    }
+
+
     /// Full-year rescan → per-provider slices for the interval, off the UI
     /// thread. The readers memoize per file (LogParseCache), so the
     /// steady-state cost is a cache walk + dedup pass, not a re-parse —
@@ -93,8 +100,8 @@ public static class ReportPeriods
         CancellationToken cancellationToken = default)
     {
         var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
-        var startOffset = new DateTimeOffset(start, DateTimeOffset.Now.Offset);
-        var endOffset = new DateTimeOffset(end, DateTimeOffset.Now.Offset);
+        var startOffset = AtLocalBoundary(start, TimeZoneInfo.Local);
+        var endOffset = AtLocalBoundary(end, TimeZoneInfo.Local);
         var visibility = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
         var queryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService) ?? new CostQueryService(visibility);
         var providers = visibility.Enabled.ToArray();

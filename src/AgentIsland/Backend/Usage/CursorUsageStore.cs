@@ -105,6 +105,19 @@ public sealed class CursorUsageStore : ICursorUsageStore
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    private void CompleteRefresh(long generation, CancellationTokenSource cts)
+    {
+        try
+        {
+            // Check ownership when the UI callback runs, after any disable/re-enable.
+            if (generation != _refreshGeneration || !ReferenceEquals(_refreshCts, cts)) return;
+            _refreshCts = null;
+            Loading = false;
+        }
+        finally { cts.Dispose(); }
+    }
+
+
     /// Release the local snapshot and cancel the active request while keeping
     /// the persisted value for a later re-enable.
     public void ClearMemory()
@@ -184,15 +197,8 @@ public sealed class CursorUsageStore : ICursorUsageStore
             }
             finally
             {
-                if (ReferenceEquals(_refreshCts, cts))
-                {
-                    _refreshCts = null;
-                    if (generation == _refreshGeneration)
-                    {
-                        try { dispatcher(() => Loading = false); } catch { }
-                    }
-                }
-                cts.Dispose();
+                try { dispatcher(() => CompleteRefresh(generation, cts)); }
+                catch { cts.Dispose(); }
             }
         });
     }

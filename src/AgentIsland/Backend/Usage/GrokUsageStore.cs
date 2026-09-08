@@ -114,6 +114,19 @@ public sealed class GrokUsageStore : IGrokUsageStore
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    private void CompleteRefresh(long generation, CancellationTokenSource cts)
+    {
+        try
+        {
+            // Check ownership when the UI callback runs, after any disable/re-enable.
+            if (generation != _refreshGeneration || !ReferenceEquals(_refreshCts, cts)) return;
+            _refreshCts = null;
+            Loading = false;
+        }
+        finally { cts.Dispose(); }
+    }
+
+
     /// Releases the in-process snapshot and cancels a provider request while
     /// retaining the persisted last-good value. A request that was already in
     /// flight is generation-checked before it can publish or persist anything.
@@ -177,15 +190,8 @@ public sealed class GrokUsageStore : IGrokUsageStore
             }
             finally
             {
-                if (ReferenceEquals(_refreshCts, cts))
-                {
-                    _refreshCts = null;
-                    if (generation == _refreshGeneration)
-                    {
-                        try { dispatcher(() => Loading = false); } catch { }
-                    }
-                }
-                cts.Dispose();
+                try { dispatcher(() => CompleteRefresh(generation, cts)); }
+                catch { cts.Dispose(); }
             }
         });
     }

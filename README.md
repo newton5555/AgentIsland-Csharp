@@ -4,7 +4,7 @@
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078D6?style=flat&logo=windows)](https://www.microsoft.com/windows)
-[![Tests](https://img.shields.io/badge/Tests-54%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
+[![Tests](https://img.shields.io/badge/Tests-56%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
 [![Memory Footprint](https://img.shields.io/badge/Working%20Set-~100MB%20(down%20from%20200MB+)-success?style=flat)](docs/performance.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -55,8 +55,8 @@ Different agents provide different levels of integration without forced coupling
 - **`IUsageFetcher`**: Retrieves official quotas and balances on-demand;
 - **`ICostLedgerReader`**: Reads and incrementally parses local billing ledgers.
 
-### 3. Four-Step Onboarding for New Agents
-Adding support for a new AI coding agent (such as Windsurf, Cline, Roo Code, or Doubao MarsCode) requires four focused steps. The core UI rendering pipeline, 60fps spring animations, and background schedulers do not need to change:
+### 3. Registering Providers and Adding New Agent Keys
+The sketch below shows capability implementation and registration. A completely new key also requires updating the fixed runtime mappings: `DisplayProvider`, `DisplayProviders.Parse/All`, visibility and slot selection, and (for activity monitoring) `TriggerTool` and its conversions. Add the corresponding UI name/logo and navigation mapping where supported. Registration alone does not enable an unknown key: current coordinators filter it out. Test the full enabled-provider pipeline as well as parsing.
 
 ```csharp
 // Step 1: Implement one provider and only the capabilities it supports
@@ -79,7 +79,7 @@ catalog.Register(new BuiltInAgentModule(
     new AgentDescriptor(new AgentKey("doubao"), "Doubao MarsCode",
         AgentCapabilities.Activity | AgentCapabilities.Cost, "marscode")));
 
-// Step 4: Add unit tests for transcript parsing, turn detection, and cost rules
+// Step 4: Extend runtime/selection/UI mappings described above and test end-to-end
 ```
 
 ---
@@ -124,7 +124,7 @@ This codebase strictly adheres to modern .NET design standards:
 
 The repository includes a comprehensive, deterministic test suite covering core domain logic, concurrency safety, and STA UI dispatcher interactions:
 
-* **54 Automated Tests Passing (ALL GREEN)** — 53 regular tests plus 1 stress/resource test;
+* **56 Automated Tests Passing (ALL GREEN)** — 55 regular tests plus 1 stress/resource test;
 * **Coverage Scope**: Domain calculators, reverse stream slicers, circuit breaker faults, MVVM ViewModels, STA UI rendering, and 1-year worst-case stress benchmarks;
 * **Sandboxed Test Isolation**: Tests execute in isolated temporary data directories, preventing interference with running application instances.
 
@@ -154,7 +154,7 @@ dotnet test AgentIsland.sln
 # 1. Restore and build solution
 dotnet build AgentIsland.sln
 
-# 2. Run full test suite (54 tests: 53 regular + 1 stress/resource)
+# 2. Run full test suite (56 tests: 55 regular + 1 stress/resource)
 dotnet test AgentIsland.sln
 
 # 3. Launch 1-Year Stress Test UI
@@ -178,7 +178,7 @@ AgentIsland-Csharp/
 │  ├─ AgentIsland.Windows/      # Windows path resolution, winsqlite3 driver, kernel memory APIs
 │  └─ AgentIsland/              # WPF presentation host, IslandWindow, ViewModels, dashboard
 ├─ tests/
-│  └─ AgentIsland.Tests/        # 54 automated tests (53 regular + 1 stress/resource test)
+│  └─ AgentIsland.Tests/        # 56 automated tests (55 regular + 1 stress/resource test)
 ├─ scripts/
 │  ├─ Launch-StressTestUI.ps1   # 1-Year worst-case stress launcher script
 │  └─ Measure-ProcessResources.ps1 # Process CPU and working set profiling script

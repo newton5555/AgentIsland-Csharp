@@ -40,4 +40,6 @@ Agent 不要求实现一套固定的“5 小时 + 7 天”数据模型。目录�
 3. 在组合根接入适配器；
 4. 为解析/聚合规则补测试。
 
+这些能力接口目前仍桥接到固定运行时枚举。全新 key 必须同步扩展 `DisplayProvider`、`DisplayProviders.Parse/All`、可见性/槽位及 UI 映射；活动监控还需扩展 `TriggerTool` 和对应转换。仅向 DI 和目录注册未知 key，不能使其进入当前用量、费用和活动链路。新增 Agent 验收必须覆盖这些映射和启用后的数据流。
+
 当前不引入动态 DLL 插件加载，也不把每个小功能拆成独立项目；新增 Agent 先以源码内置模块形式接入：在 WPF 组合根注册 `IAgentProvider`，并在 `BuiltInAgentCatalog` 注册匹配的描述符/模块，等真实需求出现再演进插件机制。

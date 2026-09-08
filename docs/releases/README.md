@@ -12,5 +12,5 @@
 
 ## 🛠️ CI 自动化发布说明
 - 每次在 `release` 分支提交或推送 `v*.*.*` 标签时，GitHub Actions 会自动触发 `.github/workflows/release.yml`；
-- 构建流程会分开运行常规回归测试与压力/资源测试，编译自包含可执行文件并打包生成 `dist/AgentIsland-{Version}-win-x64.zip`；当前主分支基线为 53 项常规测试 + 1 项压力/资源测试；
+- 构建流程会分开运行常规回归测试与压力/资源测试，编译自包含可执行文件并打包生成 `dist/AgentIsland-{Version}-win-x64.zip`；当前主分支基线为 55 项常规测试 + 1 项压力/资源测试；
 - CI 会自动读取 `docs/releases/v{Version}.md` 作为 GitHub Release 的官方发布说明并自动发布。

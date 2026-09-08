@@ -2,7 +2,7 @@
 
 All notable changes to AgentIsland for Windows will be documented in this file.
 
-> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 54 项（53 项常规测试 + 1 项压力/资源测试）。
+> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 56 项（55 项常规测试 + 1 项压力/资源测试）。
 
 ## [1.2.1] - 2026-09-08
 
@@ -44,7 +44,7 @@ All notable changes to AgentIsland for Windows will be documented in this file.
 - 灵动岛胶囊条默认开启**常驻显示用量（Always Show Usage）**。
 
 ### 🧪 自动化测试体系全面跃升 (Test Automation)
-- 发布时自动化测试套件为 **42 项测试**，涵盖单元测试、STA 线程 UI 渲染测试、MVVM ViewModel 交互测试、网络断路器与 1 年极限并发基准测试；后续主分支已扩展为 54 项，详见上方当前基线。
+- 发布时自动化测试套件为 **42 项测试**，涵盖单元测试、STA 线程 UI 渲染测试、MVVM ViewModel 交互测试、网络断路器与 1 年极限并发基准测试；后续主分支已扩展为 56 项，详见上方当前基线。
 - 引入沙箱数据隔离机制，杜绝测试过程与运行中实例的数据互扰。
 
 ## [1.0.1] - 2026-09-05

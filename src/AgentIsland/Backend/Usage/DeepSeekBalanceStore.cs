@@ -90,6 +90,19 @@ public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    private void CompleteRefresh(long generation, CancellationTokenSource cts)
+    {
+        try
+        {
+            // Check ownership when the UI callback runs, after any disable/re-enable.
+            if (generation != _refreshGeneration || !ReferenceEquals(_refreshCts, cts)) return;
+            _refreshCts = null;
+            Loading = false;
+        }
+        finally { cts.Dispose(); }
+    }
+
+
     /// Release the in-process balance snapshot while retaining the persisted
     /// value for a later enable. Generation checks prevent a late response
     /// from reviving the disabled provider.
@@ -160,15 +173,8 @@ public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
             }
             finally
             {
-                if (ReferenceEquals(_refreshCts, cts))
-                {
-                    _refreshCts = null;
-                    if (generation == _refreshGeneration)
-                    {
-                        try { dispatcher(() => Loading = false); } catch { }
-                    }
-                }
-                cts.Dispose();
+                try { dispatcher(() => CompleteRefresh(generation, cts)); }
+                catch { cts.Dispose(); }
             }
         });
     }

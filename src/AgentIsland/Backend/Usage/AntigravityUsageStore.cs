@@ -100,6 +100,19 @@ public sealed class AntigravityUsageStore : IAntigravityUsageStore
         private set { _loading = value; Raise(nameof(Loading)); }
     }
 
+    private void CompleteRefresh(long generation, CancellationTokenSource cts)
+    {
+        try
+        {
+            // Check ownership when the UI callback runs, after any disable/re-enable.
+            if (generation != _refreshGeneration || !ReferenceEquals(_refreshCts, cts)) return;
+            _refreshCts = null;
+            Loading = false;
+        }
+        finally { cts.Dispose(); }
+    }
+
+
     /// Drop only the in-process quota/identity state. The persisted snapshot
     /// remains available for the next enable, while the generation check keeps
     /// a disabled in-flight fetch from publishing after it returns.
@@ -168,15 +181,8 @@ public sealed class AntigravityUsageStore : IAntigravityUsageStore
             }
             finally
             {
-                if (ReferenceEquals(_refreshCts, cts))
-                {
-                    _refreshCts = null;
-                    if (generation == _refreshGeneration)
-                    {
-                        try { dispatcher(() => Loading = false); } catch { }
-                    }
-                }
-                cts.Dispose();
+                try { dispatcher(() => CompleteRefresh(generation, cts)); }
+                catch { cts.Dispose(); }
             }
         });
     }

@@ -21,7 +21,7 @@
 6. 将 Windows 路径、文件系统容错、进程、启动项、Cursor 对话数据库和 Cursor token 数据库访问集中到 Windows 项目。
 7. 将 WPF 项目整理为 `UI/` 与 `Backend/` 两块，并把后台监控命名空间明确为 `AgentIsland.Backend.Monitoring`。
 8. 用显式 `BuiltInAgentCatalog` 建立可扩展的 Agent 注册点，并由 WPF 组合根绑定当前活动能力。
-9. 测试工程已迁移为标准 xUnit 入口；当前基线为 54 项测试（53 项常规测试 + 1 项压力/资源测试），通过 `dotnet test` 执行。
+9. 测试工程已迁移为标准 xUnit 入口；当前基线为 56 项测试（55 项常规测试 + 1 项压力/资源测试），通过 `dotnet test` 执行。
 10. 已完成 Antigravity（`agy`）、DeepSeek Harness（`dsh`）和 Codex 的实际运行验证，确认统计与状态展示链路可用。
 
 ## 当前边界
