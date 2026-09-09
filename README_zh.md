@@ -161,10 +161,10 @@ dotnet test AgentIsland.sln
 .\Launch-StressUI.bat
 
 # 4. 本地发布自包含独立绿色可执行文件
-.\build.ps1 -Runtime win-x64 -Version 2.2.0
+.\build.ps1 -Runtime win-x64 -Version 2.2.1
 ```
 
-编译输出的便携绿色包将位于 `dist/AgentIsland-2.2.0-win-x64.zip`。
+编译输出的便携绿色包将位于 `dist/AgentIsland-2.2.1-win-x64.zip`。
 
 ---
 
