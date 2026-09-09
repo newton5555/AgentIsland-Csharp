@@ -41,6 +41,8 @@ public sealed class ProviderLogo : Grid
     private readonly Grid _markHost;
     private GrokBotMark? _grokBot;
     internal GrokBotMark? GrokBot => _grokBot;
+    private CursorTapMark? _cursorTap;
+    internal CursorTapMark? CursorTap => _cursorTap;
 
     // Antigravity official wave flow: stationary arch mask with four-color
     // liquid flow and caustic sweep, avoiding contour spin wobble.
@@ -316,6 +318,7 @@ public sealed class ProviderLogo : Grid
         StopAntigravityWave();
         StopDeepSeekSwim();
         _grokBot?.Stop();
+        _cursorTap?.Stop();
 
         var provider = _tool.ToDisplayProvider();
         if (_tool == TriggerTool.Antigravity)
@@ -347,6 +350,12 @@ public sealed class ProviderLogo : Grid
             _grokBot ??= new GrokBotMark(MarkSize, _fill);
             _markHost.Children.Add(_grokBot);
             _grokBot.SetState(_state);
+        }
+        else if (_tool == TriggerTool.Cursor)
+        {
+            _cursorTap ??= new CursorTapMark(MarkSize, _fill);
+            _markHost.Children.Add(_cursorTap);
+            _cursorTap.SetState(_state);
         }
         else if (BrandGeometry.PathData(provider) is { } data)
         {
@@ -397,6 +406,18 @@ public sealed class ProviderLogo : Grid
     {
         var state = _state;
         StopAnimations(unwindSpin);
+        if (_tool == TriggerTool.Cursor)
+        {
+            _cursorTap?.SetState(state);
+            if (state is ActivityState.Stalled or ActivityState.RateLimited)
+            {
+                StartBreath(1, 1.16, IslandAnimations.AttentionPulseDuration.TimeSpan);
+                StartGlow(12, 33, IslandAnimations.AttentionPulseDuration.TimeSpan);
+            }
+            else if (state == ActivityState.AuthRequired)
+                _glowBlob.Opacity = .25;
+            return;
+        }
         if (_tool == TriggerTool.Grok)
         {
             _grokBot?.SetState(state);
@@ -458,7 +479,7 @@ public sealed class ProviderLogo : Grid
     private void StartSpin()
     {
         // Antigravity does not spin its contour — it uses wave flow instead.
-        if (_tool is TriggerTool.Antigravity or TriggerTool.DeepSeek or TriggerTool.Grok) return;
+        if (_tool is TriggerTool.Antigravity or TriggerTool.DeepSeek or TriggerTool.Grok or TriggerTool.Cursor) return;
 
         // The marks counter-rotate: Claude clockwise, Codex the other way.
         var to = _tool is TriggerTool.Claude or TriggerTool.Cursor ? 360d : -360d;
@@ -698,5 +719,6 @@ public sealed class ProviderLogo : Grid
         StopDeepSeekSwim();
         StopAntigravityWave();
         _grokBot?.Stop();
+        _cursorTap?.Stop();
     }
 }

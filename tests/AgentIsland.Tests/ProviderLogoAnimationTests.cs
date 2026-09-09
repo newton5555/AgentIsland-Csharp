@@ -59,6 +59,7 @@ public class ProviderLogoAnimationTests
         TestDeepSeekStateTransitionsAndCleanup();
         TestDeepSeekWorkingRendersPixelChangesBetweenFrames();
         TestGrokBotStatesAndRendering();
+        TestCursorTapAndCleanup();
         TestClaudeAndCodexContinueSpin();
         TestAntigravityStateTransitionsAndCleanup();
         TestToolSwitchWhileWorking();
@@ -71,6 +72,56 @@ public class ProviderLogoAnimationTests
         TestDualPaletteRendersBothProviderHues();
         TestFollowModelSweepPaletteSelectionRules();
         Console.WriteLine("ProviderLogoAnimationTests GREEN");
+    }
+
+    private static void TestCursorTapAndCleanup()
+    {
+        var logo = new ProviderLogo { Tool = TriggerTool.Cursor };
+        var mark = logo.CursorTap!;
+        var window = new Window
+        {
+            Width = 100, Height = 100, WindowStyle = WindowStyle.None,
+            ShowActivated = false, Content = logo, Background = Brushes.Black,
+        };
+        try
+        {
+            window.Show();
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(!mark.IsActive && mark.RipplesStopped, "Idle Cursor must be still");
+            logo.SetState(ActivityState.Working);
+            PumpDispatcher(TimeSpan.FromMilliseconds(250));
+            Expect(mark.IsActive && !logo.IsSpinActive, "Working Cursor must tap without spinning");
+            Expect(mark.OffsetY > .1 && mark.RippleOpacity > 0, "Cursor tap and delayed ripple must advance");
+            if (Environment.GetEnvironmentVariable("AGENTISLAND_CURSOR_PREVIEW") is { Length: > 0 } output)
+            {
+                var bitmap = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
+                bitmap.Render(logo);
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(bitmap));
+                using var stream = System.IO.File.Create(output);
+                encoder.Save(stream);
+            }
+            foreach (var state in new[] { ActivityState.Idle, ActivityState.Stalled, ActivityState.RateLimited,
+                         ActivityState.AuthRequired, ActivityState.NeedsYou })
+            {
+                logo.SetState(state);
+                Expect(!mark.IsActive && mark.RipplesStopped && mark.OffsetY == 0,
+                    "Leaving Working must clear Cursor tap and both ripples");
+                logo.SetState(ActivityState.Working);
+            }
+            logo.Tool = TriggerTool.Claude;
+            Expect(!mark.IsActive && mark.RipplesStopped && logo.IsSpinActive, "Switch away must stop Cursor clocks");
+            logo.Tool = TriggerTool.Cursor;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(mark.IsActive && !logo.IsSpinActive, "Switch back must resume Cursor tap");
+            window.Content = null;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(!mark.IsActive && mark.RipplesStopped, "Unload must stop all Cursor clocks");
+            window.Content = logo;
+            PumpDispatcher(TimeSpan.FromMilliseconds(60));
+            Expect(mark.IsActive, "Reload must resume the working Cursor");
+        }
+        finally { window.Close(); }
     }
 
     private static void TestGrokBotStatesAndRendering()
