@@ -71,6 +71,28 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center">
+            <!-- Daily Report Pill -->
+            <Border x:Name="DailyPill"
+                    Style="{StaticResource ReportPillStyle}"
+                    MouseEnter="OnPillMouseEnter"
+                    MouseLeave="OnPillMouseLeave"
+                    MouseLeftButtonUp="OnDailyPillClick">
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text=""
+                               FontFamily="Segoe Fluent Icons, Segoe MDL2 Assets"
+                               FontSize="9"
+                               Foreground="Black"
+                               VerticalAlignment="Center"
+                               Margin="0,0,4,0" />
+                    <TextBlock x:Name="DailyLabel"
+                               FontFamily="{x:Static charts:IslandFonts.Ui}"
+                               FontSize="10"
+                               FontWeight="Bold"
+                               Foreground="Black"
+                               VerticalAlignment="Center" />
+                </StackPanel>
+            </Border>
+
             <!-- Weekly Report Pill -->
             <Border x:Name="WeeklyPill"
                     Style="{StaticResource ReportPillStyle}"

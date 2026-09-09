@@ -300,8 +300,9 @@ public partial class App : System.Windows.Application
         // after launch. Suppressed for demo/debug/snapshot runs.
         var reportSnapshot = Environment.GetEnvironmentVariable("AGENTISLAND_REPORT_SNAPSHOT");
         var monthlySnapshot = Environment.GetEnvironmentVariable("AGENTISLAND_MONTHLY_SNAPSHOT");
+        var dailySnapshot = Environment.GetEnvironmentVariable("AGENTISLAND_DAILY_SNAPSHOT");
         if (AppEnvironment.Current == AppMode.Normal
-            && reportSnapshot is null && monthlySnapshot is null)
+            && reportSnapshot is null && monthlySnapshot is null && dailySnapshot is null)
         {
             UI.Report.ReportWindow.ArmWeeklyMoment();
         }
@@ -312,7 +313,8 @@ public partial class App : System.Windows.Application
         // all-zero cards the day the Codex cache went v2). Render on the
         // first completed scan; a 90s failsafe keeps a wedged scan from
         // leaving the process running forever.
-        if (!string.IsNullOrEmpty(reportSnapshot) || !string.IsNullOrEmpty(monthlySnapshot))
+        if (!string.IsNullOrEmpty(reportSnapshot) || !string.IsNullOrEmpty(monthlySnapshot)
+            || !string.IsNullOrEmpty(dailySnapshot))
         {
             var rendered = false;
             void RenderAndQuit()
@@ -323,6 +325,8 @@ public partial class App : System.Windows.Application
                     UI.Report.ReportWindow.WritePng(UI.Report.ReportWindow.Kind.Weekly, reportSnapshot!);
                 if (!string.IsNullOrEmpty(monthlySnapshot))
                     UI.Report.ReportWindow.WritePng(UI.Report.ReportWindow.Kind.Monthly, monthlySnapshot!);
+                if (!string.IsNullOrEmpty(dailySnapshot))
+                    UI.Report.ReportWindow.WritePng(UI.Report.ReportWindow.Kind.Daily, dailySnapshot!);
                 Shutdown();
             }
             if (cost.LastUpdated is not null)

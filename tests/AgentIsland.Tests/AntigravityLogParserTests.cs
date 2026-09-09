@@ -47,6 +47,10 @@ public sealed class AntigravityLogParserTests
     [InlineData("Gemini 3 Flash (Preview)", "gemini-3.6-flash")]
     [InlineData("gemini-3-flash-c", "gemini-3-flash-preview")]
     [InlineData("MODEL_PLACEHOLDER_M26", "claude-opus-4-6")]
+    [InlineData("MODEL_PLACEHOLDER_M50", "gemini-3.1-flash-lite")]
+    [InlineData("MODEL_PLACEHOLDER_M318", "gemini-3.8-flash")]
+    [InlineData("MODEL_PLACEHOLDER_M298", "gemini-3.7-flash")]
+    [InlineData("gemini-internal-model", "gemini-internal-model")]
     [InlineData("Claude 3.5 Sonnet", "claude-3-5-sonnet")]
     public void ModelAliasesAreNormalized(string raw, string expected)
     {

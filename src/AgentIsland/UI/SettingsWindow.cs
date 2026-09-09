@@ -300,6 +300,10 @@ public sealed partial class SettingsWindow : Window
 
     private void SetupFooter()
     {
+        DailyButton.Label = L10n.Tr("Daily");
+        DailyButton.ToolTip = L10n.Tr("Daily report");
+        DailyButton.Clicked += () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Daily);
+
         WeeklyButton.Label = L10n.Tr("Weekly");
         WeeklyButton.ToolTip = L10n.Tr("Share weekly report");
         WeeklyButton.Clicked += () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly);

@@ -29,9 +29,12 @@ public sealed class WpfWindowService : IWindowService
     {
         _dispatcher.BeginInvoke(() =>
         {
-            var reportKind = string.Equals(kind, "monthly", StringComparison.OrdinalIgnoreCase)
-                ? Report.ReportWindow.Kind.Monthly
-                : Report.ReportWindow.Kind.Weekly;
+            var reportKind = kind switch
+            {
+                _ when string.Equals(kind, "monthly", StringComparison.OrdinalIgnoreCase) => Report.ReportWindow.Kind.Monthly,
+                _ when string.Equals(kind, "daily", StringComparison.OrdinalIgnoreCase) => Report.ReportWindow.Kind.Daily,
+                _ => Report.ReportWindow.Kind.Weekly,
+            };
             Report.ReportWindow.Show(reportKind);
         });
     }

@@ -1,0 +1,1314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AgentIsland - 日报卡 (Daily Report Card) Agent到模型层级聚合</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Segoe+UI:wght@400;600;700;800&family=JetBrains+Mono:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    /*
+     * AgentIsland 日报卡 (Daily Report Card) - 两级层级聚合架构
+     * 借鉴 lieflat-charts (Glance 快速判断 + Lupi Editorial 细读感)：
+     * 1. 结构：Agent (一级接入宿主) ──► 具体底层 Models (二级消耗明细)
+     * 2. 视觉语法：精细发丝树形线 (Hairline Tree Branching)、微型占比 Chunky Bar、等宽 Tabular 数字
+     * 3. 规范：严格锁定 420px × 560px portrait (ReportCards.CardWidth / CardHeight)
+     * 4. 数据契约：全量接入统计，无多余 enable 状态污染
+     */
+    :root {
+      --card-w: 420px;
+      --card-h: 560px;
+      --base-bg: #0D0F13;
+      --border-hairline: #2D323E;
+
+      /* Color tokens */
+      --live-teal: #3DD68C;
+      --period-accent: #2DD4BF; /* Teal accent for DAILY & peak hour */
+      --price-green: #34D399;   /* Emerald green for dollar amounts */
+      --text-hero: #F2F5F7;
+      --text-white-90: rgba(255, 255, 255, 0.90);
+      --text-white-80: rgba(255, 255, 255, 0.80);
+      --text-white-65: rgba(255, 255, 255, 0.65);
+      --text-white-50: rgba(255, 255, 255, 0.50);
+      --text-white-40: rgba(255, 255, 255, 0.40);
+      --text-white-25: rgba(255, 255, 255, 0.25);
+      --gold-rank: #F59E0B;
+
+      /* Provider brand accents */
+      --claude-accent: #CC785C;
+      --codex-accent: #A78BFA;
+      --deepseek-accent: #4D6BFE;
+      --antigravity-accent: #4285F4;
+      --grok-accent: #D8DEE4;
+      --cursor-accent: #F5F3EE;
+      --doubao-accent: #29C264;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background: #060709;
+      color: #FFF;
+      font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+      user-select: none;
+    }
+
+    /* Floating Capsule Pager Bar */
+    .pager-bar {
+      margin-bottom: 14px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: #13161C;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 17px;
+      height: 34px;
+      padding: 0 4px;
+      box-shadow: 0 3px 16px rgba(0, 0, 0, 0.4);
+    }
+
+    .pager-btn {
+      width: 26px;
+      height: 26px;
+      border-radius: 13px;
+      border: none;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 11px;
+      transition: all 0.15s ease;
+    }
+
+    .pager-btn:hover {
+      background: rgba(255, 255, 255, 0.1);
+      color: #FFF;
+    }
+
+    .pager-label {
+      font-size: 12px;
+      font-weight: 700;
+      color: #F2F2F2;
+      min-width: 140px;
+      text-align: center;
+      font-feature-settings: "tnum" 1;
+      cursor: pointer;
+    }
+
+    .pager-divider {
+      width: 1px;
+      height: 14px;
+      background: rgba(255, 255, 255, 0.12);
+      margin: 0 2px;
+    }
+
+    /* Fixed 420x560 Share Card (ReportCards.Card) */
+    .report-card {
+      width: var(--card-w);
+      height: var(--card-h);
+      background: var(--base-bg);
+      border: 1px solid var(--border-hairline);
+      border-radius: 24px;
+      padding: 24px 26px 20px;
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 24px 60px rgba(0, 0, 0, 0.85);
+    }
+
+    .card-content {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    /* 1. Header */
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 22px;
+    }
+
+    .brand-left {
+      display: flex;
+      align-items: center;
+    }
+
+    .brand-logo {
+      width: 22px;
+      height: 22px;
+      margin-right: 9px;
+      object-fit: contain;
+    }
+
+    .brand-title {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      color: var(--text-white-90);
+    }
+
+    .brand-tag {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.14em;
+      color: var(--period-accent);
+      margin-left: 6px;
+    }
+
+    .header-range {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-white-65);
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* 2. Hero Total Area */
+    .card-hero {
+      display: flex;
+      flex-direction: column;
+      margin-top: 2px;
+    }
+
+    .hero-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 2px;
+    }
+
+    .hero-title {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-white-50);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .hero-delta-pill {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: var(--live-teal);
+      font-feature-settings: "tnum" 1;
+    }
+
+    .hero-baseline {
+      display: flex;
+      align-items: baseline;
+      white-space: nowrap;
+      overflow: hidden;
+    }
+
+    .hero-number {
+      font-size: 42px;
+      font-weight: 800;
+      line-height: 44px;
+      color: var(--text-hero);
+      font-feature-settings: "tnum" 1;
+      letter-spacing: -0.03em;
+    }
+
+    .hero-unit {
+      font-size: 20px;
+      font-weight: 800;
+      color: var(--text-hero);
+      margin-left: 3px;
+    }
+
+    .hero-dollars {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--price-green);
+      margin-left: 10px;
+      margin-bottom: 3px;
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* 3. Daily KPI Strip (3-Column compact stats) */
+    .kpi-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 6px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 11px;
+      padding: 6px 10px;
+      margin: 1px 0 2px;
+    }
+
+    .kpi-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .kpi-cell:not(:last-child) {
+      border-right: 1px solid rgba(255, 255, 255, 0.06);
+      padding-right: 6px;
+    }
+
+    .kpi-label {
+      font-size: 9px;
+      font-weight: 600;
+      color: var(--text-white-40);
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+    }
+
+    .kpi-val {
+      font-size: 12.5px;
+      font-weight: 800;
+      color: #FFF;
+      font-feature-settings: "tnum" 1;
+    }
+
+    .kpi-sub {
+      font-size: 8.5px;
+      font-weight: 600;
+      color: var(--period-accent);
+    }
+
+    /* 4. 24-Hour Activity Pulse (24根紧凑脉冲柱) */
+    .hourly-pulse-area {
+      display: flex;
+      flex-direction: column;
+      margin: 2px 0;
+    }
+
+    .pulse-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 3px;
+    }
+
+    .pulse-caption {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-white-40);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .pulse-peak-badge {
+      font-size: 9px;
+      font-weight: 800;
+      color: var(--period-accent);
+      font-feature-settings: "tnum" 1;
+    }
+
+    .hours-grid {
+      display: grid;
+      grid-template-columns: repeat(24, 1fr);
+      align-items: flex-end;
+      gap: 2px;
+      height: 34px;
+    }
+
+    .hour-bar-col {
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+    }
+
+    .hour-bar {
+      width: 100%;
+      min-height: 2.5px;
+      border-radius: 1.5px;
+      background: rgba(255, 255, 255, 0.07);
+    }
+
+    .hour-bar.has-tokens {
+      background: rgba(255, 255, 255, 0.2);
+    }
+
+    .hour-bar.peak {
+      background: var(--period-accent);
+      box-shadow: 0 0 6px rgba(45, 212, 191, 0.5);
+    }
+
+    .hours-labels {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 2px;
+      font-size: 8px;
+      font-weight: 700;
+      color: var(--text-white-35);
+      font-feature-settings: "tnum" 1;
+    }
+
+    /* 5. Agent ──► Model 层级聚合核心区域 (Hierarchical Aggregation) */
+    .hierarchy-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: 1px;
+    }
+
+    .hierarchy-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2px 2px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .hierarchy-title {
+      font-size: 10px;
+      font-weight: 800;
+      color: var(--text-white-50);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .hierarchy-legend {
+      font-size: 8.5px;
+      font-weight: 600;
+      color: var(--text-white-40);
+    }
+    /* Agent Group Card */
+    .agent-tree-block {
+      display: flex;
+      flex-direction: column;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.035);
+      padding-bottom: 4px;
+    }
+
+    .agent-tree-block:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    /* Level 1: Agent Summary Row */
+    .agent-parent-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 2.5px 0;
+    }
+
+    .agent-parent-left {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      min-width: 0;
+    }
+
+    .agent-mark-icon {
+      width: 15px;
+      height: 15px;
+      object-fit: contain;
+      flex-shrink: 0;
+    }
+
+    .agent-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: #FFF;
+      letter-spacing: -0.01em;
+    }
+
+    /* Chunky share pill (lieflat-charts G3) */
+    .agent-share-bar-wrap {
+      width: 52px;
+      height: 5px;
+      background: rgba(255, 255, 255, 0.07);
+      border-radius: 3px;
+      overflow: hidden;
+      margin-left: 6px;
+    }
+
+    .agent-share-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+    }
+
+    .agent-parent-right {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .agent-total-tokens {
+      font-size: 11.5px;
+      font-weight: 800;
+      color: var(--text-white-90);
+      font-feature-settings: "tnum" 1;
+    }
+
+    .agent-total-dollars {
+      font-size: 10.5px;
+      font-weight: 800;
+      color: #8CD99E;
+      font-feature-settings: "tnum" 1;
+      min-width: 36px;
+      text-align: right;
+    }
+
+    .agent-total-dollars.unpriced {
+      color: var(--text-white-25);
+    }
+
+    .agent-total-pct {
+      font-size: 11px;
+      font-weight: 800;
+      color: var(--text-white-90);
+      font-feature-settings: "tnum" 1;
+      width: 30px;
+      text-align: right;
+    }
+
+    /* Level 2: Nested Child Models (Lupi 树状分支发丝线) */
+    .model-children-container {
+      display: flex;
+      flex-direction: column;
+      padding-left: 8px;
+      margin-top: 1px;
+    }
+
+    .model-child-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 17px;
+      position: relative;
+    }
+
+    /* Tree Branching Wire */
+    .model-tree-line {
+      display: inline-flex;
+      align-items: center;
+      color: rgba(255, 255, 255, 0.22);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 10px;
+      margin-right: 6px;
+      user-select: none;
+    }
+
+    .model-name-text {
+      font-size: 10px;
+      font-weight: 600;
+      color: var(--text-white-65);
+      font-family: 'JetBrains Mono', monospace;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 170px;
+    }
+
+    .model-metrics-group {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+
+    .model-sub-turns {
+      font-size: 8.5px;
+      font-weight: 600;
+      color: var(--text-white-35);
+      font-feature-settings: "tnum" 1;
+    }
+
+    .model-sub-tokens {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-white-50);
+      font-feature-settings: "tnum" 1;
+      min-width: 44px;
+      text-align: right;
+    }
+
+    .model-sub-share {
+      font-size: 9px;
+      font-weight: 700;
+      color: var(--text-white-40);
+      font-feature-settings: "tnum" 1;
+      width: 30px;
+      text-align: right;
+    }
+
+    /* 6. Footer (Gold Rank Line) */
+    .card-footer {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      padding-top: 5px;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .footer-rank {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: var(--gold-rank);
+    }
+
+    .footer-lifetime {
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--text-white-35);
+      letter-spacing: 0.05em;
+    }
+
+    /* Bottom Action Buttons */
+    .window-actions {
+      margin-top: 16px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .action-btn {
+      height: 30px;
+      border-radius: 15px;
+      padding: 0 18px;
+      font-family: 'Segoe UI', sans-serif;
+      font-size: 12.5px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: opacity 0.15s ease;
+    }
+
+    .action-btn-primary {
+      background: #252830;
+      color: #FFF;
+      border: 1px solid rgba(255, 255, 255, 0.12);
+    }
+
+    .action-btn-primary:hover {
+      background: #323642;
+    }
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      background: #181B22;
+      color: #FFF;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 7px 16px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+      opacity: 0;
+      transform: translateY(10px);
+      transition: all 0.25s ease;
+      pointer-events: none;
+      z-index: 100;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Floating Period Pager Bar -->
+  <nav class="pager-bar">
+    <button class="pager-btn" onclick="stepPeriod(-1)" title="前一天 (←)">◀</button>
+    <div class="pager-label" id="pager-title" onclick="resetToToday()">2026年9月9日 (今天)</div>
+    <button class="pager-btn" onclick="stepPeriod(1)" title="后一天 (→)">▶</button>
+  </nav>
+
+  <!-- 420x560 Share Card (Hierarchical Aggregation: Agents -> Models) -->
+  <main class="report-card" id="cardViewport">
+    <div class="card-content">
+
+      <!-- 1. Header -->
+      <section class="card-header">
+        <div class="brand-left">
+          <img src="../agentisland_logo_small.png" alt="Logo" class="brand-logo" />
+          <span class="brand-title">AGENT ISLAND</span>
+          <span class="brand-tag">DAILY</span>
+        </div>
+        <div class="header-range" id="header-date">9月9日</div>
+      </section>
+
+      <!-- 2. Hero Total Area -->
+      <section class="card-hero">
+        <div class="hero-title-row">
+          <span class="hero-title" id="hero-title">全天消耗</span>
+          <span class="hero-delta-pill" id="hero-delta">↑ 18.4%</span>
+        </div>
+        <div class="hero-baseline">
+          <span class="hero-number" id="hero-num">348</span>
+          <span class="hero-unit" id="hero-unit">万</span>
+          <span class="hero-dollars" id="hero-dollars">≈ $14.62 (估算)</span>
+        </div>
+      </section>
+
+      <!-- 3. KPI Strip (Turns, Cache Hit, Connected Agents) -->
+      <section class="kpi-strip">
+        <div class="kpi-cell">
+          <span class="kpi-label" id="kpi-lbl-turns">轮次 TURNS</span>
+          <span class="kpi-val" id="kpi-val-turns">142</span>
+          <span class="kpi-sub" id="kpi-sub-turns">8 个会话</span>
+        </div>
+        <div class="kpi-cell">
+          <span class="kpi-label" id="kpi-lbl-cache">PROMPT 缓存</span>
+          <span class="kpi-val" id="kpi-val-cache">76.8%</span>
+          <span class="kpi-sub" id="kpi-sub-cache">省 $5.40</span>
+        </div>
+        <div class="kpi-cell">
+          <span class="kpi-label" id="kpi-lbl-agents">宿主 / 模型</span>
+          <span class="kpi-val" id="kpi-val-agents">5 家活跃</span>
+          <span class="kpi-sub" id="kpi-sub-agents">8 款模型</span>
+        </div>
+      </section>
+
+      <!-- 4. 24-Hour Activity Pulse -->
+      <section class="hourly-pulse-area">
+        <div class="pulse-title-row">
+          <span class="pulse-caption" id="pulse-title">24H 脉冲</span>
+          <span class="pulse-peak-badge" id="pulse-peak-label">🔥 15:00 · 520K</span>
+        </div>
+        <div class="hours-grid" id="hours-grid">
+          <!-- 24 hourly bars -->
+        </div>
+        <div class="hours-labels">
+          <span>00:00</span>
+          <span>06:00</span>
+          <span>12:00</span>
+          <span>18:00</span>
+          <span>24:00</span>
+        </div>
+      </section>
+
+      <!-- 5. Agent ──► Model 层级树形聚合 (Hierarchical Breakdown) -->
+      <section class="hierarchy-section">
+        <div class="hierarchy-header-row">
+          <span class="hierarchy-title" id="hierarchy-title">AGENTS & MODELS</span>
+          <span class="hierarchy-legend">SHARE</span>
+        </div>
+
+        <div id="hierarchy-tree-container">
+          <!-- Dynamically populated: Tree Branch only -->
+        </div>
+      </section>
+
+      <!-- 6. Footer -->
+      <footer class="card-footer">
+        <span class="footer-rank" id="footer-rank">🏆 活跃度前 8% 开发者</span>
+        <span class="footer-lifetime">AGENT ISLAND · LOCAL ONLY</span>
+      </footer>
+
+    </div>
+  </main>
+
+  <!-- Bottom Action Buttons -->
+  <div class="window-actions">
+    <button class="action-btn action-btn-primary" onclick="copyCardImage()">
+      <span>📷 复制图片</span>
+    </button>
+    <button class="action-btn action-btn-primary" onclick="savePngImage()">
+      <span>💾 保存 PNG</span>
+    </button>
+  </div>
+
+  <div class="toast" id="toast">已成功复制图片！</div>
+  <canvas id="renderCanvas" style="display:none;"></canvas>
+
+  <script>
+    // 官方矢量 SVG 图标定义，保证品牌色彩 100% 精确与矢量清晰
+    const CLAUDE_SVG_PATH = "M14.699,49.875 L29.477,41.625 L29.699,40.875 L29.477,40.5 L28.727,40.5 L26.25,40.352 L17.852,40.125 L10.5,39.75 L3.375,39.375 L1.574,39 L0,36.75 L0.148,35.625 L1.648,34.648 L3.824,34.801 L8.551,35.176 L15.676,35.625 L20.852,35.926 L28.5,36.824 L29.699,36.824 L29.852,36.301 L29.477,36 L29.176,35.699 L21.75,30.75 L13.801,25.5 L9.602,22.426 L7.352,20.926 L6.227,19.426 L5.773,16.273 L7.801,14.023 L10.574,14.25 L11.25,14.398 L14.023,16.574 L20.023,21.148 L27.75,27 L28.875,27.898 L29.324,27.602 L29.398,27.375 L28.875,26.551 L24.75,18.75 L20.25,10.949 L18.227,7.727 L17.699,5.773 C17.477,5.023 17.398,4.273 17.398,3.523 L19.648,0.375 L21,0 L24.148,0.449 L25.352,1.5 L27.301,6 L30.375,12.977 L35.25,22.426 L36.75,25.273 L37.5,27.824 L37.727,28.574 L38.25,28.574 L38.25,28.199 L38.625,22.801 L39.375,16.273 L40.125,7.875 L40.352,5.477 L41.551,2.625 L43.801,1.125 L45.75,1.949 L47.25,4.125 L47.023,5.477 L46.199,11.25 L44.25,20.324 L43.125,26.477 L43.801,26.477 L44.551,25.648 L47.625,21.602 L52.801,15.148 L55.051,12.523 L57.75,9.75 L59.477,8.398 L62.699,8.398 L65.023,11.926 L63.977,15.602 L60.676,19.801 L57.898,23.324 L53.926,28.648 L51.523,32.926 L51.75,33.227 L52.273,33.227 L61.273,31.273 L66.074,30.449 L71.773,29.477 L74.398,30.676 L74.699,31.875 L73.648,34.426 L67.5,35.926 L60.301,37.426 L49.574,39.898 L49.426,39.977 L49.574,40.199 L54.375,40.648 L56.477,40.801 L61.574,40.801 L71.023,41.551 L73.5,43.051 L74.926,45.074 L74.699,46.574 L70.875,48.523 L65.773,47.324 L53.773,44.477 L49.727,43.5 L49.125,43.5 L49.125,43.801 L52.574,47.176 L58.801,52.801 L66.75,60.074 L67.125,61.875 L66.148,63.375 L65.102,63.227 L58.199,57.977 L55.5,55.727 L49.5,50.625 L49.125,50.625 L49.125,51.148 L50.477,53.176 L57.824,64.199 L58.199,67.574 L57.676,68.625 L55.727,69.375 L53.699,68.926 L49.352,62.926 L44.852,56.176 L41.324,50.023 L40.949,50.324 L38.773,72.977 L37.801,74.102 L35.551,75 L33.676,73.5 L32.625,71.25 L33.676,66.602 L34.875,60.602 L35.852,55.801 L36.75,49.875 L37.273,47.926 L37.273,47.773 L36.75,47.773 L32.25,54 L25.5,63.227 L20.102,68.926 L18.824,69.449 L16.574,68.324 L16.801,66.227 L18,64.5 L25.5,54.898 L30,48.977 L33,45.523 L32.926,45.148 L32.699,45.148 L12.898,58.051 L9.375,58.5 L7.875,57 L8.023,54.75 L8.773,54 L14.773,49.875 Z";
+    const OPENAI_SVG_PATH = "M222.797,98.227 C228.238,81.887 226.363,63.984 217.656,49.117 C204.562,26.316 178.238,14.586 152.527,20.109 C141.09,7.223 124.656,-0.105 107.43,0 C81.148,-0.059 57.832,16.859 49.746,41.863 C32.863,45.324 18.293,55.891 9.766,70.867 C-3.426,93.609 -0.422,122.273 17.203,141.773 C11.762,158.113 13.637,176.016 22.344,190.883 C35.438,213.684 61.762,225.414 87.473,219.891 C98.902,232.777 115.344,240.105 132.57,239.992 C158.863,240.059 182.191,223.125 190.273,198.098 C207.156,194.641 221.73,184.074 230.258,169.094 C243.434,146.355 240.422,117.711 222.801,98.211 Z M132.586,224.309 C122.062,224.324 111.871,220.641 103.793,213.898 C104.16,213.703 104.797,213.352 105.211,213.098 L153,185.496 C155.445,184.109 156.945,181.508 156.93,178.695 L156.93,111.324 L177.129,122.984 C177.344,123.09 177.488,123.301 177.516,123.539 L177.516,179.332 C177.488,204.141 157.395,224.258 132.586,224.309 Z M35.953,183.039 C30.684,173.934 28.785,163.262 30.594,152.902 C30.945,153.113 31.566,153.496 32.012,153.75 L79.801,181.352 C82.223,182.766 85.223,182.766 87.652,181.352 L145.996,147.66 L145.996,170.984 C146.012,171.227 145.898,171.457 145.711,171.609 L97.402,199.5 C75.887,211.891 48.406,204.523 35.961,183.039 Z M23.379,78.719 C28.629,69.602 36.914,62.625 46.785,59.004 C46.785,59.414 46.762,60.141 46.762,60.652 L46.762,115.859 C46.746,118.664 48.246,121.266 50.684,122.656 L109.027,156.336 L88.828,168 C88.629,168.137 88.371,168.156 88.148,168.059 L39.832,140.145 C18.359,127.711 10.996,100.238 23.371,78.727 Z M189.324,117.336 L130.98,83.648 L151.176,71.992 C151.379,71.859 151.637,71.836 151.859,71.934 L200.176,99.824 C221.684,112.254 229.059,139.77 216.629,161.281 C211.371,170.387 203.094,177.359 193.23,180.988 L193.23,124.133 C193.254,121.328 191.762,118.734 189.328,117.336 Z M209.422,87.082 C209.07,86.863 208.449,86.488 208.004,86.234 L160.215,58.637 C157.793,57.219 154.793,57.219 152.363,58.637 L94.02,92.324 L94.02,69 C94.004,68.762 94.117,68.527 94.305,68.379 L142.613,40.508 C164.129,28.094 191.641,35.484 204.047,57.008 C209.289,66.098 211.184,76.738 209.406,87.082 Z M83.039,128.656 L62.836,116.992 C62.617,116.887 62.477,116.676 62.445,116.438 L62.445,60.645 C62.461,35.805 82.613,15.676 107.453,15.691 C117.961,15.691 128.129,19.379 136.207,26.102 C135.84,26.297 135.211,26.648 134.789,26.902 L87,54.504 C84.555,55.891 83.055,58.484 83.07,61.297 L83.039,128.641 Z M94.012,105 L120,89.992 L145.988,104.992 L145.988,135 L120,150 L94.012,135 Z";
+    const CURSOR_SVG_PATH = "M415.035,156.350 L263.532,68.880 C258.667,66.071 252.664,66.071 247.799,68.880 L96.302,156.350 C92.212,158.712 89.688,163.079 89.688,167.809 L89.688,344.192 C89.688,348.922 92.212,353.289 96.302,355.650 L247.806,443.120 C252.671,445.929 258.674,445.929 263.539,443.120 L415.043,355.650 C419.132,353.289 421.657,348.922 421.657,344.192 L421.657,167.809 C421.657,163.079 419.132,158.712 415.043,156.350 L415.035,156.350 L259.264,428.198 C258.276,429.905 255.665,429.208 255.665,427.231 L255.665,261.359 C255.665,258.045 253.894,254.980 251.021,253.315 L107.376,170.383 C105.669,169.395 106.366,166.784 108.344,166.784 L400.853,166.784 C405.007,166.784 407.603,171.287 405.526,174.885 L405.519,174.885 L405.519,174.878 Z";
+
+    function getAgentMarkHtml(providerId, size = 15) {
+      switch (providerId) {
+        case 'claude':
+          // Claude 官方品牌色 #CC785C 矢量星芒
+          return `<svg viewBox="0 0 75 75" width="${size}" height="${size}" style="flex-shrink: 0;"><path fill="#CC785C" d="${CLAUDE_SVG_PATH}"/></svg>`;
+        case 'codex':
+          // Codex 官方品牌色 #A78BFA 矢量花结
+          return `<svg viewBox="0 0 240 240" width="${size}" height="${size}" style="flex-shrink: 0;"><path fill="#A78BFA" d="${OPENAI_SVG_PATH}"/></svg>`;
+        case 'cursor':
+          return `<svg viewBox="0 0 512 512" width="${size}" height="${size}" style="flex-shrink: 0;"><path fill="#F5F3EE" d="${CURSOR_SVG_PATH}"/></svg>`;
+        case 'antigravity':
+          // 原生 Google Blue 四色渐变拱门
+          return `<img src="../mark-antigravity.png" width="${size}" height="${size}" style="flex-shrink: 0; object-fit: contain;" />`;
+        case 'deepseek':
+          // 原生 DeepSeek 蓝鲸
+          return `<img src="../mark-deepseek.png" width="${size}" height="${size}" style="flex-shrink: 0; object-fit: contain;" />`;
+        default:
+          return `<svg viewBox="0 0 75 75" width="${size}" height="${size}"><path fill="#CC785C" d="${CLAUDE_SVG_PATH}"/></svg>`;
+      }
+    }
+
+    // 两级层级聚合数据结构：Agent (宿主/Provider) ──► Models (底层模型)
+    const hierarchicalDailyRecords = [
+      {
+        dateStr: "9月9日",
+        dateStrEn: "Sep 9",
+        pagerLabel: "2026年9月9日 (今天)",
+        pagerLabelEn: "Sep 9, 2026 (Today)",
+        deltaText: "↑ 18.4%",
+        deltaTextEn: "↑ 18.4%",
+        totalTokens: 3485210,
+        totalDollars: 14.62,
+        hasDollars: true,
+        isPartial: true,
+        turns: 142,
+        sessions: 8,
+        cacheRate: "76.8%",
+        cacheSavings: "$5.40",
+        activeAgentsCount: 5,
+        totalModelsCount: 8,
+        peakText: "🔥 15:00 · 520K",
+        peakTextEn: "🔥 15:00 · 520K",
+        hourlyTokens: [
+          12000, 5000, 0, 0, 0, 0,
+          28000, 85000, 190000, 310000, 420000, 280000,
+          160000, 380000, 520400, 490000, 360000, 210000,
+          95000, 240000, 390000, 410000, 280000, 110000
+        ],
+        // 层级数据：Agent -> Child Models
+        agents: [
+          {
+            id: "claude",
+            name: "Claude",
+            accent: "#CC785C",
+            tokens: 1516000,
+            dollars: 7.28,
+            percent: 0.435,
+            hasPrice: true,
+            models: [
+              { name: "claude-3-7-sonnet", tokens: 1220000, turns: 44, percent: 0.350 },
+              { name: "claude-3-5-sonnet", tokens: 296000, turns: 14, percent: 0.085 }
+            ]
+          },
+          {
+            id: "codex",
+            name: "Codex",
+            accent: "#A78BFA",
+            tokens: 885000,
+            dollars: 4.12,
+            percent: 0.254,
+            hasPrice: true,
+            models: [
+              { name: "gpt-5.2-codex", tokens: 680000, turns: 26, percent: 0.195 },
+              { name: "gpt-4o", tokens: 205000, turns: 10, percent: 0.059 }
+            ]
+          },
+          {
+            id: "deepseek",
+            name: "DeepSeek",
+            accent: "#4D6BFE",
+            tokens: 524000,
+            dollars: 0,
+            percent: 0.150,
+            hasPrice: false,
+            models: [
+              { name: "deepseek-reasoner (R1)", tokens: 380000, turns: 16, percent: 0.109 },
+              { name: "deepseek-chat (V3)", tokens: 144000, turns: 6, percent: 0.041 }
+            ]
+          },
+          {
+            id: "antigravity",
+            name: "Antigravity",
+            accent: "#4285F4",
+            tokens: 318000,
+            dollars: 1.85,
+            percent: 0.091,
+            hasPrice: true,
+            models: [
+              { name: "gemini-2.5-pro", tokens: 318000, turns: 14, percent: 0.091 }
+            ]
+          },
+          {
+            id: "cursor",
+            name: "Cursor",
+            accent: "#F5F3EE",
+            tokens: 142210,
+            dollars: 0,
+            percent: 0.041,
+            hasPrice: false,
+            models: [
+              { name: "cursor-composer", tokens: 142210, turns: 8, percent: 0.041 }
+            ]
+          }
+        ],
+        rankText: "🏆 活跃度前 8% 开发者",
+        rankTextEn: "🏆 Top 8% active developer today"
+      },
+      {
+        dateStr: "9月8日",
+        dateStrEn: "Sep 8",
+        pagerLabel: "2026年9月8日 (昨天)",
+        pagerLabelEn: "Sep 8, 2026 (Yesterday)",
+        deltaText: "↓ 5.2%",
+        deltaTextEn: "↓ 5.2%",
+        totalTokens: 2942100,
+        totalDollars: 12.35,
+        hasDollars: true,
+        isPartial: true,
+        turns: 118,
+        sessions: 6,
+        cacheRate: "72.1%",
+        cacheSavings: "$4.20",
+        activeAgentsCount: 4,
+        totalModelsCount: 6,
+        peakText: "🔥 21:00 · 510K",
+        peakTextEn: "🔥 21:00 · 510K",
+        hourlyTokens: [
+          5000, 0, 0, 0, 0, 0,
+          15000, 52000, 180000, 290000, 310000, 210000,
+          120000, 240000, 390000, 420000, 380000, 290000,
+          180000, 320000, 480000, 510000, 380000, 95000
+        ],
+        agents: [
+          {
+            id: "claude",
+            name: "Claude",
+            accent: "#CC785C",
+            tokens: 1280000,
+            dollars: 6.14,
+            percent: 0.435,
+            hasPrice: true,
+            models: [
+              { name: "claude-3-7-sonnet", tokens: 1050000, turns: 38, percent: 0.357 },
+              { name: "claude-3-5-sonnet", tokens: 230000, turns: 10, percent: 0.078 }
+            ]
+          },
+          {
+            id: "codex",
+            name: "Codex",
+            accent: "#A78BFA",
+            tokens: 920000,
+            dollars: 4.30,
+            percent: 0.313,
+            hasPrice: true,
+            models: [
+              { name: "gpt-5.2-codex", tokens: 720000, turns: 28, percent: 0.245 },
+              { name: "gpt-4o", tokens: 200000, turns: 10, percent: 0.068 }
+            ]
+          },
+          {
+            id: "deepseek",
+            name: "DeepSeek",
+            accent: "#4D6BFE",
+            tokens: 410000,
+            dollars: 0,
+            percent: 0.139,
+            hasPrice: false,
+            models: [
+              { name: "deepseek-reasoner (R1)", tokens: 410000, turns: 18, percent: 0.139 }
+            ]
+          },
+          {
+            id: "antigravity",
+            name: "Antigravity",
+            accent: "#4285F4",
+            tokens: 220000,
+            dollars: 1.28,
+            percent: 0.075,
+            hasPrice: true,
+            models: [
+              { name: "gemini-2.5-pro", tokens: 220000, turns: 10, percent: 0.075 }
+            ]
+          },
+          {
+            id: "cursor",
+            name: "Cursor",
+            accent: "#F5F3EE",
+            tokens: 112100,
+            dollars: 0,
+            percent: 0.038,
+            hasPrice: false,
+            models: [
+              { name: "cursor-composer", tokens: 112100, turns: 4, percent: 0.038 }
+            ]
+          }
+        ],
+        rankText: "🏆 活跃度前 14% 开发者",
+        rankTextEn: "🏆 Top 14% active developer today"
+      },
+      {
+        dateStr: "9月5日",
+        dateStrEn: "Sep 5",
+        pagerLabel: "2026年9月5日 (巅峰日)",
+        pagerLabelEn: "Sep 5, 2026 (Peak Day)",
+        deltaText: "↑ 112% (历史峰值)",
+        deltaTextEn: "↑ 112% (Peak)",
+        totalTokens: 6180500,
+        totalDollars: 26.80,
+        hasDollars: true,
+        isPartial: true,
+        turns: 236,
+        sessions: 14,
+        cacheRate: "81.4%",
+        cacheSavings: "$9.80",
+        activeAgentsCount: 4,
+        totalModelsCount: 7,
+        peakText: "🔥 16:00 · 890K",
+        peakTextEn: "🔥 16:00 · 890K",
+        hourlyTokens: [
+          25000, 10000, 0, 0, 0, 0,
+          35000, 98000, 280000, 460000, 590000, 510000,
+          380000, 520000, 710000, 890000, 780000, 620000,
+          490000, 650000, 780000, 710000, 520000, 280000
+        ],
+        agents: [
+          {
+            id: "claude",
+            name: "Claude",
+            accent: "#CC785C",
+            tokens: 2980000,
+            dollars: 14.20,
+            percent: 0.482,
+            hasPrice: true,
+            models: [
+              { name: "claude-3-7-sonnet", tokens: 2450000, turns: 82, percent: 0.396 },
+              { name: "claude-3-5-sonnet", tokens: 530000, turns: 20, percent: 0.086 }
+            ]
+          },
+          {
+            id: "deepseek",
+            name: "DeepSeek",
+            accent: "#4D6BFE",
+            tokens: 1650000,
+            dollars: 0,
+            percent: 0.267,
+            hasPrice: false,
+            models: [
+              { name: "deepseek-reasoner (R1)", tokens: 1200000, turns: 48, percent: 0.194 },
+              { name: "deepseek-chat (V3)", tokens: 450000, turns: 16, percent: 0.073 }
+            ]
+          },
+          {
+            id: "codex",
+            name: "Codex",
+            accent: "#A78BFA",
+            tokens: 1050000,
+            dollars: 5.10,
+            percent: 0.170,
+            hasPrice: true,
+            models: [
+              { name: "gpt-5.2-codex", tokens: 820000, turns: 35, percent: 0.133 },
+              { name: "gpt-4o", tokens: 230000, turns: 10, percent: 0.037 }
+            ]
+          },
+          {
+            id: "antigravity",
+            name: "Antigravity",
+            accent: "#4285F4",
+            tokens: 500500,
+            dollars: 2.90,
+            percent: 0.081,
+            hasPrice: true,
+            models: [
+              { name: "gemini-2.5-pro", tokens: 500500, turns: 25, percent: 0.081 }
+            ]
+          }
+        ],
+        rankText: "🏆 历史最高！击败 99% 开发者",
+        rankTextEn: "🏆 All-time Peak! Top 1% developer"
+      }
+    ];
+
+    let currentIndex = 0;
+    let isZh = true;
+
+    function render() {
+      const data = hierarchicalDailyRecords[currentIndex];
+
+      // 1. Pager & Header
+      document.getElementById('pager-title').textContent = isZh ? data.pagerLabel : data.pagerLabelEn;
+      document.getElementById('header-date').textContent = isZh ? data.dateStr : data.dateStrEn;
+
+      // 2. Hero Area
+      document.getElementById('hero-title').textContent = isZh ? "全天消耗" : "TOTAL USAGE";
+      document.getElementById('hero-delta').textContent = isZh ? data.deltaText : data.deltaTextEn;
+
+      const { val, unit } = compactTokens(data.totalTokens, isZh);
+      document.getElementById('hero-num').textContent = val;
+      document.getElementById('hero-unit').textContent = unit;
+
+      if (data.hasDollars) {
+        document.getElementById('hero-dollars').textContent = `≈ $${data.totalDollars.toFixed(2)} (估算)`;
+        document.getElementById('hero-dollars').style.display = 'inline';
+      } else {
+        document.getElementById('hero-dollars').style.display = 'none';
+      }
+
+      // 3. KPI Strip
+      document.getElementById('kpi-lbl-turns').textContent = isZh ? "轮次 TURNS" : "TURNS";
+      document.getElementById('kpi-val-turns').textContent = `${data.turns}`;
+      document.getElementById('kpi-sub-turns').textContent = isZh ? `${data.sessions} 个会话` : `${data.sessions} sessions`;
+
+      document.getElementById('kpi-lbl-cache').textContent = isZh ? "PROMPT 缓存" : "PROMPT CACHE";
+      document.getElementById('kpi-val-cache').textContent = data.cacheRate;
+      document.getElementById('kpi-sub-cache').textContent = isZh ? `省 ${data.cacheSavings}` : `Saved ${data.cacheSavings}`;
+
+      document.getElementById('kpi-lbl-agents').textContent = isZh ? "宿主 / 模型" : "HOSTS / MODELS";
+      document.getElementById('kpi-val-agents').textContent = isZh ? `${data.activeAgentsCount} 家活跃` : `${data.activeAgentsCount} Active`;
+      document.getElementById('kpi-sub-agents').textContent = isZh ? `${data.totalModelsCount} 款模型` : `${data.totalModelsCount} Models`;
+
+      // 4. 24-Hour Activity Pulse
+      document.getElementById('pulse-title').textContent = isZh ? "24H 脉冲" : "24H PULSE";
+      document.getElementById('pulse-peak-label').textContent = isZh ? data.peakText : data.peakTextEn;
+
+      const maxTokens = Math.max(...data.hourlyTokens, 1);
+      const hoursGrid = document.getElementById('hours-grid');
+      hoursGrid.innerHTML = '';
+
+      data.hourlyTokens.forEach((tok, h) => {
+        const col = document.createElement('div');
+        col.className = 'hour-bar-col';
+
+        const bar = document.createElement('div');
+        const isPeak = tok === maxTokens && tok > 0;
+        bar.className = 'hour-bar' + (tok > 0 ? ' has-tokens' : '') + (isPeak ? ' peak' : '');
+        const heightPx = Math.max(2.5, (tok / maxTokens) * 32);
+        bar.style.height = heightPx + 'px';
+        bar.title = `${h}:00 - ${h+1}:00: ${tok.toLocaleString()} Tokens`;
+        col.appendChild(bar);
+
+        hoursGrid.appendChild(col);
+      });
+
+      // 5. Agent ──► Model 树状分支渲染 (纯粹专注 Tree Branch)
+      document.getElementById('hierarchy-title').textContent = "AGENTS & MODELS";
+      renderHierarchyTree(data.agents);
+
+      // 6. Footer
+      document.getElementById('footer-rank').textContent = isZh ? data.rankText : data.rankTextEn;
+    }
+
+    // 树状分支 (Lupi Editorial / G7 Tree LR)
+    function renderHierarchyTree(agents) {
+      const container = document.getElementById('hierarchy-tree-container');
+      container.innerHTML = '';
+
+      agents.forEach(agent => {
+        const block = document.createElement('div');
+        block.className = 'agent-tree-block';
+
+        const dollarsStr = agent.hasPrice ? `$${agent.dollars.toFixed(2)}` : '—';
+        const dollarClass = agent.hasPrice ? 'agent-total-dollars' : 'agent-total-dollars unpriced';
+
+        // Level 1: Agent Header Row with Official Tinted Mark
+        const parentRow = document.createElement('div');
+        parentRow.className = 'agent-parent-row';
+        parentRow.innerHTML = `
+          <div class="agent-parent-left">
+            ${getAgentMarkHtml(agent.id, 15)}
+            <span class="agent-title">${agent.name}</span>
+            <div class="agent-share-bar-wrap" title="${Math.round(agent.percent * 100)}%">
+              <div class="agent-share-bar-fill" style="width: ${Math.round(agent.percent * 100)}%; background: ${agent.accent};"></div>
+            </div>
+          </div>
+          <div class="agent-parent-right">
+            <span class="agent-total-tokens">${compactShort(agent.tokens, isZh)}</span>
+            <span class="${dollarClass}">${dollarsStr}</span>
+            <span class="agent-total-pct">${Math.round(agent.percent * 100)}%</span>
+          </div>
+        `;
+        block.appendChild(parentRow);
+
+        // Level 2: Child Models with Tree Wire Lines (Lupi Branching)
+        const childrenContainer = document.createElement('div');
+        childrenContainer.className = 'model-children-container';
+
+        agent.models.forEach((mod, idx) => {
+          const isLast = idx === agent.models.length - 1;
+          const wireChar = isLast ? '└──' : '├──';
+
+          const childRow = document.createElement('div');
+          childRow.className = 'model-child-row';
+          childRow.innerHTML = `
+            <div style="display: flex; align-items: center; overflow: hidden;">
+              <span class="model-tree-line">${wireChar}</span>
+              <span class="model-name-text">${mod.name}</span>
+            </div>
+            <div class="model-metrics-group">
+              <span class="model-sub-turns">${mod.turns}轮</span>
+              <span class="model-sub-tokens">${compactShort(mod.tokens, isZh)}</span>
+              <span class="model-sub-share">${Math.round(mod.percent * 100)}%</span>
+            </div>
+          `;
+          childrenContainer.appendChild(childRow);
+        });
+
+        block.appendChild(childrenContainer);
+        container.appendChild(block);
+      });
+    }
+
+    function compactTokens(n, zh) {
+      if (zh) {
+        if (n >= 100000000) return { val: (n / 100000000).toFixed(1).replace('.0', ''), unit: "亿" };
+        if (n >= 10000) return { val: Math.round(n / 10000).toString(), unit: "万" };
+        return { val: n.toLocaleString(), unit: "" };
+      }
+      if (n >= 1000000) return { val: (n / 1000000).toFixed(2).replace(/\.?0+$/, ''), unit: "M" };
+      if (n >= 1000) return { val: Math.round(n / 1000).toString(), unit: "K" };
+      return { val: n.toString(), unit: "" };
+    }
+
+    function compactShort(n, zh) {
+      if (zh) {
+        if (n >= 100000000) return (n / 100000000).toFixed(1).replace('.0', '') + "亿";
+        if (n >= 10000) return Math.round(n / 10000) + "万";
+        return n.toString();
+      }
+      if (n >= 1000000) return (n / 1000000).toFixed(1).replace('.0', '') + "M";
+      if (n >= 1000) return Math.round(n / 1000) + "K";
+      return n.toString();
+    }
+
+    function stepPeriod(delta) {
+      const next = currentIndex - delta;
+      if (next >= 0 && next < hierarchicalDailyRecords.length) {
+        currentIndex = next;
+        render();
+      }
+    }
+
+    function resetToToday() {
+      currentIndex = 0;
+      render();
+    }
+
+    // 复制图片与保存图片 (3x Retina 导出)
+    function renderToCanvas() {
+      const canvas = document.getElementById('renderCanvas');
+      const ctx = canvas.getContext('2d');
+      const scale = 3;
+      canvas.width = 420 * scale;
+      canvas.height = 560 * scale;
+      ctx.scale(scale, scale);
+
+      // Card Background #0D0F13
+      ctx.fillStyle = "#0D0F13";
+      roundRect(ctx, 0, 0, 420, 560, 24);
+      ctx.fill();
+
+      // Border #2D323E
+      ctx.strokeStyle = "#2D323E";
+      ctx.lineWidth = 1;
+      roundRect(ctx, 0.5, 0.5, 419, 559, 24);
+      ctx.stroke();
+
+      const data = hierarchicalDailyRecords[currentIndex];
+
+      // Header
+      ctx.fillStyle = "rgba(255,255,255,0.88)";
+      ctx.font = "800 11px Segoe UI";
+      ctx.fillText("AGENT ISLAND", 56, 42);
+
+      ctx.fillStyle = "#2DD4BF";
+      ctx.fillText("DAILY", 154, 42);
+
+      ctx.fillStyle = "rgba(255,255,255,0.65)";
+      ctx.font = "700 11px Segoe UI";
+      ctx.textAlign = "right";
+      ctx.fillText(isZh ? data.dateStr : data.dateStrEn, 392, 42);
+      ctx.textAlign = "left";
+
+      // Hero
+      ctx.fillStyle = "rgba(255,255,255,0.50)";
+      ctx.font = "700 11px Segoe UI";
+      ctx.fillText(isZh ? "全天消耗" : "TOTAL USAGE", 28, 76);
+
+      const { val, unit } = compactTokens(data.totalTokens, isZh);
+      ctx.fillStyle = "#F2F5F7";
+      ctx.font = "800 42px Segoe UI";
+      ctx.fillText(val + unit, 28, 122);
+
+      ctx.fillStyle = "#34D399";
+      ctx.font = "800 12px Segoe UI";
+      ctx.fillText(`≈ $${data.totalDollars.toFixed(2)} (估算)`, 175, 122);
+
+      // Footer
+      ctx.fillStyle = "#F59E0B";
+      ctx.font = "700 10.5px Segoe UI";
+      ctx.fillText(isZh ? data.rankText : data.rankTextEn, 28, 538);
+
+      ctx.fillStyle = "rgba(255,255,255,0.35)";
+      ctx.font = "700 9.5px Segoe UI";
+      ctx.textAlign = "right";
+      ctx.fillText("AGENT ISLAND · LOCAL ONLY", 392, 538);
+      ctx.textAlign = "left";
+
+      return canvas;
+    }
+
+    function roundRect(ctx, x, y, width, height, radius) {
+      ctx.beginPath();
+      ctx.moveTo(x + radius, y);
+      ctx.lineTo(x + width - radius, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+      ctx.lineTo(x + width, y + height - radius);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+      ctx.lineTo(x + radius, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+      ctx.lineTo(x, y + radius);
+      ctx.quadraticCurveTo(x, y, x + radius, y);
+      ctx.closePath();
+    }
+
+    function copyCardImage() {
+      const canvas = renderToCanvas();
+      canvas.toBlob(blob => {
+        try {
+          const item = new ClipboardItem({ 'image/png': blob });
+          navigator.clipboard.write([item]).then(() => {
+            showToast("📷 已复制卡片图片到剪贴板！");
+          }).catch(() => {
+            showToast("📷 图片已生成！");
+          });
+        } catch (e) {
+          showToast("📷 图片已生成！");
+        }
+      });
+    }
+
+    function savePngImage() {
+      const canvas = renderToCanvas();
+      const link = document.createElement('a');
+      link.download = `AgentIsland-Daily-${hierarchicalDailyRecords[currentIndex].dateStr}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast("💾 已保存卡片 PNG！");
+    }
+
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      t.textContent = msg;
+      t.classList.add('show');
+      clearTimeout(window._toastTimer);
+      window._toastTimer = setTimeout(() => {
+        t.classList.remove('show');
+      }, 2000);
+    }
+
+    // Initial render
+    render();
+  </script>
+</body>
+</html>

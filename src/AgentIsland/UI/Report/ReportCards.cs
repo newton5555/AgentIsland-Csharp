@@ -26,7 +26,7 @@ namespace AgentIsland.UI.Report;
 /// zeros). Fixed 420x560 portrait; `rounded: false` builds the EXPORT
 /// version — square corners and full-bleed, because social apps flatten
 /// transparency to white and rounded transparent corners paste as nicks.
-public static class ReportCards
+public static partial class ReportCards
 {
     public const double CardWidth = 420;
     public const double CardHeight = 560;

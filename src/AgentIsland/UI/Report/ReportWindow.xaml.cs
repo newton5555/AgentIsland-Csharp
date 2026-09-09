@@ -23,6 +23,7 @@ public sealed partial class ReportWindow : Window
 {
     public enum Kind
     {
+        Daily,
         Weekly,
         Monthly,
     }
@@ -93,9 +94,12 @@ public sealed partial class ReportWindow : Window
         _kind = kind;
         _display = CurrentData();
 
-        Title = kind == Kind.Weekly
-            ? AgentIsland.UI.Localization.L10n.Tr("Weekly report")
-            : AgentIsland.UI.Localization.L10n.Tr("Share monthly report");
+        Title = kind switch
+        {
+            Kind.Daily => AgentIsland.UI.Localization.L10n.Tr("Daily report"),
+            Kind.Weekly => AgentIsland.UI.Localization.L10n.Tr("Weekly report"),
+            _ => AgentIsland.UI.Localization.L10n.Tr("Share monthly report"),
+        };
 
         _back = new PagerCircle("\uE76B", AgentIsland.UI.Localization.L10n.Tr("Previous period (←)"));
         _back.Clicked += OnBackClicked;
@@ -147,6 +151,7 @@ public sealed partial class ReportWindow : Window
             _display = CurrentData();
             RebuildCard();
             AlignCurrentWeek();
+            AlignCurrentDay();
         };
         _providerSelectionChanged = (_, args) =>
         {
@@ -175,21 +180,31 @@ public sealed partial class ReportWindow : Window
         };
         if (!Core.AppEnvironment.IsDemo) _costStore?.Refresh();
         AlignCurrentWeek();
+        AlignCurrentDay();
 
         Dispatcher.BeginInvoke(DispatcherPriority.Background, () => _ = ExportRender());
     }
 
-    private object CurrentData() => _kind == Kind.Weekly
-        ? WeeklyReportData.Current(_costStore, _tokenModeStore, _visibilityStore, _costQueryService)
-        : MonthlyReportData.Current(_costStore, _tokenModeStore, _visibilityStore);
+    private object CurrentData() => _kind switch
+    {
+        Kind.Daily => DailyReportData.Current(_costStore, _tokenModeStore, _visibilityStore),
+        Kind.Weekly => WeeklyReportData.Current(_costStore, _tokenModeStore, _visibilityStore, _costQueryService),
+        _ => MonthlyReportData.Current(_costStore, _tokenModeStore, _visibilityStore),
+    };
 
-    private FrameworkElement CardFor(object data, bool rounded) => _kind == Kind.Weekly
-        ? ReportCards.Weekly((WeeklyReportData)data, rounded)
-        : ReportCards.Monthly((MonthlyReportData)data, rounded);
+    private FrameworkElement CardFor(object data, bool rounded) => _kind switch
+    {
+        Kind.Daily => ReportCards.Daily((DailyReportData)data, rounded),
+        Kind.Weekly => ReportCards.Weekly((WeeklyReportData)data, rounded),
+        _ => ReportCards.Monthly((MonthlyReportData)data, rounded),
+    };
 
-    private string PeriodText => _kind == Kind.Weekly
-        ? ((WeeklyReportData)_display).RangeText
-        : ((MonthlyReportData)_display).MonthText;
+    private string PeriodText => _kind switch
+    {
+        Kind.Daily => ((DailyReportData)_display).PagerLabel,
+        Kind.Weekly => ((WeeklyReportData)_display).RangeText,
+        _ => ((MonthlyReportData)_display).MonthText,
+    };
 
     public void SwitchKind(Kind target)
     {
@@ -199,14 +214,21 @@ public sealed partial class ReportWindow : Window
         _pageOffset = 0;
         _anchorDate = null;
         _loading = false;
-        Title = _kind == Kind.Weekly
-            ? AgentIsland.UI.Localization.L10n.Tr("Weekly report")
-            : AgentIsland.UI.Localization.L10n.Tr("Share monthly report");
+        Title = _kind switch
+        {
+            Kind.Daily => AgentIsland.UI.Localization.L10n.Tr("Daily report"),
+            Kind.Weekly => AgentIsland.UI.Localization.L10n.Tr("Weekly report"),
+            _ => AgentIsland.UI.Localization.L10n.Tr("Share monthly report"),
+        };
         _display = CurrentData();
         RebuildCard();
         if (_kind == Kind.Weekly)
         {
             AlignCurrentWeek();
+        }
+        else if (_kind == Kind.Daily)
+        {
+            AlignCurrentDay();
         }
     }
 
@@ -245,9 +267,12 @@ public sealed partial class ReportWindow : Window
         }
         else
         {
-            var interval = _kind == Kind.Weekly
-                ? ReportPeriods.WeekInterval(_pageOffset, _costStore)
-                : ReportPeriods.MonthInterval(_pageOffset);
+            var interval = _kind switch
+            {
+                Kind.Daily => ReportPeriods.DayInterval(_pageOffset, _costStore),
+                Kind.Weekly => ReportPeriods.WeekInterval(_pageOffset, _costStore),
+                _ => ReportPeriods.MonthInterval(_pageOffset),
+            };
             canGoBack = !_loading && ReportPeriods.HasData(interval.Start, ReportPeriods.EarliestDataDay(_costStore));
             canGoForward = _pageOffset > 0 && !_loading;
         }
@@ -271,7 +296,12 @@ public sealed partial class ReportWindow : Window
     {
         if (_anchorDate is { } anchor)
         {
-            var prev = _kind == Kind.Weekly ? anchor.AddDays(-7) : anchor.AddMonths(-1);
+            var prev = _kind switch
+            {
+                Kind.Daily => anchor.AddDays(-1),
+                Kind.Weekly => anchor.AddDays(-7),
+                _ => anchor.AddMonths(-1),
+            };
             if (prev >= ReportPeriods.EarliestDataDay(_costStore))
             {
                 SetAnchor(prev);
@@ -287,8 +317,19 @@ public sealed partial class ReportWindow : Window
     {
         if (_anchorDate is { } anchor)
         {
-            var next = _kind == Kind.Weekly ? anchor.AddDays(7) : anchor.AddMonths(1);
-            if (next >= DateTime.Today || (_kind == Kind.Weekly && next.AddDays(7) > DateTime.Today))
+            var next = _kind switch
+            {
+                Kind.Daily => anchor.AddDays(1),
+                Kind.Weekly => anchor.AddDays(7),
+                _ => anchor.AddMonths(1),
+            };
+            var overshoots = _kind switch
+            {
+                Kind.Daily => next >= DateTime.Today,
+                Kind.Weekly => next >= DateTime.Today || next.AddDays(7) > DateTime.Today,
+                _ => next >= DateTime.Today,
+            };
+            if (overshoots)
             {
                 Flip(0);
             }
@@ -317,7 +358,8 @@ public sealed partial class ReportWindow : Window
             _loading = false;
             _display = CurrentData();
             RebuildCard();
-            AlignCurrentWeek();
+            if (_kind == Kind.Weekly) AlignCurrentWeek();
+            else if (_kind == Kind.Daily) AlignCurrentDay();
             return;
         }
         LoadPage(target);
@@ -346,6 +388,45 @@ public sealed partial class ReportWindow : Window
         }
     }
 
+    /// The live daily card is a skeleton (buckets only) until the
+    /// event-level slice lands — same two-beat rebuild as the weekly card.
+    private async void AlignCurrentDay()
+    {
+        if (_kind != Kind.Daily || Core.AppEnvironment.IsDemo) return;
+        var (start, end) = ReportPeriods.DayInterval(0, _costStore);
+        var queryId = BeginReportQuery(out var cts);
+        try
+        {
+            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            if (queryId != _querySequence || !IsLoaded
+                || _pageOffset != 0 || _anchorDate is not null || _loading) return;
+            _display = DailyReportData.ForInterval(
+                start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start));
+            RebuildCard();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        finally
+        {
+            EndReportQuery(queryId, cts);
+        }
+    }
+
+    /// Day-over-day baseline: yesterday's total from the CostStore's
+    /// daily history (cheap; the ForInterval rebuild carries the same
+    /// number from the previous page's slice when one is loaded).
+    private long PreviousDayTokens(DateTime day)
+    {
+        if (_costStore is null) return 0;
+        var yesterday = day.Date.AddDays(-1);
+        return AgentIsland.UI.Providers.DisplayProviders.All
+            .Select(p => _costStore.Summary(p).DailyHistory
+                .FirstOrDefault(b => b.DayStart.Date == yesterday))
+            .Where(b => b is not null)
+            .Sum(b => b!.Tokens);
+    }
+
     private void RefreshForProviderSelection()
     {
         if (!IsLoaded) return;
@@ -369,6 +450,7 @@ public sealed partial class ReportWindow : Window
         _display = CurrentData();
         RebuildCard();
         if (_kind == Kind.Weekly) AlignCurrentWeek();
+        else if (_kind == Kind.Daily) AlignCurrentDay();
     }
 
     private async void LoadPage(int target)
@@ -376,18 +458,24 @@ public sealed partial class ReportWindow : Window
         var queryId = BeginReportQuery(out var cts);
         _loading = true;
         UpdatePagerChrome();
-        var (start, end) = _kind == Kind.Weekly
-            ? ReportPeriods.WeekInterval(target, _costStore)
-            : ReportPeriods.MonthInterval(target);
+        var (start, end) = _kind switch
+        {
+            Kind.Daily => ReportPeriods.DayInterval(target, _costStore),
+            Kind.Weekly => ReportPeriods.WeekInterval(target, _costStore),
+            _ => ReportPeriods.MonthInterval(target),
+        };
         var accepted = false;
         try
         {
             var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
             if (queryId != _querySequence || !IsLoaded
                 || _pageOffset != target || _anchorDate is not null) return;
-            _display = _kind == Kind.Weekly
-                ? WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore)
-                : MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore);
+            _display = _kind switch
+            {
+                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start)),
+                Kind.Weekly => WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore),
+                _ => MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore),
+            };
             accepted = true;
         }
         catch (OperationCanceledException)
@@ -431,9 +519,12 @@ public sealed partial class ReportWindow : Window
 
     private void OpenCalendar()
     {
-        var currentSelected = _anchorDate ?? (_kind == Kind.Weekly
-            ? ReportPeriods.WeekInterval(_pageOffset, _costStore).Start
-            : ReportPeriods.MonthInterval(_pageOffset).Start);
+        var currentSelected = _anchorDate ?? (_kind switch
+        {
+            Kind.Daily => ReportPeriods.DayInterval(_pageOffset, _costStore).Start,
+            Kind.Weekly => ReportPeriods.WeekInterval(_pageOffset, _costStore).Start,
+            _ => ReportPeriods.MonthInterval(_pageOffset).Start,
+        });
         _calendar = new ReportCalendarPopup(ReportPeriods.EarliestDataDay(_costStore), SetAnchor, currentSelected)
         {
             PlacementTarget = _calendarButton,
@@ -479,6 +570,11 @@ public sealed partial class ReportWindow : Window
     {
         CancelReportQuery();
         var start = day.Date;
+        if (_kind == Kind.Daily && start >= ReportPeriods.DayInterval(0, _costStore).Start)
+        {
+            Flip(0);
+            return;
+        }
         if (_kind == Kind.Weekly && start >= ReportPeriods.WeekInterval(0, _costStore).Start)
         {
             Flip(0);
@@ -494,16 +590,24 @@ public sealed partial class ReportWindow : Window
         _loading = true;
         UpdatePagerChrome();
         SetPagerVisible(false);
-        var end = start.AddDays(_kind == Kind.Weekly ? 7 : 30);
+        var end = _kind switch
+        {
+            Kind.Daily => start.AddDays(1),
+            Kind.Weekly => start.AddDays(7),
+            _ => start.AddMonths(1),
+        };
         var queryId = BeginReportQuery(out var cts);
         var accepted = false;
         try
         {
             var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
             if (queryId != _querySequence || !IsLoaded || _anchorDate != start) return;
-            _display = _kind == Kind.Weekly
-                ? WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore)
-                : MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore);
+            _display = _kind switch
+            {
+                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start)),
+                Kind.Weekly => WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore),
+                _ => MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore),
+            };
             accepted = true;
         }
         catch (OperationCanceledException)
@@ -655,9 +759,12 @@ public sealed partial class ReportWindow : Window
         IProviderVisibilityStore? visibilityStore = null,
         ICostQueryService? costQueryService = null)
     {
-        var card = kind == Kind.Weekly
-            ? ReportCards.Weekly(WeeklyReportData.Current(costStore, tokenModeStore, visibilityStore, costQueryService), rounded: false)
-            : ReportCards.Monthly(MonthlyReportData.Current(costStore, tokenModeStore, visibilityStore), rounded: false);
+        var card = kind switch
+        {
+            Kind.Daily => ReportCards.Daily(DailyReportData.Current(costStore, tokenModeStore, visibilityStore), rounded: false),
+            Kind.Weekly => ReportCards.Weekly(WeeklyReportData.Current(costStore, tokenModeStore, visibilityStore, costQueryService), rounded: false),
+            _ => ReportCards.Monthly(MonthlyReportData.Current(costStore, tokenModeStore, visibilityStore), rounded: false),
+        };
         return Render(card);
     }
 
@@ -680,7 +787,12 @@ public sealed partial class ReportWindow : Window
 
     private void SavePng()
     {
-        var tag = _kind == Kind.Weekly ? "weekly" : "monthly";
+        var tag = _kind switch
+        {
+            Kind.Daily => "daily",
+            Kind.Weekly => "weekly",
+            _ => "monthly",
+        };
         var dialog = new Microsoft.Win32.SaveFileDialog
         {
             FileName = $"agent-island-{tag}-{DateTime.Today:yyyy-MM-dd}.png",

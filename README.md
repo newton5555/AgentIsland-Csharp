@@ -4,7 +4,7 @@
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078D6?style=flat&logo=windows)](https://www.microsoft.com/windows)
-[![Tests](https://img.shields.io/badge/Tests-56%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
+[![Tests](https://img.shields.io/badge/Tests-67%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
 [![Memory Footprint](https://img.shields.io/badge/Working%20Set-~100MB%20(down%20from%20200MB+)-success?style=flat)](docs/performance.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -124,7 +124,7 @@ This codebase strictly adheres to modern .NET design standards:
 
 The repository includes a comprehensive, deterministic test suite covering core domain logic, concurrency safety, and STA UI dispatcher interactions:
 
-* **56 Automated Tests Passing (ALL GREEN)** — 55 regular tests plus 1 stress/resource test;
+* **67 Automated Tests Passing (ALL GREEN)** — 66 regular tests plus 1 stress/resource test;
 * **Coverage Scope**: Domain calculators, reverse stream slicers, circuit breaker faults, MVVM ViewModels, STA UI rendering, and 1-year worst-case stress benchmarks;
 * **Sandboxed Test Isolation**: Tests execute in isolated temporary data directories, preventing interference with running application instances.
 
@@ -154,17 +154,17 @@ dotnet test AgentIsland.sln
 # 1. Restore and build solution
 dotnet build AgentIsland.sln
 
-# 2. Run full test suite (56 tests: 55 regular + 1 stress/resource)
+# 2. Run full test suite (67 tests: 66 regular + 1 stress/resource)
 dotnet test AgentIsland.sln
 
 # 3. Launch 1-Year Stress Test UI
 .\Launch-StressUI.bat
 
 # 4. Package self-contained release executable
-.\build.ps1 -Runtime win-x64 -Version 1.2.1
+.\build.ps1 -Runtime win-x64 -Version 2.2.0
 ```
 
-The compiled release artifact will be output to `dist/AgentIsland-1.2.1-win-x64.zip`.
+The compiled release artifact will be output to `dist/AgentIsland-2.2.0-win-x64.zip`.
 
 ---
 
@@ -178,7 +178,7 @@ AgentIsland-Csharp/
 │  ├─ AgentIsland.Windows/      # Windows path resolution, winsqlite3 driver, kernel memory APIs
 │  └─ AgentIsland/              # WPF presentation host, IslandWindow, ViewModels, dashboard
 ├─ tests/
-│  └─ AgentIsland.Tests/        # 56 automated tests (55 regular + 1 stress/resource test)
+│  └─ AgentIsland.Tests/        # 67 automated tests (66 regular + 1 stress/resource test)
 ├─ scripts/
 │  ├─ Launch-StressTestUI.ps1   # 1-Year worst-case stress launcher script
 │  └─ Measure-ProcessResources.ps1 # Process CPU and working set profiling script

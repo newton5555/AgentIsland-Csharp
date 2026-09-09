@@ -41,6 +41,8 @@ public sealed class TrayIcon : IDisposable
 
         var menu = new System.Windows.Forms.ContextMenuStrip();
         menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Show / Hide island"), null, (_, _) => toggleIsland());
+        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Daily report"), null,
+            (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Daily));
         menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share weekly report…"), null,
             (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly));
         menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share monthly report…"), null,

@@ -17,7 +17,7 @@ public static class AntigravityLogReader
 {
     private static readonly LogParseCache Cache = new(
         TriggerTool.Antigravity,
-        Path.Combine(IslandPaths.CacheDir, "antigravity-parse-cache.v1.json"));
+        Path.Combine(IslandPaths.CacheDir, "antigravity-parse-cache.v3.json"));
 
     public static List<TokenEvent> Scan(int lookbackDays, CancellationToken cancellationToken = default)
     {

@@ -48,6 +48,26 @@ public static class Pricing
         ["gpt-5.4-pro"] = new(30, 180, 30, 3),
         ["gpt-5.2-pro"] = new(21, 168, 21, 0),
         ["gpt-5-pro"] = new(15, 120, 15, 0),
+        // Google Gemini (Antigravity)
+        ["gemini-3.8-flash-high"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.8-flash-medium"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.8-flash-low"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.8-flash"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.7-flash-high"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.7-flash-medium"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.7-flash"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.7-pro"] = new(1.25, 5.0, 1.25, 0.3125),
+        ["gemini-3.6-flash"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.6-pro"] = new(1.25, 5.0, 1.25, 0.3125),
+        ["gemini-3.5-flash-high"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.5-flash-medium"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-3.5-flash-extra-low"] = new(0.05, 0.20, 0.05, 0.0125),
+        ["gemini-3.1-pro"] = new(1.25, 5.0, 1.25, 0.3125),
+        ["gemini-3.1-flash-lite"] = new(0.05, 0.20, 0.05, 0.0125),
+        ["gemini-3-flash-preview"] = new(0.10, 0.40, 0.10, 0.025),
+        ["gemini-2.5-flash"] = new(0.075, 0.30, 0.075, 0.01875),
+        ["gemini-2.5-pro"] = new(1.25, 5.0, 1.25, 0.3125),
+        ["gemini-internal-model"] = new(0.10, 0.40, 0.10, 0.025),
     };
 
     public static double Cost(TokenEvent tokenEvent)
@@ -60,6 +80,17 @@ public static class Pricing
     }
 
     public static bool IsKnown(string model) => Table.ContainsKey(CanonicalModelName(model));
+
+    /// What the cache-read tokens would have cost at the plain input rate,
+    /// minus what they actually cost — the "saved" figure on the daily card.
+    /// Unknown models price at $0, so no imaginary savings either.
+    public static double CacheSavings(string model, long cacheReadTokens)
+    {
+        if (cacheReadTokens <= 0) return 0;
+        if (!Table.TryGetValue(CanonicalModelName(model), out var price)) return 0;
+        var deltaRate = Math.Max(0, price.Input - price.CacheRead);
+        return cacheReadTokens * deltaRate / 1_000_000.0;
+    }
 
     /// Date-suffixed model ids ("claude-haiku-4-5-20251001") strip to their
     /// base form: the suffix is a dash followed by exactly 8 digits.

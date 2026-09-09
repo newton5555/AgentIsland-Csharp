@@ -2,7 +2,9 @@ namespace AgentIsland.Core.Cost;
 
 public sealed record DailyTokenBucket(DateTimeOffset DayStart, long Tokens, long BillableTokens, double Dollars);
 
-public sealed record ModelSpend(string Model, long Tokens, long BillableTokens, double Dollars);
+public sealed record ModelSpend(
+    string Model, long Tokens, long BillableTokens, double Dollars,
+    long CacheReadTokens = 0);
 
 /// One provider's rollups for the cost page and the overview grid.
 public sealed record ProviderCostSummary(
@@ -35,10 +37,14 @@ public sealed record ProviderCostSummary(
 public sealed record ReportSlice(
     IReadOnlyList<DailyTokenBucket> DailyTokens,   // zero-filled, oldest first
     double Dollars,
-    IReadOnlyList<ModelSpend> ByModel)
+    IReadOnlyList<ModelSpend> ByModel,
+    IReadOnlyList<long>? HourlyTokens = null,      // 24 local-hour buckets summed across the whole interval
+    long CacheReadTokens = 0,
+    long CacheWriteTokens = 0)
 {
     public static ReportSlice Empty { get; } = new(
-        Array.Empty<DailyTokenBucket>(), 0, Array.Empty<ModelSpend>());
+        Array.Empty<DailyTokenBucket>(), 0, Array.Empty<ModelSpend>(),
+        new long[24]);
 }
 
 /// Single-pass aggregation, calendar-local like the macOS CostSummary.
@@ -55,8 +61,10 @@ public static class CostSummarizer
 
         var tokenBuckets = new long[dayCount];
         var billableBuckets = new long[dayCount];
+        var hourlyBuckets = new long[24];
+        long cacheRead = 0, cacheWrite = 0;
         double dollars = 0;
-        var byModel = new Dictionary<string, (long Tokens, long Billable, double Dollars)>(StringComparer.OrdinalIgnoreCase);
+        var byModel = new Dictionary<string, (long Tokens, long Billable, double Dollars, long CacheRead)>(StringComparer.OrdinalIgnoreCase);
 
         foreach (var tokenEvent in events)
         {
@@ -68,12 +76,16 @@ public static class CostSummarizer
                 tokenBuckets[dayOffset] += tokenEvent.WireTokens;
                 billableBuckets[dayOffset] += tokenEvent.BillableTokens;
             }
+            hourlyBuckets[Math.Clamp(local.Hour, 0, 23)] += tokenEvent.WireTokens;
+            cacheRead += tokenEvent.CacheReadTokens;
+            cacheWrite += tokenEvent.CacheCreationTokens;
             dollars += tokenEvent.Dollars;
             var model = Pricing.CanonicalModelName(tokenEvent.Model);
             byModel.TryGetValue(model, out var entry);
             byModel[model] = (entry.Tokens + tokenEvent.WireTokens,
                 entry.Billable + tokenEvent.BillableTokens,
-                entry.Dollars + tokenEvent.Dollars);
+                entry.Dollars + tokenEvent.Dollars,
+                entry.CacheRead + tokenEvent.CacheReadTokens);
         }
 
         var daily = new List<DailyTokenBucket>(dayCount);
@@ -86,9 +98,13 @@ public static class CostSummarizer
         return new ReportSlice(
             daily,
             dollars,
-            byModel.Select(kv => new ModelSpend(kv.Key, kv.Value.Tokens, kv.Value.Billable, kv.Value.Dollars))
+            byModel.Select(kv => new ModelSpend(kv.Key, kv.Value.Tokens, kv.Value.Billable, kv.Value.Dollars,
+                    kv.Value.CacheRead))
                 .OrderByDescending(spend => spend.BillableTokens)
-                .ToList());
+                .ToList(),
+            hourlyBuckets,
+            cacheRead,
+            cacheWrite);
     }
 
     public static int YearHistoryDays(DateTimeOffset now)

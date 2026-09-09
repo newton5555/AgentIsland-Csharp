@@ -41,6 +41,8 @@ public sealed partial class PanelFooter : Grid
 
         InitializeComponent();
 
+        DailyLabel.Text = L10n.Tr("Daily");
+        DailyPill.ToolTip = L10n.Tr("Daily report");
         WeeklyLabel.Text = L10n.Tr("Weekly");
         WeeklyPill.ToolTip = L10n.Tr("Share weekly report");
         MonthlyLabel.Text = L10n.Tr("Monthly");
@@ -165,6 +167,12 @@ public sealed partial class PanelFooter : Grid
     private void OnPillMouseLeave(object sender, MouseEventArgs e)
     {
         if (sender is Border b) b.Opacity = 1.0;
+    }
+
+    private void OnDailyPillClick(object sender, MouseButtonEventArgs e)
+    {
+        Report.ReportWindow.Show(Report.ReportWindow.Kind.Daily);
+        e.Handled = true;
     }
 
     private void OnWeeklyClick(object sender, MouseButtonEventArgs e)

@@ -57,6 +57,23 @@ public static class ReportPeriods
         return (start, end);
     }
 
+    /// The single local day `offset` days before the scanned anchor — the
+    /// daily card's page unit, half-open [00:00, 24:00). Offset 0 is the
+    /// freshest scanned day (clamped to today), matching WeekInterval's
+    /// right edge so the three cards' "now" agree.
+    public static (DateTime Start, DateTime End) DayInterval(int offset, ICostStore? costStore = null)
+    {
+        var day = ScanAnchor(costStore).AddDays(-offset);
+        return (day, day.AddDays(1));
+    }
+
+    /// Half-open local bounds of one specific day (calendar anchor).
+    public static (DateTime Start, DateTime End) DayIntervalForDate(DateTime date)
+    {
+        var day = date.Date;
+        return (day, day.AddDays(1));
+    }
+
     /// Freshest scanned day across all providers, clamped to today — the
     /// weekly window's right edge (macOS: min(scanAnchor, today)).
     public static DateTime ScanAnchor(ICostStore? costStore = null)

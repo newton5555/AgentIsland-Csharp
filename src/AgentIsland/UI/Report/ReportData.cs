@@ -257,6 +257,246 @@ public sealed record MonthlyReportData(
     }
 }
 
+/// The daily share card — one local day, hour-resolved. Same honesty
+/// rules as the weekly/monthly cards: wire tokens everywhere, "—" where a
+/// provider can't be priced, nothing invented. No rank line, no session
+/// count (TokenEvent carries no session identity, and invented ones would
+/// break the no-fake-data promise).
+public sealed record DailyReportData(
+    string DateText,                        // card corner, "9月9日" / "Sep 9"
+    string PagerLabel,                      // "2026年9月9日 (今天)" / "Sep 9, 2026 (Today)"
+    string DeltaText,                       // "↑ 18.4%" / "— " when no baseline
+    bool DeltaUp,                           // arrow direction; also picks the tint
+    bool HasDelta,
+    long TotalTokens,
+    double TotalDollars,
+    bool HasActualDollars,
+    bool IsPartialDollars,
+    double CacheRate,                       // 0..1, cache reads over wire tokens
+    double CacheSavingsDollars,
+    bool HasCacheData,                      // false → cache cell reads "—"
+    int ActiveAgentsCount,
+    int TotalModelsCount,
+    IReadOnlyList<long> HourlyTokens,       // exactly 24, oldest → latest hour
+    int PeakHour,
+    long PeakTokens,
+    IReadOnlyList<DailyAgentRow> AgentTree,
+    bool IsAllTokens = true)
+{
+    public static DailyReportData Current(
+        ICostStore? costStore = null,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null)
+    {
+        var cost = costStore ?? (App.Instance?.Services?.GetService(typeof(ICostStore)) as ICostStore);
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
+
+        long BucketValue(DailyTokenBucket bucket) =>
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
+
+        long DayTokens(AgentIsland.UI.Providers.DisplayProvider provider, DateTime day) =>
+            cost?.Summary(provider).DailyHistory.FirstOrDefault(b => b.DayStart.Date == day) is { } bucket
+                ? BucketValue(bucket)
+                : 0;
+
+        var anchor = ReportPeriods.ScanAnchor(cost);
+        var day = anchor;
+        var previous = anchor.AddDays(-1);
+        var total = targets.Sum(p => DayTokens(p, day));
+        var previousTotal = targets.Sum(p => DayTokens(p, previous));
+
+        var providers = targets
+            .Select(p => new ProviderPeriodSlice(p, DayTokens(p, day)))
+            .Where(slice => slice.Tokens > 0)
+            .OrderByDescending(slice => slice.Tokens)
+            .ToList();
+
+        // Live-card skeleton: the fresh daily buckets carry totals, but the
+        // hour pulse and model tree need the event-level slice, which only
+        // the async query provides — SlicesAsync lands a beat later and the
+        // ForInterval path rebuilds the card. Dollars and models ride the
+        // summary's rolling windows here (approximate for hours 5..∞), so
+        // money shows only once the precise slice arrives.
+        var dollars = 0.0;
+        var hourly = new long[24];
+        var agentTree = Array.Empty<DailyAgentRow>();
+
+        return new DailyReportData(
+            FormatDate(day),
+            FormatPager(day),
+            FormatDelta(total, previousTotal),
+            total > previousTotal,
+            previousTotal > 0,
+            total,
+            dollars,
+            HasActualDollars: false,
+            IsPartialDollars: false,
+            CacheRate: 0,
+            CacheSavingsDollars: 0,
+            HasCacheData: false,
+            ActiveAgentsCount: providers.Count,
+            TotalModelsCount: 0,
+            hourly,
+            PeakHour: 0,
+            PeakTokens: 0,
+            agentTree,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
+    }
+
+    /// A past (or settled current) day assembled from event-level slices —
+    /// the calendar anchor and every async rebuild lands here.
+    public static DailyReportData ForInterval(
+        DateTime day,
+        IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices,
+        TokenCountModeStore? tokenModeStore = null,
+        IProviderVisibilityStore? visibilityStore = null,
+        long previousDayTokens = 0)
+    {
+        var mode = (tokenModeStore ?? (App.Instance?.Services?.GetService(typeof(TokenCountModeStore)) as TokenCountModeStore))?.Mode ?? AgentIsland.Backend.Settings.TokenCountMode.All;
+        long BucketValue(DailyTokenBucket bucket) =>
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All ? bucket.Tokens : bucket.BillableTokens;
+
+        ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
+            slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
+
+        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
+
+        var providers = targets
+            .Select(provider => new ProviderPeriodSlice(
+                provider, SliceOf(provider).DailyTokens.Sum(BucketValue)))
+            .Where(slice => slice.Tokens > 0)
+            .OrderByDescending(slice => slice.Tokens)
+            .ToList();
+        var total = providers.Sum(slice => slice.Tokens);
+        var dollars = targets.Sum(p => SliceOf(p).Dollars);
+        var hasPriced = targets.Any(p => SliceOf(p).ByModel.Any(m => m.Dollars > 0));
+        var hasUnpriced = providers.Any(slice => !ReportFormat.ProvidesDollars(slice.Provider));
+
+        var hourly = new long[24];
+        foreach (var provider in targets)
+        {
+            var buckets = SliceOf(provider).HourlyTokens ?? Array.Empty<long>();
+            for (var h = 0; h < 24; h++)
+            {
+                if (h < buckets.Count) hourly[h] += buckets[h];
+            }
+        }
+        var peakHour = 0;
+        var peakTokens = 0L;
+        for (var h = 0; h < 24; h++)
+        {
+            if (hourly[h] > peakTokens)
+            {
+                peakTokens = hourly[h];
+                peakHour = h;
+            }
+        }
+
+        var cacheRead = targets.Sum(p => SliceOf(p).CacheReadTokens);
+        var cacheWrite = targets.Sum(p => SliceOf(p).CacheWriteTokens);
+        var wireTotal = Math.Max(1, total);
+        // Cache savings ride the priced models only — same honesty split as
+        // the dollar hero: where the price table is silent, so is the card.
+        var savings = targets.Sum(p => ReportFormat.ProvidesDollars(p)
+            ? SliceOf(p).ByModel.Sum(m => Pricing.CacheSavings(m.Model, m.CacheReadTokens))
+            : 0.0);
+        var hasCacheData = cacheRead + cacheWrite > 0;
+
+        var agentTree = providers
+            .Select(slice =>
+            {
+                var providerModels = SliceOf(slice.Provider).ByModel
+                    .Where(m => mode == AgentIsland.Backend.Settings.TokenCountMode.All
+                        ? m.Tokens > 0
+                        : m.BillableTokens > 0)
+                    .OrderByDescending(m => mode == AgentIsland.Backend.Settings.TokenCountMode.All ? m.Tokens : m.BillableTokens)
+                    .ToList();
+                var modelRows = providerModels
+                    .Select(m => new DailyModelRow(
+                        ReportFormat.DisplayModelName(m.Model),
+                        mode == AgentIsland.Backend.Settings.TokenCountMode.All ? m.Tokens : m.BillableTokens,
+                        m.Dollars,
+                        total > 0 ? (double)(mode == AgentIsland.Backend.Settings.TokenCountMode.All ? m.Tokens : m.BillableTokens) / total : 0))
+                    .ToList();
+                return new DailyAgentRow(
+                    slice.Provider,
+                    slice.Tokens,
+                    slice.Provider is AgentIsland.UI.Providers.DisplayProvider.Cursor
+                        or AgentIsland.UI.Providers.DisplayProvider.DeepSeek
+                        or AgentIsland.UI.Providers.DisplayProvider.Antigravity ? 0 : SliceOf(slice.Provider).Dollars,
+                    total > 0 ? (double)slice.Tokens / total : 0,
+                    modelRows);
+            })
+            .ToList();
+
+        var modelCount = agentTree.Sum(row => row.Models.Count);
+
+        return new DailyReportData(
+            FormatDate(day),
+            FormatPager(day),
+            FormatDelta(total, previousDayTokens),
+            total > previousDayTokens,
+            previousDayTokens > 0,
+            total,
+            dollars,
+            HasActualDollars: dollars >= 1 && hasPriced,
+            IsPartialDollars: dollars >= 1 && hasPriced && hasUnpriced,
+            CacheRate: wireTotal > 0 ? (double)cacheRead / wireTotal : 0,
+            CacheSavingsDollars: savings,
+            HasCacheData: hasCacheData,
+            ActiveAgentsCount: providers.Count,
+            TotalModelsCount: modelCount,
+            hourly,
+            peakHour,
+            peakTokens,
+            agentTree,
+            mode == AgentIsland.Backend.Settings.TokenCountMode.All);
+    }
+
+    internal static string FormatDate(DateTime day) => ReportFormat.IsChinese
+        ? $"{day:M月d日}"
+        : day.ToString("MMM d", CultureInfo.InvariantCulture);
+
+    internal static string FormatPager(DateTime day)
+    {
+        var zh = ReportFormat.IsChinese;
+        var today = DateTime.Today;
+        var relative = day == today ? (zh ? "今天" : "Today")
+            : day == today.AddDays(-1) ? (zh ? "昨天" : "Yesterday")
+            : null;
+        var date = zh ? $"{day:yyyy年M月d日}" : day.ToString("MMM d, yyyy", CultureInfo.InvariantCulture);
+        return relative is null ? date : $"{date} ({relative})";
+    }
+
+    /// Day-over-day. No invented percentages: the day before the first
+    /// recorded one, or a zero baseline, reads "—".
+    internal static string FormatDelta(long current, long previous)
+    {
+        if (previous <= 0) return "—";
+        var percent = (current - previous) * 100.0 / previous;
+        var arrow = percent >= 0 ? "↑" : "↓";
+        return $"{arrow} {Math.Abs(percent):F1}%";
+    }
+}
+
+/// One first-level agent row of the daily tree: brand mark, share pill,
+/// tokens, dollars where priceable, global share.
+public sealed record DailyAgentRow(
+    AgentIsland.UI.Providers.DisplayProvider Provider,
+    long Tokens,
+    double Dollars,
+    double SharePercent,
+    IReadOnlyList<DailyModelRow> Models);
+
+/// One nested model row: display name, tokens, optional dollars, global
+/// share (sums of children equal the parent's share, like the prototype).
+public sealed record DailyModelRow(
+    string Name,
+    long Tokens,
+    double Dollars,
+    double SharePercent);
+
 /// Shared number/caption formatting for both cards.
 public static class ReportFormat
 {

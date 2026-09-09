@@ -4,12 +4,14 @@
 
 本仓库是基于 Agent Island 2.1.2 的独立 Windows fork。2.1.2 提供产品交互、状态语义、报告结构和视觉方向的参考；本仓库没有继续携带 macOS 的 Xcode、SwiftUI、Sparkle 或 Keychain 运行时，而是在同一产品目标下重做 Windows 宿主。
 
-相对 2.1.2，当前 1.2.1 的重要变化是：
+相对 2.1.2，当前 2.2.0 的重要变化是：
 
 1. **平台替换**：SwiftUI/macOS 宿主替换为 .NET 8/WPF；路径、托盘、开机启动、Win32 窗口跳转和 SQLite 访问均由 Windows 层负责。
 2. **模块化**：跨平台模型、聚合和规则进入 `AgentIsland.Core`，Provider 解析进入 `AgentIsland.Providers`，Windows 能力进入 `AgentIsland.Windows`，WPF 只负责界面和组合。
 3. **Agent 扩展**：除 Claude/Codex 外接入 Antigravity、Grok、Cursor，并加入 DeepSeek Harness 的本地 `.dsh` Token/活动统计与官方余额接口；每个 Agent 按实际能力声明用量、成本、活动和导航能力。
 4. **统计与视觉**：把本地 Token/费用聚合、周/月报告、对决素材、Provider 色彩和工作态动画接入 Windows UI；不支持的官方数据保持为空或明确标注，不用 0 代替。
+5. **日报与明细**：新增按本地日聚合的日报卡，提供 24 小时 Token 脉冲、日环比、缓存命中/节省、Agent→Model 两级明细及日报 PNG 导出；数据仍只来自本机账本。
+6. **Antigravity 模型识别**：补齐动态 `MODEL_PLACEHOLDER_Mxxx` 代号的模型归一化与价格表，并让缓存读取量参与日报成本节省计算。
 
 ## 已完成
 
@@ -21,7 +23,7 @@
 6. 将 Windows 路径、文件系统容错、进程、启动项、Cursor 对话数据库和 Cursor token 数据库访问集中到 Windows 项目。
 7. 将 WPF 项目整理为 `UI/` 与 `Backend/` 两块，并把后台监控命名空间明确为 `AgentIsland.Backend.Monitoring`。
 8. 用显式 `BuiltInAgentCatalog` 建立可扩展的 Agent 注册点，并由 WPF 组合根绑定当前活动能力。
-9. 测试工程已迁移为标准 xUnit 入口；当前基线为 56 项测试（55 项常规测试 + 1 项压力/资源测试），通过 `dotnet test` 执行。
+9. 测试工程已迁移为标准 xUnit 入口；当前基线为 67 项测试（66 项常规测试 + 1 项压力/资源测试），通过 `dotnet test` 执行。
 10. 已完成 Antigravity（`agy`）、DeepSeek Harness（`dsh`）和 Codex 的实际运行验证，确认统计与状态展示链路可用。
 
 ## 当前边界

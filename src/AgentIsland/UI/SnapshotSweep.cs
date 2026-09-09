@@ -42,6 +42,7 @@ public static class SnapshotSweep
         {
             Try(() =>
             {
+                Report.ReportWindow.WritePng(Report.ReportWindow.Kind.Daily, At("report-daily.png"));
                 Report.ReportWindow.WritePng(Report.ReportWindow.Kind.Weekly, At("report-weekly.png"));
                 Report.ReportWindow.WritePng(Report.ReportWindow.Kind.Monthly, At("report-monthly.png"));
             });

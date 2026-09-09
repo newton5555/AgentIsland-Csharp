@@ -2,7 +2,24 @@
 
 All notable changes to AgentIsland for Windows will be documented in this file.
 
-> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 56 项（55 项常规测试 + 1 项压力/资源测试）。
+> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 67 项（66 项常规测试 + 1 项压力/资源测试）。
+
+## [2.2.0] - 2026-09-09
+
+### 📅 日报卡与本地明细
+- 新增按本地日查看的日报卡，可从灵动岛页脚、设置页和系统托盘打开，并支持日期翻页与日报 PNG 导出。
+- 日报展示 24 小时 Token 脉冲、前一日环比、活跃 Agent/模型数量，以及 Agent → Model 两级明细和全局占比。
+- 缓存读取/写入量进入日报聚合；有价格表的模型展示缓存节省金额，未知或不支持计价的 Provider 保持 `—`，不伪造费用。
+
+### 🤖 Antigravity 账本识别
+- 扩充 Google Antigravity 动态 `MODEL_PLACEHOLDER_Mxxx` 代号归一化，覆盖 Gemini 3.8/3.7 Flash、3.5 Flash、3.1 Flash Lite 等实际记录形态。
+- 补齐对应 Gemini 价格表与缓存读取节省计算，并升级解析缓存版本以避免旧模型映射残留。
+
+### 🎨 Provider 视觉
+- Antigravity 工作态沿用 Google 蓝、红、黄、绿四种品牌色的分段色带；Codex 使用更明亮的紫色，DeepSeek 保持鲸鱼蓝，三者在状态动画中可区分。
+
+### 🧪 验证
+- 本地 `dotnet test tests/AgentIsland.Tests/AgentIsland.Tests.csproj --no-restore`：**67/67 通过**（66 项常规测试 + 1 项压力/资源测试）。
 
 ## [1.2.1] - 2026-09-08
 

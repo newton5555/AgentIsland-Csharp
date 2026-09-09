@@ -173,13 +173,29 @@ public static class AntigravityLogParser
             "gemini 2.0 pro" => "gemini-2.0-pro",
             "gemini 1.5 flash" => "gemini-1.5-flash",
             "gemini 1.5 pro" => "gemini-1.5-pro",
+            // --- Google Antigravity 内部动态模型代号映射 (MODEL_PLACEHOLDER_Mxxx) ---
+            // 来源与参考项目:
+            // 1. AGI-is-going-to-arrive / Antigravity-Context-Window-Monitor:
+            //    https://github.com/AGI-is-going-to-arrive/Antigravity-Context-Window-Monitor
+            //    https://open-vsx.org/extension/AGI-is-going-to-arrive/antigravity-context-window-monitor
+            //    Antigravity IDE 语言服务器通过 GetUserStatus 动态下发模型 ID 映射：
+            //    - modelId >= 1000 对应内部 M 编号（例如 1318 -> M318, 1298 -> M298, 1050 -> M50）。
+            // 2. ccusage (https://github.com/ccusage/ccusage) 与社区 antigravity-add-model 逆向定义:
+            //    - M318 / M319 / M320: Gemini 3.8 Flash (High/Medium/Low 思考档位，统一聚合为 gemini-3.8-flash)
+            //    - M298 / M299: Gemini 3.7 Flash (High/Medium 思考档位，统一聚合为 gemini-3.7-flash)
+            //    - M50: Gemini 3.1 Flash Lite (子任务 / 快速检查点轻量模型)
+            //    - gemini-internal-model: Gemini 原生内部推理引擎 (未接入外部 Grounding 的纯模型推理)
             "model_placeholder_m26" => "claude-opus-4-6",
             "model_placeholder_m35" => "claude-sonnet-4-6",
             "model_placeholder_m16" or "model_placeholder_m36" or "model_placeholder_m37" => "gemini-3.1-pro",
             "model_placeholder_m18" or "model_placeholder_m47" or "model_placeholder_m84" => "gemini-3-flash-preview",
-            "model_placeholder_m20" => "gemini-3.5-flash-medium",
-            "model_placeholder_m132" or "model_placeholder_m133" => "gemini-3.5-flash-high",
-            "model_placeholder_m187" => "gemini-3.5-flash-extra-low",
+            "model_placeholder_m20" => "gemini-3.5-flash",
+            "model_placeholder_m132" or "model_placeholder_m133" => "gemini-3.5-flash",
+            "model_placeholder_m187" => "gemini-3.5-flash",
+            "model_placeholder_m50" => "gemini-3.1-flash-lite",
+            "model_placeholder_m318" or "model_placeholder_m319" or "model_placeholder_m320" => "gemini-3.8-flash",
+            "model_placeholder_m298" or "model_placeholder_m299" => "gemini-3.7-flash",
+            "gemini-internal-model" => "gemini-internal-model",
             "model_openai_gpt_oss_120b_medium" => "gpt-oss-120b-medium",
             "gemini-pro-default" or "gemini-pro-agent" => "gemini-3.1-pro",
             "gemini-3-flash-agent" or "gemini-3-flash-agent-a" or "gemini-3-flash-agent-b"
