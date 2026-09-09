@@ -291,7 +291,10 @@ public sealed class OverviewPage : Border
                 var dominantShare = dominant.Value.Tokens / (double)total;
                 if (ranked.Count == 1 || dominantShare >= 0.85)
                 {
-                    element = MakeCellRect(cell, IslandColors.Brush(IslandColors.For(dominant.Key), intensity));
+                    element = MakeProviderCell(
+                        cell,
+                        intensity,
+                        dominant.Key);
                 }
                 else
                 {
@@ -301,7 +304,8 @@ public sealed class OverviewPage : Border
                     // lower-right — the macOS treatment).
                     var pair = ranked.Take(2).OrderBy(kv => kv.Key.SlotOrder()).ToList();
                     element = MakeSplitCell(cell, intensity,
-                        IslandColors.For(pair[0].Key), IslandColors.For(pair[1].Key));
+                        pair[0].Key,
+                        pair[1].Key);
                 }
             }
 
@@ -330,7 +334,65 @@ public sealed class OverviewPage : Border
         Fill = fill,
     };
 
-    private static Grid MakeSplitCell(double cell, double intensity, Color upperLeft, Color lowerRight)
+    private static UIElement MakeProviderCell(
+        double cell,
+        double intensity,
+        DisplayProvider provider)
+    {
+        if (provider != DisplayProvider.Antigravity)
+        {
+            return MakeCellRect(cell, IslandColors.Brush(IslandColors.For(provider), intensity));
+        }
+
+        var stops = ProviderIdentity.BrandStops(provider);
+        var grid = new Grid
+        {
+            Width = cell,
+            Height = cell,
+            UseLayoutRounding = true,
+            SnapsToDevicePixels = true,
+            Clip = new RectangleGeometry(new Rect(0, 0, cell, cell), 2, 2),
+        };
+        for (var index = 0; index < stops.Count; index++)
+        {
+            // A tiny heatmap cell is only about 12 DIP high.  Star-sized rows
+            // can therefore land on half pixels and make adjacent Google
+            // colours bleed into one another.  Round each boundary so every
+            // horizontal band remains a flat, device-aligned colour block.
+            var top = Math.Round(cell * index / stops.Count);
+            var bottom = Math.Round(cell * (index + 1) / stops.Count);
+            grid.RowDefinitions.Add(new RowDefinition
+            {
+                Height = new GridLength(Math.Max(0.5, bottom - top), GridUnitType.Pixel),
+            });
+            var band = new Rectangle
+            {
+                // Scale the solid RGB colour instead of lowering brush
+                // opacity.  Alpha compositing against the dark canvas was
+                // muting yellow/green and made the ramp look like new hues.
+                Fill = IslandColors.Brush(ScaleAntigravityColor(stops[index], intensity)),
+                SnapsToDevicePixels = true,
+            };
+            Grid.SetRow(band, index);
+            grid.Children.Add(band);
+        }
+        return grid;
+    }
+
+    private static Color ScaleAntigravityColor(Color color, double intensity)
+    {
+        var factor = Math.Clamp(intensity, 0.30, 1.0);
+        return Color.FromRgb(
+            (byte)Math.Round(color.R * factor),
+            (byte)Math.Round(color.G * factor),
+            (byte)Math.Round(color.B * factor));
+    }
+
+    private static Grid MakeSplitCell(
+        double cell,
+        double intensity,
+        DisplayProvider upperLeft,
+        DisplayProvider lowerRight)
     {
         var host = new Grid
         {
@@ -338,17 +400,29 @@ public sealed class OverviewPage : Border
             Height = cell,
             Clip = new RectangleGeometry(new Rect(0, 0, cell, cell), 2, 2),
         };
-        host.Children.Add(new Polygon
-        {
-            Points = new PointCollection { new(0, 0), new(cell, 0), new(0, cell) },
-            Fill = IslandColors.Brush(upperLeft, intensity),
-        });
-        host.Children.Add(new Polygon
-        {
-            Points = new PointCollection { new(cell, 0), new(cell, cell), new(0, cell) },
-            Fill = IslandColors.Brush(lowerRight, intensity),
-        });
+        var upperLeftElement = MakeProviderCell(cell, intensity, upperLeft);
+        upperLeftElement.Clip = TriangleGeometry(
+            new Point(0, 0), new Point(cell, 0), new Point(0, cell));
+        host.Children.Add(upperLeftElement);
+
+        var lowerRightElement = MakeProviderCell(cell, intensity, lowerRight);
+        lowerRightElement.Clip = TriangleGeometry(
+            new Point(cell, 0), new Point(cell, cell), new Point(0, cell));
+        host.Children.Add(lowerRightElement);
         return host;
+    }
+
+    private static Geometry TriangleGeometry(Point first, Point second, Point third)
+    {
+        var figure = new PathFigure
+        {
+            StartPoint = first,
+            IsClosed = true,
+            IsFilled = true,
+        };
+        figure.Segments.Add(new LineSegment(second, true));
+        figure.Segments.Add(new LineSegment(third, true));
+        return new PathGeometry(new[] { figure });
     }
 
     private void ShowDetail(DateTime day)

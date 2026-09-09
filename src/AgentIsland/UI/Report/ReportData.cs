@@ -5,7 +5,7 @@ using AgentIsland.Core.Cost;
 namespace AgentIsland.UI.Report;
 
 /// One pie slice / legend row of the model breakdown. Carries its owning
-/// provider so the card can price it ("$X") or show "—" (Cursor/DeepSeek/Gemini), the
+/// provider so the card can price it ("$X") or show "—" (Cursor/DeepSeek/Antigravity), the
 /// same per-row honesty split macOS ModelShare keeps.
 public sealed record ModelShare(
     string Name, long Tokens, double Dollars, double Percent, Color Color,
@@ -13,7 +13,7 @@ public sealed record ModelShare(
 
 /// One provider's token roll-up for a report period — the atom the top-2
 /// duel and the cross-provider totals are built from. Replaces the hardcoded
-/// Claude/Codex share so a Grok-only, Cursor+Gemini, or DeepSeek-only period still renders a
+/// Claude/Codex share so a Grok-only, Cursor+Antigravity, or DeepSeek-only period still renders a
 /// meaningful card.
 public sealed record ProviderPeriodSlice(AgentIsland.UI.Providers.DisplayProvider Provider, long Tokens);
 
@@ -282,7 +282,7 @@ public static class ReportFormat
     /// Rank models by TOKEN share — the one metric every provider defines
     /// (macOS 2026-08-08 owner call). Dollar-ranking (the old two-provider
     /// behavior) filtered a tokens-only period — Cursor ships tokens with no
-    /// price, Gemini nothing — down to an empty donut, and left the donut's
+    /// price, Antigravity has no trusted price table — down to an empty donut, and left the donut's
     /// proportions on a different axis than the token hero. Wire tokens (cache
     /// included), same accounting as the hero total, so the ring matches the
     /// headline. TOP-N only, no "Others" row: the donut's uncovered arc reads
@@ -360,8 +360,8 @@ public static class ReportFormat
 
     /// Whether a provider can state a dollar figure: Claude/Codex are
     /// table-priced and Grok self-reports; Cursor logs tokens with no model
-    /// (no price) and DeepSeek ships tokens without a price. Mirrors
-    /// CostPage.FaceOf so the overview shows "—" for both token-only
+    /// (no price), while DeepSeek and Antigravity ship tokens without a price. Mirrors
+    /// CostPage.FaceOf so the overview shows "—" for token-only
     /// providers, never a coined $0.
     public static bool ProvidesDollars(AgentIsland.UI.Providers.DisplayProvider provider) =>
         provider is not (AgentIsland.UI.Providers.DisplayProvider.Cursor

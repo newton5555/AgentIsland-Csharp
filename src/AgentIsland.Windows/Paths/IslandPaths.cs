@@ -52,6 +52,13 @@ public static class IslandPaths
     /// to DSH.
     public static string DeepSeekSessionsRoot => Path.Combine(Home, ".dsh", "sessions");
 
+    /// Antigravity writes one SQLite conversation database per session. The
+    /// environment override accepts comma-separated data roots, matching
+    /// ccusage: each item may be the provider root (with a conversations
+    /// child) or the conversations directory itself.
+    public static IReadOnlyList<string> AntigravityConversationRoots =>
+        ResolveAntigravityConversationRoots();
+
     public static string CursorGlobalStorageDatabase => Path.Combine(
         RoamingAppData, "Cursor", "User", "globalStorage", "state.vscdb");
 
@@ -86,5 +93,30 @@ public static class IslandPaths
             Path.Combine(home, ".claude"),
             Path.Combine(home, ".config", "claude"),
         };
+    }
+
+    private static IReadOnlyList<string> ResolveAntigravityConversationRoots()
+    {
+        var configured = Environment.GetEnvironmentVariable("ANTIGRAVITY_DATA_DIR");
+        var roots = string.IsNullOrWhiteSpace(configured)
+            ? new[]
+            {
+                Path.Combine(Home, ".gemini", "antigravity"),
+                Path.Combine(Home, ".gemini", "antigravity-cli"),
+                Path.Combine(Home, ".gemini", "antigravity-ide"),
+                Path.Combine(Home, ".gemini", "antigravity-backup"),
+                Path.Combine(Home, ".config", "antigravity"),
+            }
+            : configured.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+        return roots
+            .Select(root =>
+            {
+                var full = Path.GetFullPath(root);
+                var nested = Path.Combine(full, "conversations");
+                return Directory.Exists(nested) ? nested : full;
+            })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 }

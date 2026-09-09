@@ -455,10 +455,10 @@ public sealed class TurnAlarmWindow : Window
         var wedges = new Grid { Width = side, Height = side };
         var hues = new[]
         {
-            Color.FromRgb(66, 133, 244),
-            Color.FromRgb(52, 168, 83),
-            Color.FromRgb(251, 188, 5),
-            Color.FromRgb(234, 67, 53),
+            Color.FromRgb(0x42, 0x85, 0xF4), // Google Blue
+            Color.FromRgb(0xEA, 0x43, 0x35), // Google Red
+            Color.FromRgb(0xFB, 0xBC, 0x04), // Google Yellow
+            Color.FromRgb(0x34, 0xA8, 0x53), // Google Green
         };
         for (var i = 0; i < 8; i++)
         {

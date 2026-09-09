@@ -50,9 +50,10 @@ public static class BrandGeometry
         _ => null,
     };
 
-    /// Dedicated vector brand brush: Antigravity returns Google's official 4-color
-    /// gradient (Blue -> Green -> Yellow -> Red), while other providers use their
-    /// branded solid accent color.
+    /// Dedicated vector brand brush: Antigravity returns the arch mark's
+    /// blue-to-warm gradient. The discrete heatmap ramp uses Google's
+    /// wordmark order (Blue -> Red -> Yellow -> Green); other providers use
+    /// their branded solid accent color.
     public static Brush BrandBrush(DisplayProvider provider, double opacity = 1.0)
     {
         if (provider == DisplayProvider.Antigravity)

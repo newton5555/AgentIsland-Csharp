@@ -90,10 +90,15 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
 
     private void UpdateCostData()
     {
-        // Refresh local data indicator
+        // AGY's historical ledger is local. Keep the legacy view-model flag
+        // honest even though the WPF CostPage currently renders its blocks
+        // directly from CostStore.
         if (_providerModels.TryGetValue(DisplayProvider.Antigravity, out var agy))
         {
-            agy.HasLocalData = false;
+            var summary = _costStore.Summary(DisplayProvider.Antigravity);
+            agy.HasLocalData = summary.TodayTokens > 0
+                || summary.MonthTokens > 0
+                || summary.DailyHistory.Count > 0;
         }
     }
 

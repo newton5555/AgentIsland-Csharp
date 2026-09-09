@@ -16,9 +16,9 @@ namespace AgentIsland.UI;
 ///
 /// Cost is reconstructed from LOCAL token logs. Claude Code and Codex are
 /// table-priced and Grok self-reports dollars, so those three show a full
-/// dollar tile; Cursor and DeepSeek log tokens without a price, so their tiles
-/// show tokens with "—" for dollars; Gemini ships no local ledger, so its slot
-/// keeps the quiet nameplate rather than a fabricated $0.
+/// dollar tile; Cursor, DeepSeek, and Antigravity log tokens without a local
+/// price, so their tiles show tokens with "—" for dollars. Antigravity's
+/// history comes from its local SQLite conversation ledger.
 public sealed class CostPage : Border
 {
     public ViewModels.CostPageViewModel ViewModel { get; } = new();
@@ -32,14 +32,15 @@ public sealed class CostPage : Border
     /// How a provider's slot presents AgentIsland.Backend.Cost. Claude/Codex are table-priced and
     /// Grok self-reports dollars, so all three show a full dollar tile; Cursor
     /// has token counts but no model and therefore no price, so its tile reads
-    /// "—" where a dollar would go; Gemini ships no local ledger at all, so it
-    /// gets the quiet nameplate the guests always had, never a fabricated $0.
+    /// "—" where a dollar would go; Antigravity now has the same token-only
+    /// presentation because its local conversation ledger has no trusted
+    /// dollar rate table.
     private enum CostFace { Dollars, TokensOnly, Cold }
 
     private static CostFace FaceOf(DisplayProvider provider) => provider switch
     {
-        DisplayProvider.Antigravity => CostFace.Cold,
-        DisplayProvider.Cursor or DisplayProvider.DeepSeek => CostFace.TokensOnly,
+        DisplayProvider.Antigravity or DisplayProvider.Cursor or DisplayProvider.DeepSeek
+            => CostFace.TokensOnly,
         _ => CostFace.Dollars,
     };
 
@@ -125,8 +126,8 @@ public sealed class CostPage : Border
             {
                 // Solo split: the live column keeps the flank its island logo
                 // holds, and the same provider's nameplate fills the freed
-                // half (macOS soloBadge). A cold-state provider (Gemini) has
-                // no cost column, so its nameplate simply takes the logo flank.
+                // half (macOS soloBadge). A future cold-state provider has no
+                // cost column, so its nameplate simply takes the logo flank.
                 var solo = slots[0];
                 var leading = solo.SoloLogoFlankIsLeading();
                 if (FaceOf(solo) != CostFace.Cold)

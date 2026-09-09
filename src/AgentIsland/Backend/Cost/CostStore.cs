@@ -413,6 +413,9 @@ public sealed class CostStore : ICostStore
             case DisplayProvider.DeepSeek:
                 DeepSeekLogReader.ClearMemoryCache();
                 break;
+            case DisplayProvider.Antigravity:
+                AntigravityLogReader.ClearMemoryCache();
+                break;
         }
     }
 

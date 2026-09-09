@@ -162,7 +162,7 @@ public sealed class ProviderLogo : Grid
             Visibility = _state == ActivityState.Working ? Visibility.Visible : Visibility.Collapsed,
         };
 
-        // 1. Four-color liquid wave layer (2 cycles of Google blue -> green -> yellow -> red)
+        // 1. Four-color liquid wave layer (2 cycles of Google blue -> red -> yellow -> green)
         var waveBrush = new LinearGradientBrush
         {
             StartPoint = new Point(0, 0),
@@ -173,9 +173,9 @@ public sealed class ProviderLogo : Grid
         var colors = new[]
         {
             Color.FromRgb(0x42, 0x85, 0xF4), // Blue
-            Color.FromRgb(0x34, 0xA8, 0x53), // Green
-            Color.FromRgb(0xFB, 0xBC, 0x05), // Yellow
             Color.FromRgb(0xEA, 0x43, 0x35), // Red
+            Color.FromRgb(0xFB, 0xBC, 0x04), // Yellow
+            Color.FromRgb(0x34, 0xA8, 0x53), // Green
         };
         for (var cycle = 0; cycle < 2; cycle++)
         {
