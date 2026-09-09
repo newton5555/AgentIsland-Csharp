@@ -43,8 +43,11 @@ internal sealed class CursorTapMark : Grid
         var overlay = new Canvas { Width = size, Height = size, IsHitTestVisible = false };
         for (var i = 0; i < _ripples.Length; i++)
         {
-            // The HTML is 72px; preserve readable rings at the island's 20 DIP size.
-            var diameter = size * .30;
+            // The HTML ring is 18px on a 72px logo — 25% of the mark. Keep
+            // that proportion at the island's 20 DIP size (5px) so the pair
+            // stays visible without swamping the arrow; readability rides on
+            // the >=1.1px stroke and the held opacity below.
+            var diameter = size * .25;
             var ripple = new Ellipse
             {
                 Width = diameter, Height = diameter,

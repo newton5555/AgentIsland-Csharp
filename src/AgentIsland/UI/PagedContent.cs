@@ -22,6 +22,7 @@ public sealed class PagedContent : Grid
     private double _dragOriginX;
 
     private readonly ScreenPref _screenPref;
+    private System.ComponentModel.PropertyChangedEventHandler? _onScreenPrefChanged;
 
     public PagedContent() : this(null) { }
 
@@ -35,7 +36,11 @@ public sealed class PagedContent : Grid
         Children.Add(_track);
         BuildPages();
         SizeChanged += (_, _) => Relayout(animate: false);
-        _screenPref.PropertyChanged += (_, args) =>
+        // ScreenPref is an app-lifetime singleton: the handler below must be
+        // detached on teardown, or a closed island (the language switch
+        // rebuilds the window) stays pinned by the store — the whole page
+        // subtree with it. Same rule IslandWindow's _teardown list follows.
+        _onScreenPrefChanged = (_, args) =>
         {
             if (args.PropertyName == nameof(ScreenPref.Screen))
             {
@@ -50,6 +55,8 @@ public sealed class PagedContent : Grid
                 });
             }
         };
+        _screenPref.PropertyChanged += _onScreenPrefChanged;
+        Unloaded += (_, _) => _screenPref.PropertyChanged -= _onScreenPrefChanged;
         MouseWheel += OnWheel;
         // Drag-to-swipe. Preview events so a press anywhere in a page starts
         // a potential drag; nothing is hijacked until clear horizontal

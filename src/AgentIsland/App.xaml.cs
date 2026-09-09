@@ -260,11 +260,6 @@ public partial class App : System.Windows.Application
 
         activity.Configure(AgentCatalog);
 
-        if (AppEnvironment.IsDemo)
-        {
-            activity.Demo(ActivityState.Working);
-        }
-
         _island = Services.GetRequiredService<IslandWindow>();
         _island.Show();
         if (Environment.GetEnvironmentVariable("AGENTISLAND_AUTO_POPUP") == "1")
@@ -283,7 +278,15 @@ public partial class App : System.Windows.Application
             });
         TrayIcon.Current = _tray;
 
+        // Demo pinning must come AFTER Start(): Demo() snapshots the
+        // monitored provider set, which stays empty until Start() computes it
+        // from the visibility slots — an earlier call pinned nothing and real
+        // scan states leaked into the demo (the pin never took).
         activity.Start();
+        if (AppEnvironment.IsDemo)
+        {
+            activity.Demo(ActivityState.Working);
+        }
         usage.StartAutoRefresh();
         cost.StartAutoRefresh();
         updates.Start();

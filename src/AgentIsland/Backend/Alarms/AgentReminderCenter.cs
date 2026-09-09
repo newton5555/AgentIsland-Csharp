@@ -46,6 +46,9 @@ public sealed class AgentReminderCenter : IAgentReminderCenter
 
     public void Handle(TriggerTool provider, IReadOnlyList<ActivityMonitor.ActiveThread> needsYouThreads)
     {
+        // The demo contract (AppEnvironment): synthetic data only — a real
+        // session hitting needsYou during a preview must never fire an alarm.
+        if (AppEnvironment.IsDemo) return;
         if (!_reminderStore.Enabled) return;
         PruneRememberedKeys();
         var providerKey = provider.RawValue();
