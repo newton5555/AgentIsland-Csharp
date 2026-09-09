@@ -20,6 +20,7 @@ internal sealed class CursorTapMark : Grid
     internal bool IsActive => _move.HasAnimatedProperties;
     internal double OffsetY => _move.Y;
     internal double RippleOpacity => _ripples[0].Opacity;
+    internal bool BothRipplesVisible => _ripples.All(r => r.Opacity > .5);
     internal bool RipplesStopped => _ripples.All(r => !r.HasAnimatedProperties && r.Opacity == 0);
 
     internal CursorTapMark(double size, Brush fill)
@@ -42,13 +43,14 @@ internal sealed class CursorTapMark : Grid
         var overlay = new Canvas { Width = size, Height = size, IsHitTestVisible = false };
         for (var i = 0; i < _ripples.Length; i++)
         {
-            var diameter = size * 18 / 72;
+            // The HTML is 72px; preserve readable rings at the island's 20 DIP size.
+            var diameter = size * .30;
             var ripple = new Ellipse
             {
                 Width = diameter, Height = diameter,
-                Stroke = IslandColors.Brush(Color.FromRgb(0xF5, 0xF3, 0xEE), .85),
-                StrokeThickness = size * 2 / 72, Opacity = 0,
-                RenderTransform = new ScaleTransform(.3, .3),
+                Stroke = IslandColors.Brush(Color.FromRgb(0xF5, 0xF3, 0xEE)),
+                StrokeThickness = Math.Max(1.1, size * 2 / 72), Opacity = 0,
+                RenderTransform = new ScaleTransform(.65, .65),
                 RenderTransformOrigin = new Point(.5, .5),
             };
             Canvas.SetLeft(ripple, size * .82 - diameter / 2);
@@ -73,9 +75,18 @@ internal sealed class CursorTapMark : Grid
         {
             var delay = TimeSpan.FromSeconds(i == 0 ? .15 : .8);
             var scale = (ScaleTransform)_ripples[i].RenderTransform;
-            scale.BeginAnimation(ScaleTransform.ScaleXProperty, RippleAnimation(.3, 2.3, delay));
-            scale.BeginAnimation(ScaleTransform.ScaleYProperty, RippleAnimation(.3, 2.3, delay));
-            _ripples[i].BeginAnimation(OpacityProperty, RippleAnimation(.9, 0, delay));
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty, RippleAnimation(.65, 2.3, delay));
+            scale.BeginAnimation(ScaleTransform.ScaleYProperty, RippleAnimation(.65, 2.3, delay));
+            var opacity = new DoubleAnimationUsingKeyFrames
+            {
+                BeginTime = delay, Duration = TimeSpan.FromSeconds(1.6), RepeatBehavior = RepeatBehavior.Forever,
+            };
+            opacity.KeyFrames.Add(new DiscreteDoubleKeyFrame(1, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+            opacity.KeyFrames.Add(new LinearDoubleKeyFrame(.9, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(.7))));
+            opacity.KeyFrames.Add(new LinearDoubleKeyFrame(.65, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.15))));
+            opacity.KeyFrames.Add(new LinearDoubleKeyFrame(0, KeyTime.FromTimeSpan(TimeSpan.FromSeconds(1.6))));
+            Timeline.SetDesiredFrameRate(opacity, 24);
+            _ripples[i].BeginAnimation(OpacityProperty, opacity);
         }
     }
 
@@ -120,7 +131,7 @@ internal sealed class CursorTapMark : Grid
             var scale = (ScaleTransform)ripple.RenderTransform;
             scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
             scale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
-            scale.ScaleX = scale.ScaleY = .3;
+            scale.ScaleX = scale.ScaleY = .65;
         }
     }
 }

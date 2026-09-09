@@ -92,6 +92,8 @@ public class ProviderLogoAnimationTests
             PumpDispatcher(TimeSpan.FromMilliseconds(250));
             Expect(mark.IsActive && !logo.IsSpinActive, "Working Cursor must tap without spinning");
             Expect(mark.OffsetY > .1 && mark.RippleOpacity > 0, "Cursor tap and delayed ripple must advance");
+            PumpDispatcher(TimeSpan.FromMilliseconds(650));
+            Expect(mark.BothRipplesVisible, "Both staggered rings must stay visible together at island size");
             if (Environment.GetEnvironmentVariable("AGENTISLAND_CURSOR_PREVIEW") is { Length: > 0 } output)
             {
                 var bitmap = new RenderTargetBitmap(100, 100, 96, 96, PixelFormats.Pbgra32);
