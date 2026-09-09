@@ -269,7 +269,7 @@ public partial class App : System.Windows.Application
 
         _tray = new TrayIcon(
             showIsland: () => WindowService.ShowIsland(),
-            toggleIsland: () => WindowService.ToggleIsland(),
+            toggleIsland: () => WindowService.ToggleTransparentMode(),
             openSettings: () => WindowService.OpenSettings(),
             exit: () =>
             {
@@ -435,11 +435,7 @@ public partial class App : System.Windows.Application
         _tray?.Dispose();
         _tray = new TrayIcon(
             showIsland: () => _island?.PopUp(),
-            toggleIsland: () =>
-            {
-                if (_island is null) return;
-                if (_island.IsVisible) _island.Hide(); else _island.Show();
-            },
+            toggleIsland: () => _island?.ToggleTransparentMode(),
             openSettings: UI.SettingsWindow.Open,
             exit: () =>
             {

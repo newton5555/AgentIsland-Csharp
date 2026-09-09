@@ -324,9 +324,46 @@ public partial class IslandWindow : Window
         UpdateMouseHitTestMode();
     }
 
+    public bool IsTransparentMode { get; private set; }
+
+    public void SetTransparentMode(bool enabled)
+    {
+        IsTransparentMode = enabled;
+        DeliberatelyHidden = false;
+        if (!IsVisible) Show();
+
+        if (enabled)
+        {
+            if (_model.State == IslandState.Expanded)
+            {
+                SetState(IslandState.Compact);
+            }
+            Opacity = 0.7;
+            SetMouseClickThrough(true);
+        }
+        else
+        {
+            Opacity = 1.0;
+            UpdateMouseHitTestMode();
+        }
+    }
+
+    public void ToggleTransparentMode()
+    {
+        SetTransparentMode(!IsTransparentMode);
+    }
+
     private void UpdateMouseHitTestMode()
     {
-        if (!IsLoaded || !IsVisible || !GetCursorPos(out var cursor)) return;
+        if (!IsLoaded || !IsVisible) return;
+
+        if (IsTransparentMode)
+        {
+            SetMouseClickThrough(true);
+            return;
+        }
+
+        if (!GetCursorPos(out var cursor)) return;
 
         var inside = IsPointInsideSilhouette(new Point(cursor.X, cursor.Y));
         SetMouseClickThrough(!inside);
@@ -365,6 +402,7 @@ public partial class IslandWindow : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         ApplyEdgeLayout();
+        ApplyInterfaceScale();
         PositionOnScreen();
         // Floating mode: drag the silhouette to move (and remember) the
         // window; a non-drag press still expands.
@@ -388,7 +426,6 @@ public partial class IslandWindow : Window
         _glowColorStore.PropertyChanged += onGlowColor;
         _teardown.Add(() => _glowColorStore.PropertyChanged -= onGlowColor);
 
-        ApplyInterfaceScale();
         System.ComponentModel.PropertyChangedEventHandler onScale =
             (_, _) => Dispatcher.BeginInvoke(() =>
             {
@@ -1065,6 +1102,7 @@ public partial class IslandWindow : Window
     /// Bring the island up and open it — the tray-icon launcher.
     public void PopUp()
     {
+        if (IsTransparentMode) SetTransparentMode(false);
         Show();
         ApplyEdgeLayout();
         PositionOnScreen();

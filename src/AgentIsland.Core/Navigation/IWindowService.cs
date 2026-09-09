@@ -12,4 +12,6 @@ public interface IWindowService
     void ShowIsland();
     void HideIsland();
     void ToggleIsland();
+    void ToggleTransparentMode();
+    bool IsTransparentMode { get; }
 }

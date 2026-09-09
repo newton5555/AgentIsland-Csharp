@@ -198,5 +198,7 @@ public class ContainerVerificationTests
         public void ShowIsland() { }
         public void HideIsland() { }
         public void ToggleIsland() { }
+        public void ToggleTransparentMode() { }
+        public bool IsTransparentMode => false;
     }
 }

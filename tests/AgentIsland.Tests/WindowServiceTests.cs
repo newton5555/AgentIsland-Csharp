@@ -73,6 +73,8 @@ public class WindowServiceTests
         public bool ShowIslandCalled { get; private set; }
         public bool HideIslandCalled { get; private set; }
         public bool ToggleIslandCalled { get; private set; }
+        public bool ToggleTransparentModeCalled { get; private set; }
+        public bool IsTransparentMode { get; set; }
 
         public void OpenSettings(string? tab = null) => OpenSettingsCalled = true;
         public void OpenReport(string? kind = null) => OpenReportCalled = true;
@@ -80,6 +82,7 @@ public class WindowServiceTests
         public void ShowIsland() => ShowIslandCalled = true;
         public void HideIsland() => HideIslandCalled = true;
         public void ToggleIsland() => ToggleIslandCalled = true;
+        public void ToggleTransparentMode() => ToggleTransparentModeCalled = true;
     }
 
     private sealed class MockDialogService : IDialogService

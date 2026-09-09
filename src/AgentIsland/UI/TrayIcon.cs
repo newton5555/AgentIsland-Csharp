@@ -17,6 +17,7 @@ public sealed class TrayIcon : IDisposable
 
     private readonly System.Windows.Forms.NotifyIcon _icon;
     private readonly System.Windows.Threading.Dispatcher _dispatcher;
+    private readonly ModernTrayMenu _modernMenu;
     private System.Drawing.Icon? _rendered;
     private TrayIconRenderer.VisualStateKey? _lastVisualKey;
 
@@ -39,27 +40,44 @@ public sealed class TrayIcon : IDisposable
 
         _dispatcher = System.Windows.Threading.Dispatcher.CurrentDispatcher;
 
-        var menu = new System.Windows.Forms.ContextMenuStrip();
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Show / Hide island"), null, (_, _) => toggleIsland());
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Daily report"), null,
-            (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Daily));
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share weekly report…"), null,
-            (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly));
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Share monthly report…"), null,
-            (_, _) => Report.ReportWindow.Show(Report.ReportWindow.Kind.Monthly));
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Settings…"), null, (_, _) => openSettings());
-        menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
-        menu.Items.Add(AgentIsland.UI.Localization.L10n.Tr("Quit Agent Island"), null, (_, _) => exit());
+        _modernMenu = new ModernTrayMenu(
+            showIsland: showIsland,
+            toggleTransparentMode: toggleIsland,
+            openSettings: openSettings,
+            exit: exit,
+            openDailyReport: () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Daily),
+            openWeeklyReport: () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Weekly),
+            openMonthlyReport: () => Report.ReportWindow.Show(Report.ReportWindow.Kind.Monthly),
+            isTransparentModeQuery: () =>
+            {
+                var app = System.Windows.Application.Current;
+                if (app is null || !app.Dispatcher.CheckAccess()) return false;
+                return app.MainWindow is IslandWindow island && island.IsTransparentMode;
+            });
 
         _icon = new System.Windows.Forms.NotifyIcon
         {
             Text = "Agent Island",
-            ContextMenuStrip = menu,
         };
-        // Left click pops the island up; right-click opens the menu.
+        // Left click pops the island up; right-click opens the modern tray flyout.
         _icon.MouseClick += (_, e) =>
         {
-            if (e.Button == System.Windows.Forms.MouseButtons.Left) showIsland();
+            if (e.Button == System.Windows.Forms.MouseButtons.Left)
+            {
+                if (_modernMenu.IsOpen) _modernMenu.Hide();
+                showIsland();
+            }
+            else if (e.Button == System.Windows.Forms.MouseButtons.Right)
+            {
+                if (_modernMenu.IsOpen)
+                {
+                    _modernMenu.Hide();
+                }
+                else
+                {
+                    _modernMenu.ShowNearCursor();
+                }
+            }
         };
 
         _usageStore.PropertyChanged += OnDataChanged;
@@ -130,6 +148,8 @@ public sealed class TrayIcon : IDisposable
         {
             _icon.Text = nextText;
         }
+
+        _modernMenu.UpdateStatus(joined, worst);
     }
 
     private static string Percent(double fraction) => $"{Core.Formatting.PercentInt(fraction)}%";
@@ -162,6 +182,7 @@ public sealed class TrayIcon : IDisposable
         _usageStore.PropertyChanged -= OnDataChanged;
         _activityMonitor.PropertyChanged -= OnDataChanged;
         _visibilityStore.PropertyChanged -= OnDataChanged;
+        _modernMenu.Destroy();
         _icon.Visible = false;
         _icon.Dispose();
         _rendered = null;

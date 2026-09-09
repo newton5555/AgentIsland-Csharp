@@ -90,4 +90,18 @@ public sealed class WpfWindowService : IWindowService
             }
         });
     }
+
+    public bool IsTransparentMode =>
+        Application.Current.MainWindow is IslandWindow island && island.IsTransparentMode;
+
+    public void ToggleTransparentMode()
+    {
+        _dispatcher.BeginInvoke(() =>
+        {
+            if (Application.Current.MainWindow is IslandWindow island)
+            {
+                island.ToggleTransparentMode();
+            }
+        });
+    }
 }
