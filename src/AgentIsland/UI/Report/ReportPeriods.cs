@@ -108,20 +108,28 @@ public static class ReportPeriods
     /// steady-state cost is a cache walk + dedup pass, not a re-parse —
     /// cheap enough to run per page flip. Never touches CostStore. It uses a
     /// snapshot of the enabled set, so a report cannot wake disabled-agent
-    /// readers or make the zero-agent state perform a hidden full scan.
+    /// readers or make the zero-agent state perform a hidden full scan —
+    /// with ONE sanctioned exception: the daily card's includeAllDetected
+    /// scope force-scans every host, because the daily tree shows whatever
+    /// has day data, enabled or not. Forced scans pass through the same
+    /// IsCurrent generation check, so a toggle mid-scan still drops the
+    /// stale result.
     public static Task<Dictionary<DisplayProvider, ReportSlice>> SlicesAsync(
         DateTime start,
         DateTime end,
         IProviderVisibilityStore? visibilityStore = null,
         ICostQueryService? costQueryService = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool includeAllDetected = false)
     {
         var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
         var startOffset = AtLocalBoundary(start, TimeZoneInfo.Local);
         var endOffset = AtLocalBoundary(end, TimeZoneInfo.Local);
         var visibility = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
         var queryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService) ?? new CostQueryService(visibility);
-        var providers = visibility.Enabled.ToArray();
+        var providers = includeAllDetected
+            ? DisplayProviders.All.ToArray()
+            : visibility.Enabled.ToArray();
         return Task.Run(async () =>
         {
             ReportSlice Slice(IReadOnlyList<TokenEvent> events) =>
@@ -131,7 +139,8 @@ public static class ReportPeriods
             var scans = providers.ToDictionary(
                 provider => provider,
                 provider => queryService.ScanAsync(
-                    provider, lookback, DateTimeOffset.Now, cancellationToken));
+                    provider, lookback, DateTimeOffset.Now, cancellationToken,
+                    force: includeAllDetected && !visibility.IsEnabled(provider)));
 
             var output = new Dictionary<DisplayProvider, ReportSlice>();
             foreach (var provider in providers)

@@ -121,7 +121,8 @@ public class DailyReportCardTests
     {
         // Build slices directly: two enabled hosts (island cap) + one
         // disabled slice used by the unpriced-row pass below.
-        long total = 900;
+        // Two enabled hosts + one disabled host whose day data auto-joins.
+        long total = 1000;
         var day = new DateTimeOffset(2026, 9, 9, 0, 0, 0, TimeSpan.FromHours(8));
         var claudeHours = new long[24];
         claudeHours[15] = 500;
@@ -155,24 +156,40 @@ public class DailyReportCardTests
         var data = DailyReportData.ForInterval(new DateTime(2026, 9, 9), slices, visibilityStore: visibility);
         if (data.TotalTokens != total) throw new Exception("Tree totals must sum every provider's day bucket.");
         var claudeRow = data.AgentTree.Single(r => r.Provider == DisplayProvider.Claude);
-        if (Math.Abs(claudeRow.SharePercent - 500.0 / 900) > 1e-9)
-            throw new Exception("Claude's 500/900 must be its global share.");
+        if (Math.Abs(claudeRow.SharePercent - 0.5) > 1e-9)
+            throw new Exception("Claude's 500/1000 must be a 50% global share.");
         var opus = claudeRow.Models.Single(m => m.Name.Contains("Opus"));
-        if (Math.Abs(opus.SharePercent - 300.0 / 900) > 1e-9)
-            throw new Exception("Opus's 300/900 must be a GLOBAL share (not of its parent).");
+        if (Math.Abs(opus.SharePercent - 0.3) > 1e-9)
+            throw new Exception("Opus's 300/1000 must be a GLOBAL share (not of its parent).");
         if (data.HasCacheData) throw new Exception("No cache writes/reads means the cache cell reads —.");
-        if (data.TotalModelsCount != 3) throw new Exception("Three model rows across two hosts.");
+        if (data.TotalModelsCount != 4) throw new Exception("Four model rows across three hosts.");
         if (data.PeakTokens <= 0 || data.HourlyTokens.Count != 24)
             throw new Exception("Pulse must exist even when assembled from model-level slices.");
 
-        // Unpriced host: Claude + DeepSeek — the DeepSeek row prints —.
-        var deepseekStore = MakeStore(DisplayProvider.Claude, DisplayProvider.DeepSeek);
-        var unpriced = DailyReportData.ForInterval(new DateTime(2026, 9, 9), slices, visibilityStore: deepseekStore);
-        var deepseekRow = unpriced.AgentTree.Single(r => r.Provider == DisplayProvider.DeepSeek);
+        // Daily scope: the disabled DeepSeek host (100 tokens of day data)
+        // auto-joins AFTER the enabled pair — guests follow enabled hosts.
+        var deepseekRow = data.AgentTree.Single(r => r.Provider == DisplayProvider.DeepSeek);
         if (deepseekRow.Dollars != 0)
             throw new Exception("Unpriced providers carry a zero dollar, the card prints —.");
-        if (Math.Abs(deepseekRow.SharePercent - 100.0 / 600) > 1e-9)
-            throw new Exception("DeepSeek's 100/600 must be its global share.");
+        if (Math.Abs(deepseekRow.SharePercent - 0.1) > 1e-9)
+            throw new Exception("DeepSeek's 100/1000 must be a 10% global share.");
+        if (data.AgentTree.ToList().IndexOf(deepseekRow) < data.AgentTree.ToList().IndexOf(claudeRow))
+            throw new Exception("Enabled hosts anchor the tree before auto-joined guests.");
+        if (data.ActiveAgentsCount != 3)
+            throw new Exception("KPI counts all three hosts with day data.");
+
+        // A guest with NO day data stays out of the tree entirely.
+        var deepseekEmpty = new ReportSlice(
+            new List<DailyTokenBucket>(), 0,
+            new List<ModelSpend> { new("deepseek-chat", 0, 0, 0, 0) },
+            new long[24], 0, 0);
+        var emptyGuestSlices = new Dictionary<DisplayProvider, ReportSlice>(slices)
+        {
+            [DisplayProvider.DeepSeek] = deepseekEmpty,
+        };
+        var withoutGuest = DailyReportData.ForInterval(new DateTime(2026, 9, 9), emptyGuestSlices, visibilityStore: visibility);
+        if (withoutGuest.AgentTree.Any(r => r.Provider == DisplayProvider.DeepSeek))
+            throw new Exception("A zero-data guest must not render a row.");
     }
 
     private static void TestForIntervalEmptySlicesYieldEmptyCard()

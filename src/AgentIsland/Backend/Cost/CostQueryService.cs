@@ -52,7 +52,8 @@ public sealed class CostQueryService : ICostQueryService
         DisplayProvider provider,
         int lookbackDays,
         DateTimeOffset now,
-        CancellationToken consumerCancellation = default)
+        CancellationToken consumerCancellation = default,
+        bool force = false)
     {
         if (consumerCancellation.IsCancellationRequested)
         {
@@ -64,8 +65,11 @@ public sealed class CostQueryService : ICostQueryService
         {
             // This check belongs before task creation. ReportPeriods captures
             // Enabled before entering Task.Run, so a toggle in between must
-            // never warm a disabled provider's reader/cache.
-            if (!_visibilityStore.IsEnabled(provider))
+            // never warm a disabled provider's reader/cache. The daily report
+            // is the one sanctioned bypass: it aggregates every host with day
+            // data, enabled or not (force), and its scope is captured up front
+            // exactly like the enabled set is.
+            if (!force && !_visibilityStore.IsEnabled(provider))
             {
                 return Task.FromException<CostScanResult>(
                     new ProviderDisabledException(provider));

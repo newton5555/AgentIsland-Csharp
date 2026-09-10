@@ -74,7 +74,7 @@
                     <!-- Back Button -->
                     <Border x:Name="BackSlot" VerticalAlignment="Center" />
 
-                    <!-- Period Badge (Clickable to return to current) -->
+                    <!-- Period Badge (click opens the calendar popup) -->
                     <Border x:Name="PeriodBadge"
                             CornerRadius="6"
                             Padding="8,4,8,4"
@@ -96,16 +96,6 @@
 
                     <!-- Forward Button -->
                     <Border x:Name="ForwardSlot" VerticalAlignment="Center" />
-
-                    <!-- Divider -->
-                    <Border Width="1"
-                            Height="14"
-                            Background="{StaticResource DividerBrush}"
-                            Margin="4,0,4,0"
-                            VerticalAlignment="Center" />
-
-                    <!-- Calendar Button -->
-                    <Border x:Name="CalendarSlot" VerticalAlignment="Center" />
                 </StackPanel>
             </Border>
         </StackPanel>

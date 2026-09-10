@@ -38,7 +38,6 @@ public sealed partial class ReportWindow : Window
     private Kind _kind;
     private readonly PagerCircle _back;
     private readonly PagerCircle _forward;
-    private readonly PagerCircle _calendarButton;
     private readonly DispatcherTimer _pagerHideTimer;
     private ReportCalendarPopup? _calendar;
     private object _display;
@@ -109,10 +108,6 @@ public sealed partial class ReportWindow : Window
         _forward.Clicked += OnForwardClicked;
         ForwardSlot.Child = _forward;
 
-        _calendarButton = new PagerCircle("", AgentIsland.UI.Localization.L10n.Tr("Select date..."));
-        _calendarButton.Clicked += OpenCalendar;
-        CalendarSlot.Child = _calendarButton;
-
         CopyText.Text = AgentIsland.UI.Localization.L10n.Tr("Copy image");
         SaveText.Text = AgentIsland.UI.Localization.L10n.Tr("Save PNG");
 
@@ -139,6 +134,10 @@ public sealed partial class ReportWindow : Window
             else if (e.Key == Key.Left && _back.Enabled) OnBackClicked();
             else if (e.Key == Key.Right && _forward.Enabled) OnForwardClicked();
         };
+        // The badge must opt out of the window drag or DragMove's modal loop
+        // swallows the press and its MouseLeftButtonUp never fires — the same
+        // guard the pager circles and the close disc carry.
+        PeriodBadge.MouseLeftButtonDown += (_, args) => args.Handled = true;
         MouseLeftButtonDown += (_, _) =>
         {
             try { DragMove(); } catch { }
@@ -279,14 +278,15 @@ public sealed partial class ReportWindow : Window
 
         _back.Enabled = canGoBack;
         _forward.Enabled = canGoForward;
-        _calendarButton.Enabled = !_loading && !Core.AppEnvironment.IsDemo;
-        _calendarButton.Tint = _anchorDate is null ? IslandColors.White(0.90) : Color.FromRgb(0x3D, 0xD6, 0x8C);
 
-        var isHistorical = _pageOffset > 0 || _anchorDate is not null;
-        PeriodBadge.ToolTip = isHistorical
-            ? AgentIsland.UI.Localization.L10n.Tr("Click to return to current period")
-            : null;
-        PeriodBadge.Cursor = isHistorical ? Cursors.Hand : Cursors.Arrow;
+        // The badge itself is the calendar trigger now — one affordance for
+        // date selection across all three cards. Demo keeps real logs off
+        // recordings, so the calendar (which pages from real scans) stays
+        // closed there.
+        PeriodBadge.ToolTip = Core.AppEnvironment.IsDemo
+            ? null
+            : AgentIsland.UI.Localization.L10n.Tr("Select date...");
+        PeriodBadge.Cursor = Core.AppEnvironment.IsDemo ? Cursors.Arrow : Cursors.Hand;
 
         ActionsPanel.IsEnabled = !_loading;
         ActionsPanel.Opacity = _loading ? 0.5 : 1;
@@ -397,11 +397,14 @@ public sealed partial class ReportWindow : Window
         var queryId = BeginReportQuery(out var cts);
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            var slicesTask = ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token, includeAllDetected: true);
+            var baselineTask = PreviousDayTokensAsync(start, cts.Token);
+            await Task.WhenAll(slicesTask, baselineTask).ConfigureAwait(true);
+            var slices = slicesTask.Result;
             if (queryId != _querySequence || !IsLoaded
                 || _pageOffset != 0 || _anchorDate is not null || _loading) return;
             _display = DailyReportData.ForInterval(
-                start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start));
+                start, slices, _tokenModeStore, _visibilityStore, baselineTask.Result);
             RebuildCard();
         }
         catch (OperationCanceledException)
@@ -413,18 +416,19 @@ public sealed partial class ReportWindow : Window
         }
     }
 
-    /// Day-over-day baseline: yesterday's total from the CostStore's
-    /// daily history (cheap; the ForInterval rebuild carries the same
-    /// number from the previous page's slice when one is loaded).
-    private long PreviousDayTokens(DateTime day)
+    /// Day-over-day baseline in the SAME scope as the card: a forced scan
+    /// of yesterday across every host. CostStore only carries enabled
+    /// providers, and the daily card now shows guests with data too — so
+    /// the baseline must see them or the delta lies. LogParseCache
+    /// memoizes per file, so this second walk is nearly free.
+    private async Task<long> PreviousDayTokensAsync(DateTime day, CancellationToken token)
     {
-        if (_costStore is null) return 0;
         var yesterday = day.Date.AddDays(-1);
-        return AgentIsland.UI.Providers.DisplayProviders.All
-            .Select(p => _costStore.Summary(p).DailyHistory
-                .FirstOrDefault(b => b.DayStart.Date == yesterday))
-            .Where(b => b is not null)
-            .Sum(b => b!.Tokens);
+        var slices = await ReportPeriods.SlicesAsync(
+            yesterday, yesterday.AddDays(1), _visibilityStore, _costQueryService, token,
+            includeAllDetected: true).ConfigureAwait(true);
+        return slices.Values
+            .Sum(s => s.DailyTokens.Count > 0 ? s.DailyTokens[0].Tokens : 0);
     }
 
     private void RefreshForProviderSelection()
@@ -467,12 +471,25 @@ public sealed partial class ReportWindow : Window
         var accepted = false;
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            long baseline = 0;
+            IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices;
+            if (_kind == Kind.Daily)
+            {
+                var slicesTask = ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token, includeAllDetected: true);
+                var baselineTask = PreviousDayTokensAsync(start, cts.Token);
+                await Task.WhenAll(slicesTask, baselineTask).ConfigureAwait(true);
+                slices = slicesTask.Result;
+                baseline = baselineTask.Result;
+            }
+            else
+            {
+                slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            }
             if (queryId != _querySequence || !IsLoaded
                 || _pageOffset != target || _anchorDate is not null) return;
             _display = _kind switch
             {
-                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start)),
+                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, baseline),
                 Kind.Weekly => WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore),
                 _ => MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore),
             };
@@ -519,6 +536,9 @@ public sealed partial class ReportWindow : Window
 
     private void OpenCalendar()
     {
+        // Demo keeps real usage off recordings; the calendar pages assemble
+        // from real scans, so it stays closed there.
+        if (Core.AppEnvironment.IsDemo) return;
         var currentSelected = _anchorDate ?? (_kind switch
         {
             Kind.Daily => ReportPeriods.DayInterval(_pageOffset, _costStore).Start,
@@ -527,7 +547,7 @@ public sealed partial class ReportWindow : Window
         });
         _calendar = new ReportCalendarPopup(ReportPeriods.EarliestDataDay(_costStore), SetAnchor, currentSelected)
         {
-            PlacementTarget = _calendarButton,
+            PlacementTarget = PeriodBadge,
         };
         _calendar.Closed += (_, _) => CheckHidePager();
         _calendar.IsOpen = true;
@@ -600,11 +620,24 @@ public sealed partial class ReportWindow : Window
         var accepted = false;
         try
         {
-            var slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            long baseline = 0;
+            IReadOnlyDictionary<AgentIsland.UI.Providers.DisplayProvider, ReportSlice> slices;
+            if (_kind == Kind.Daily)
+            {
+                var slicesTask = ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token, includeAllDetected: true);
+                var baselineTask = PreviousDayTokensAsync(start, cts.Token);
+                await Task.WhenAll(slicesTask, baselineTask).ConfigureAwait(true);
+                slices = slicesTask.Result;
+                baseline = baselineTask.Result;
+            }
+            else
+            {
+                slices = await ReportPeriods.SlicesAsync(start, end, _visibilityStore, _costQueryService, cts.Token);
+            }
             if (queryId != _querySequence || !IsLoaded || _anchorDate != start) return;
             _display = _kind switch
             {
-                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, PreviousDayTokens(start)),
+                Kind.Daily => DailyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore, baseline),
                 Kind.Weekly => WeeklyReportData.ForInterval(start, end, slices, _tokenModeStore, _visibilityStore),
                 _ => MonthlyReportData.ForInterval(start, slices, _tokenModeStore, _visibilityStore),
             };
@@ -692,7 +725,7 @@ public sealed partial class ReportWindow : Window
 
     private void OnPeriodBadgeMouseEnter(object sender, MouseEventArgs e)
     {
-        if (_pageOffset > 0 || _anchorDate is not null)
+        if (!Core.AppEnvironment.IsDemo)
         {
             PeriodBadge.Background = IslandColors.Brush(IslandColors.White(0.12));
         }
@@ -706,10 +739,7 @@ public sealed partial class ReportWindow : Window
     private void OnPeriodBadgeClick(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
-        if (_pageOffset > 0 || _anchorDate is not null)
-        {
-            Flip(0);
-        }
+        OpenCalendar();
     }
 
     private void OnCopyClicked(object sender, RoutedEventArgs e)

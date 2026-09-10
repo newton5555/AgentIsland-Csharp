@@ -9,7 +9,8 @@ public interface ICostQueryService
         DisplayProvider provider,
         int lookbackDays,
         DateTimeOffset now,
-        CancellationToken consumerCancellation = default);
+        CancellationToken consumerCancellation = default,
+        bool force = false);
 
     Task<CostScanResult> ScanCurrentAsync(
         DisplayProvider provider,

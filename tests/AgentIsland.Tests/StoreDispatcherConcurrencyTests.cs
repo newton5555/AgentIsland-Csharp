@@ -224,7 +224,7 @@ public sealed class StoreDispatcherConcurrencyTests
         private int _scanCount;
         private readonly Dictionary<DisplayProvider, long> _versions = new();
 
-        public Task<CostScanResult> ScanAsync(DisplayProvider provider, int lookbackDays, DateTimeOffset now, CancellationToken consumerCancellation = default)
+        public Task<CostScanResult> ScanAsync(DisplayProvider provider, int lookbackDays, DateTimeOffset now, CancellationToken consumerCancellation = default, bool force = false)
         {
             Interlocked.Increment(ref _scanCount);
             if (ScanHandler != null)

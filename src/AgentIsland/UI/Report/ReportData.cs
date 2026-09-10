@@ -360,7 +360,20 @@ public sealed record DailyReportData(
         ReportSlice SliceOf(AgentIsland.UI.Providers.DisplayProvider provider) =>
             slices.TryGetValue(provider, out var slice) ? slice : ReportSlice.Empty;
 
-        var targets = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
+        // Daily scope: the enabled hosts anchor the card (slot order), then
+        // every OTHER host that carries day data joins — the tree shows what
+        // the machine actually ran that day, not what the island slots hold.
+        // Zero-data non-enabled hosts stay out; the rows themselves only
+        // render tokens > 0 anyway.
+        var enabledSet = (visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore))?.Enabled ?? [];
+        var enabled = AgentIsland.UI.Providers.DisplayProviders.All.Where(enabledSet.Contains);
+        var guestsWithData = AgentIsland.UI.Providers.DisplayProviders.All
+            .Where(p => !enabledSet.Contains(p))
+            .Select(p => (Provider: p, Tokens: SliceOf(p).DailyTokens.Sum(BucketValue)))
+            .Where(pair => pair.Tokens > 0)
+            .OrderByDescending(pair => pair.Tokens)
+            .Select(pair => pair.Provider);
+        var targets = enabled.Concat(guestsWithData).ToList();
 
         var providers = targets
             .Select(provider => new ProviderPeriodSlice(
@@ -403,10 +416,11 @@ public sealed record DailyReportData(
             : 0.0);
         var hasCacheData = cacheRead + cacheWrite > 0;
 
-        var agentTree = providers
-            .Select(slice =>
+        var agentTree = targets
+            .Select(provider =>
             {
-                var providerModels = SliceOf(slice.Provider).ByModel
+                var dayTokens = SliceOf(provider).DailyTokens.Sum(BucketValue);
+                var providerModels = SliceOf(provider).ByModel
                     .Where(m => mode == AgentIsland.Backend.Settings.TokenCountMode.All
                         ? m.Tokens > 0
                         : m.BillableTokens > 0)
@@ -420,14 +434,15 @@ public sealed record DailyReportData(
                         total > 0 ? (double)(mode == AgentIsland.Backend.Settings.TokenCountMode.All ? m.Tokens : m.BillableTokens) / total : 0))
                     .ToList();
                 return new DailyAgentRow(
-                    slice.Provider,
-                    slice.Tokens,
-                    slice.Provider is AgentIsland.UI.Providers.DisplayProvider.Cursor
+                    provider,
+                    dayTokens,
+                    provider is AgentIsland.UI.Providers.DisplayProvider.Cursor
                         or AgentIsland.UI.Providers.DisplayProvider.DeepSeek
-                        or AgentIsland.UI.Providers.DisplayProvider.Antigravity ? 0 : SliceOf(slice.Provider).Dollars,
-                    total > 0 ? (double)slice.Tokens / total : 0,
+                        or AgentIsland.UI.Providers.DisplayProvider.Antigravity ? 0 : SliceOf(provider).Dollars,
+                    total > 0 ? (double)dayTokens / total : 0,
                     modelRows);
             })
+            .Where(row => row.Tokens > 0)
             .ToList();
 
         var modelCount = agentTree.Sum(row => row.Models.Count);
