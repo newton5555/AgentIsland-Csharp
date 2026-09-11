@@ -191,12 +191,20 @@ public sealed partial class ReportWindow : Window
         _ => MonthlyReportData.Current(_costStore, _tokenModeStore, _visibilityStore),
     };
 
+    private string _dailySelectedTab = "overview";
+
     private FrameworkElement CardFor(object data, bool rounded) => _kind switch
     {
-        Kind.Daily => ReportCards.Daily((DailyReportData)data, rounded),
+        Kind.Daily => ReportCards.Daily((DailyReportData)data, rounded, _dailySelectedTab, OnDailyTabChanged),
         Kind.Weekly => ReportCards.Weekly((WeeklyReportData)data, rounded),
         _ => ReportCards.Monthly((MonthlyReportData)data, rounded),
     };
+
+    private void OnDailyTabChanged(string tab)
+    {
+        _dailySelectedTab = tab;
+        _rendered = null;
+    }
 
     private string PeriodText => _kind switch
     {
@@ -819,7 +827,7 @@ public sealed partial class ReportWindow : Window
     {
         var tag = _kind switch
         {
-            Kind.Daily => "daily",
+            Kind.Daily => _dailySelectedTab.Equals("overview", StringComparison.OrdinalIgnoreCase) ? "daily" : $"daily-{_dailySelectedTab.ToLowerInvariant()}",
             Kind.Weekly => "weekly",
             _ => "monthly",
         };

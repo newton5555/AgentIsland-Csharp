@@ -42,7 +42,7 @@ public static class DeepSeekActivityReader
         if (!Directory.Exists(root)) return new List<ScannedSession>();
 
         var output = new List<ScannedSession>();
-        foreach (var path in SafeFileSystem.EnumerateFiles(root, "session.jsonl.zstd"))
+        foreach (var path in AgentIsland.Backend.Cost.DeepSeekLogReader.DiscoverSessionFiles(root))
         {
             var snapshot = Read(path);
             if (snapshot is null || !IsEligibleForActivity(snapshot)) continue;

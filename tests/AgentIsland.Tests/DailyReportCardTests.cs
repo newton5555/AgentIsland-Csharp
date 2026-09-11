@@ -1,3 +1,6 @@
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using AgentIsland.Core;
 using AgentIsland.Core.Cost;
 using AgentIsland.UI.Providers;
@@ -20,7 +23,9 @@ public class DailyReportCardTests
         TestPagerLabelRelativeDays();
         TestAgentTreeSharesAreGlobalAndClipped();
         TestForIntervalEmptySlicesYieldEmptyCard();
-        Console.WriteLine("PASS daily report card aggregation, delta, labels, tree shares, clipping");
+        TestDynamicModelBudgetAndOmittedRowFolding();
+        TestDailyReportTabSwitching();
+        Console.WriteLine("PASS daily report card aggregation, delta, labels, tree shares, clipping, tabs");
     }
 
     private static IReadOnlyList<TokenEvent> Events(params TokenEvent[] events) => events;
@@ -224,5 +229,125 @@ public class DailyReportCardTests
                 throw new Exception($"MakeStore could not enable {provider}.");
         }
         return store;
+    }
+
+    private static void TestDynamicModelBudgetAndOmittedRowFolding()
+    {
+        // 1. Verify DeepSeek with 4 models displays all 4 models when budget permits
+        var models = new List<DailyModelRow>
+        {
+            new("glm-5.3-flash", 16_000_000, 0, 0.5),
+            new("deepseek-v4-flash", 8_000_000, 0, 0.25),
+            new("deepseek-flash", 4_000_000, 0, 0.125),
+            new("deepseek-v4-pro", 200_000, 0, 0.01),
+        };
+        var deepseekAgent = new DailyAgentRow(DisplayProvider.DeepSeek, 28_200_000, 0, 0.885, models);
+        var codexAgent = new DailyAgentRow(DisplayProvider.Codex, 2_000_000, 0, 0.065, new List<DailyModelRow>
+        {
+            new("gpt-5.6", 2_000_000, 0, 0.065)
+        });
+        var agyAgent = new DailyAgentRow(DisplayProvider.Antigravity, 1_000_000, 0, 0.05, new List<DailyModelRow>
+        {
+            new("gemini-flash", 1_000_000, 0, 0.05)
+        });
+        var testData = new DailyReportData(
+            "9月10日", "今天", "—", false, false, 31_200_000, 0, false, false, 0, 0, false,
+            3, 6, new long[24], 0, 0, new[] { codexAgent, deepseekAgent, agyAgent });
+
+        var card = ReportCards.Daily(testData);
+        var textBlocks = FindChildren<TextBlock>(card);
+        var foundFlash = textBlocks.Any(t => t.Text == "deepseek-flash");
+        if (!foundFlash) throw new Exception("deepseek-flash must be rendered in the daily card visual tree.");
+
+        // 2. Verify overflow folding into omitted row when an agent has 7 models
+        var sevenModels = Enumerable.Range(1, 7)
+            .Select(i => new DailyModelRow($"model-{i}", 100_000, 0, 0.1))
+            .ToList();
+        var heavyAgent = new DailyAgentRow(DisplayProvider.DeepSeek, 700_000, 0, 0.7, sevenModels);
+        var heavyData = new DailyReportData(
+            "9月10日", "今天", "—", false, false, 1_000_000, 0, false, false, 0, 0, false,
+            3, 9, new long[24], 0, 0, new[] { codexAgent, heavyAgent, agyAgent });
+
+        var heavyCard = ReportCards.Daily(heavyData);
+        var heavyTextBlocks = FindChildren<TextBlock>(heavyCard);
+        var foundOmitted = heavyTextBlocks.Any(t => t.Text.Contains("其他模型") || t.Text.Contains("other models"));
+        if (!foundOmitted) throw new Exception("Overflow models must be folded into an aggregated omitted row.");
+    }
+
+    private static void TestDailyReportTabSwitching()
+    {
+        var models = new List<DailyModelRow>
+        {
+            new("glm-5.3-flash", 16_000_000, 0, 0.5),
+            new("deepseek-v4-flash", 8_000_000, 0, 0.25),
+            new("deepseek-flash", 4_000_000, 0, 0.125),
+            new("deepseek-v4-pro", 200_000, 0, 0.01),
+        };
+        var deepseekAgent = new DailyAgentRow(DisplayProvider.DeepSeek, 28_200_000, 0, 0.885, models);
+        var codexAgent = new DailyAgentRow(DisplayProvider.Codex, 2_000_000, 0, 0.065, new List<DailyModelRow>
+        {
+            new("gpt-5.6", 2_000_000, 0, 0.065)
+        });
+        var testData = new DailyReportData(
+            "9月10日", "今天", "—", false, false, 30_200_000, 0, false, false, 0, 0, false,
+            2, 5, new long[24], 0, 0, new[] { deepseekAgent, codexAgent });
+
+        // 1. Test Overview tab default
+        var overviewCard = ReportCards.Daily(testData, selectedTab: "overview");
+        var overviewTexts = FindChildren<TextBlock>(overviewCard);
+        if (!overviewTexts.Any(t => t.Text.Contains("AGENTS 全局分布") || t.Text.Contains("AGENTS & MODELS")))
+            throw new Exception("Overview view must render global distribution header.");
+
+        // 2. Test DeepSeek dedicated tab
+        var changedTab = "";
+        var deepseekCard = ReportCards.Daily(testData, selectedTab: "DeepSeek", onTabChanged: tab => changedTab = tab);
+        var deepseekTexts = FindChildren<TextBlock>(deepseekCard);
+
+        if (!deepseekTexts.Any(t => t.Text.Contains("DeepSeek 消耗全貌") || t.Text.Contains("DeepSeek Overview")))
+            throw new Exception("DeepSeek tab must render dedicated banner.");
+
+        // Verify rank badges
+        if (!deepseekTexts.Any(t => t.Text == "#1") || !deepseekTexts.Any(t => t.Text == "#4"))
+            throw new Exception("DeepSeek tab must render rank badges for all models.");
+
+        // Verify all 4 models are rendered
+        foreach (var m in models)
+        {
+            if (!deepseekTexts.Any(t => t.Text == m.Name))
+                throw new Exception($"DeepSeek tab must render model {m.Name}.");
+        }
+
+        // 3. Verify WPF Measure, Arrange, Layout and Bitmap Rendering for both views
+        overviewCard.Measure(new Size(420, 560));
+        overviewCard.Arrange(new Rect(0, 0, 420, 560));
+        overviewCard.UpdateLayout();
+        var bmp = new System.Windows.Media.Imaging.RenderTargetBitmap(420 * 2, 560 * 2, 96 * 2, 96 * 2, PixelFormats.Pbgra32);
+        bmp.Render(overviewCard);
+
+        deepseekCard.Measure(new Size(420, 560));
+        deepseekCard.Arrange(new Rect(0, 0, 420, 560));
+        deepseekCard.UpdateLayout();
+        var deepseekBmp = new System.Windows.Media.Imaging.RenderTargetBitmap(420 * 2, 560 * 2, 96 * 2, 96 * 2, PixelFormats.Pbgra32);
+        deepseekBmp.Render(deepseekCard);
+    }
+
+    private static List<T> FindChildren<T>(DependencyObject parent) where T : DependencyObject
+    {
+        var list = new List<T>();
+        if (parent == null) return list;
+        if (parent is T typed) list.Add(typed);
+        var count = VisualTreeHelper.GetChildrenCount(parent);
+        for (int i = 0; i < count; i++)
+        {
+            var child = VisualTreeHelper.GetChild(parent, i);
+            list.AddRange(FindChildren<T>(child));
+        }
+        if (parent is ContentControl cc && cc.Content is DependencyObject dcc) list.AddRange(FindChildren<T>(dcc));
+        if (parent is Border b && b.Child is DependencyObject bc) list.AddRange(FindChildren<T>(bc));
+        if (parent is Panel p)
+        {
+            foreach (UIElement pe in p.Children) list.AddRange(FindChildren<T>(pe));
+        }
+        return list;
     }
 }

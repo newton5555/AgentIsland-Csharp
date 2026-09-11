@@ -22,6 +22,7 @@ public class DeepSeekLogParserTests
         TestMalformedAndFallbacks();
         TestConcatenatedFrames();
         TestAllRoutesCountTowardUsage();
+        TestDiscoverSessionFilesVersionResolution();
         Console.WriteLine("DeepSeekLogParserTests GREEN");
     }
 
@@ -223,6 +224,34 @@ public class DeepSeekLogParserTests
                 },
             },
         });
+
+    private static void TestDiscoverSessionFilesVersionResolution()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), "AgentIsland-DshTest-" + Guid.NewGuid());
+        try
+        {
+            var session1 = Path.Combine(tempDir, "proj", "s1");
+            var session2 = Path.Combine(tempDir, "proj", "s2");
+            Directory.CreateDirectory(session1);
+            Directory.CreateDirectory(session2);
+
+            File.WriteAllText(Path.Combine(session1, "session.jsonl.zstd"), "v1");
+            File.WriteAllText(Path.Combine(session1, "session.v3.jsonl.zstd"), "v3");
+            File.WriteAllText(Path.Combine(session2, "session.jsonl.zstd"), "v1");
+
+            var discovered = AgentIsland.Backend.Cost.DeepSeekLogReader.DiscoverSessionFiles(tempDir);
+            Expect(discovered.Count == 2, $"Expected 2 sessions, got {discovered.Count}");
+            Expect(discovered.Any(f => f.EndsWith("session.v3.jsonl.zstd", StringComparison.OrdinalIgnoreCase)),
+                "s1 must select session.v3.jsonl.zstd over session.jsonl.zstd");
+            Expect(discovered.Any(f => f.Contains("s2") && f.EndsWith("session.jsonl.zstd", StringComparison.OrdinalIgnoreCase)),
+                "s2 must select session.jsonl.zstd");
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+        }
+        Console.WriteLine("PASS DeepSeek versioned session discovery");
+    }
 
     private static void Expect(bool condition, string message)
     {
