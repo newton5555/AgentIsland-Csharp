@@ -2,7 +2,24 @@
 
 All notable changes to AgentIsland for Windows will be documented in this file.
 
-> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 67 项（66 项常规测试 + 1 项压力/资源测试）。
+> 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 69 项（68 项常规测试 + 1 项压力/资源测试）。
+
+## [2.2.2] - 2026-09-14
+
+### 📊 日报多 Agent 细分 Tab 视图 (Multi-Agent Tabs)
+- **多维下钻 Tab 切换**：日报窗口支持“概览”与各个活跃 Agent（Claude, Codex, OpenCode, DeepSeek, Antigravity 等）专属 Tab 之间平滑无缝切换。
+- **独立时段脉冲与模型树**：切换至对应 Agent Tab 时，独立呈现该 Agent 专属的 24 小时消耗脉冲（Hourly Pulse）、模型细分占比树（Model Tree）、Token 总量与美元估算。
+- **WPF 与 HTML 模板双向同步**：原生 WPF 报告卡渲染与 HTML 独立报告卡模板对齐动画与 Tab 切换交互；精简概览头部无用冗余提示，视觉更清爽。
+
+### 🤝 动态纳入有消耗的非置顶 Agent (Auto-Joined Guests)
+- **用量统计不遗漏**：当日只要存在本地 Token 消耗的 Agent（即便未置顶在灵动岛常驻卡槽中），自动纳入日报全局分布与统计树进行核算展示。
+- **日期徽章交互统一**：点击日期徽章统一唤起轻量级日历弹窗选择器，支持任意历史日期快速跳转。
+
+### 🔍 DeepSeek 多版本会话去重解析 (Deduplication)
+- 优化 DeepSeek 本地日志多版本会话解析逻辑，解决特定情况下会话覆盖与文件轮转导致的重复计数问题。
+
+### 🧪 验证
+- 本地 `dotnet test AgentIsland.sln`：**69/69 通过**（68 项常规测试 + 1 项压力/资源测试）。
 
 ## [2.2.1] - 2026-09-09
 

@@ -154,17 +154,17 @@ dotnet test AgentIsland.sln
 # 1. 还原依赖并编译解决方案
 dotnet build AgentIsland.sln
 
-# 2. 运行完整自动化测试套件（67 项：66 项常规 + 1 项压力/资源）
+# 2. 运行完整自动化测试套件（69 项：68 项常规 + 1 项压力/资源）
 dotnet test AgentIsland.sln
 
 # 3. 运行 1 年极限历史数据压测 UI
 .\Launch-StressUI.bat
 
 # 4. 本地发布自包含独立绿色可执行文件
-.\build.ps1 -Runtime win-x64 -Version 2.2.1
+.\build.ps1 -Runtime win-x64 -Version 2.2.2
 ```
 
-编译输出的便携绿色包将位于 `dist/AgentIsland-2.2.1-win-x64.zip`。
+编译输出的便携绿色包将位于 `dist/AgentIsland-2.2.2-win-x64.zip`。
 
 ---
 

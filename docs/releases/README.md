@@ -3,6 +3,7 @@
 本目录记录 AgentIsland for Windows 各正式版本的详细更新日志、架构设计决策与技术演进说明。
 
 | 版本号 | 发布日期 | 核心主题 | 详情文档 |
+| **v2.2.2** | 2026-09-14 | 日报多 Agent 细分 Tab、非置顶消耗 Agent 自动归入、DeepSeek 去重解析 | [v2.2.2 Release Notes](v2.2.2.md) |
 | **v2.2.1** | 2026-09-09 | 现代暗黑托盘微卡片、70%透明鼠标穿透模式、150%高DPI居中修复 | [v2.2.1 Release Notes](v2.2.1.md) |
 | **v2.2.0** | 2026-09-09 | 日报卡、缓存与小时明细、Antigravity 动态模型识别、多彩状态视觉 | [v2.2.0 Release Notes](v2.2.0.md) |
 | **v1.2.1** | 2026-09-08 | 灵动岛无操作自适应收缩、双 Agent 死区收拢与常驻用量、报告窗口 L10n 与健壮性 | [v1.2.1 Release Notes](v1.2.1.md) |
@@ -13,5 +14,5 @@
 
 ## 🛠️ CI 自动化发布说明
 - 每次在 `release` 分支提交或推送 `v*.*.*` 标签时，GitHub Actions 会自动触发 `.github/workflows/release.yml`；
-- 构建流程会分开运行常规回归测试与压力/资源测试，编译自包含可执行文件并打包生成 `dist/AgentIsland-{Version}-win-x64.zip`；当前主分支基线为 66 项常规测试 + 1 项压力/资源测试；
+- 构建流程会分开运行常规回归测试与压力/资源测试，编译自包含可执行文件并打包生成 `dist/AgentIsland-{Version}-win-x64.zip`；当前主分支基线为 68 项常规测试 + 1 项压力/资源测试（共 69 项）；
 - CI 会自动读取 `docs/releases/v{Version}.md` 作为 GitHub Release 的官方发布说明并自动发布。

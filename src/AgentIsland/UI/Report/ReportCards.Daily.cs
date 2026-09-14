@@ -586,16 +586,6 @@ public static partial class ReportCards
             FontWeight = FontWeights.ExtraBold,
             Foreground = IslandColors.Brush(IslandColors.White(0.50)),
         });
-        var legend = new TextBlock
-        {
-            Text = zh ? "点击 Agent 可展开专属 Tab" : "CLICK AGENT FOR DETAILS",
-            FontFamily = IslandFonts.Ui,
-            FontSize = 8.5,
-            FontWeight = FontWeights.SemiBold,
-            Foreground = IslandColors.Brush(IslandColors.White(0.40)),
-        };
-        DockPanel.SetDock(legend, Dock.Right);
-        headerRow.Children.Add(legend);
         stack.Children.Add(headerRow);
 
         if (data.AgentTree.Count == 0)

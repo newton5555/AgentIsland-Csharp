@@ -154,17 +154,17 @@ dotnet test AgentIsland.sln
 # 1. Restore and build solution
 dotnet build AgentIsland.sln
 
-# 2. Run full test suite (67 tests: 66 regular + 1 stress/resource)
+# 2. Run full test suite (69 tests: 68 regular + 1 stress/resource)
 dotnet test AgentIsland.sln
 
 # 3. Launch 1-Year Stress Test UI
 .\Launch-StressUI.bat
 
 # 4. Package self-contained release executable
-.\build.ps1 -Runtime win-x64 -Version 2.2.1
+.\build.ps1 -Runtime win-x64 -Version 2.2.2
 ```
 
-The compiled release artifact will be output to `dist/AgentIsland-2.2.1-win-x64.zip`.
+The compiled release artifact will be output to `dist/AgentIsland-2.2.2-win-x64.zip`.
 
 ---
 
