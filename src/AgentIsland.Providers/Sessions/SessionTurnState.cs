@@ -110,6 +110,7 @@ public static class SessionTurnState
             if (Jsonl.GetObject(doc.RootElement, "params") is not { } parameters) continue;
             if (Jsonl.GetObject(parameters, "update") is not { } update) continue;
             if (Jsonl.GetString(update, "sessionUpdate") is not { } kind) continue;
+            if (kind == "session_recap") continue;
             var stamp = UnixSeconds(Jsonl.GetDouble(doc.RootElement, "timestamp"));
             var seconds = stamp is { } s
                 ? s.ToUnixTimeSeconds().ToString(System.Globalization.CultureInfo.InvariantCulture)

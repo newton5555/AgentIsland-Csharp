@@ -37,7 +37,8 @@ public sealed class GrokSessionSensor : ISessionSensor
                 var transcript = File.Exists(updates)
                     ? updates
                     : Path.Combine(sessionDir, "chat_history.jsonl");
-                var state = SessionScanner.SessionState(transcript, now, lastWorking, null, SessionTurnState.Grok);
+                var state = SessionScanner.SessionState(
+                    transcript, now, lastWorking, null, SessionTurnState.Grok, quietMeansDone: true);
                 output.Add(new ScannedSession(
                     TriggerTool.Grok,
                     sid,

@@ -21,6 +21,8 @@ public class GrokTurnStateTests
             ("frames without an update block are skipped", TestNonUpdateFramesSkipped),
             ("an out-of-range timestamp reads as no date", TestOutOfRangeTimestamp),
             ("an empty transcript is not done", TestEmptyTranscript),
+            ("session_recap does not mask completed turn", TestSessionRecapSkipped),
+            ("a quiet transcript with quietMeansDone does not become stalled", TestGrokQuietMeansDone),
         };
         foreach (var (name, test) in tests)
         {
@@ -107,5 +109,44 @@ public class GrokTurnStateTests
         var state = SessionTurnState.Grok(Array.Empty<string>());
         Expect(!state.IsDone && state.Key is null && state.ActivityDate is null,
             "an empty transcript must claim nothing");
+    }
+
+    private static void TestSessionRecapSkipped()
+    {
+        var state = SessionTurnState.Grok(new[]
+        {
+            """{"timestamp":1754640000,"params":{"update":{"sessionUpdate":"turn_completed"}}}""",
+            """{"timestamp":1754640200,"params":{"update":{"sessionUpdate":"session_recap","summary":"test recap"}}}""",
+        });
+        Expect(state.IsDone, "session_recap trailing frame must not mask turn_completed");
+        Expect(state.Key == "1754640000:turn_completed", $"unexpected turn key: {state.Key}");
+    }
+
+    private static void TestGrokQuietMeansDone()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var modified = now.AddMinutes(-6);
+        var tmp = Path.Combine(Path.GetTempPath(), $"agent-island-grok-quiet-{Guid.NewGuid():N}.jsonl");
+        try
+        {
+            File.WriteAllLines(tmp, new[]
+            {
+                "{\"timestamp\":" + modified.ToUnixTimeSeconds() + ",\"params\":{\"update\":{\"sessionUpdate\":\"agent_message_chunk\"}}}",
+            });
+            File.SetLastWriteTimeUtc(tmp, modified.UtcDateTime);
+
+            var lastWorking = new Dictionary<string, DateTimeOffset>
+            {
+                [tmp] = now.AddMinutes(-1),
+            };
+            var state = Backend.Monitoring.SessionScanner.SessionState(
+                tmp, now, lastWorking, null, SessionTurnState.Grok, quietMeansDone: true);
+            Expect(state.Status == ActivityState.NeedsYou,
+                $"quiet Grok transcript must complete via quietMeansDone and become NeedsYou, got {state.Status}");
+        }
+        finally
+        {
+            if (File.Exists(tmp)) File.Delete(tmp);
+        }
     }
 }

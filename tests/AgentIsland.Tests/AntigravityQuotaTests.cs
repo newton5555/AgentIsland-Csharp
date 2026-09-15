@@ -25,7 +25,23 @@ public class AntigravityQuotaTests
         TestDualQuotaParsing();
         TestWeeklyOnlyFallback();
         TestProcessNameMatching();
+        TestLiveEndpointDiscovery();
         Console.WriteLine("AntigravityQuotaTests GREEN");
+    }
+
+    private static void TestLiveEndpointDiscovery()
+    {
+        var outcome = Backend.Usage.AntigravityUsageFetcher.Fetch().GetAwaiter().GetResult();
+        Console.WriteLine($"Live AntigravityUsageFetcher.Fetch(): {outcome.GetType().Name}");
+        if (outcome is Backend.Usage.AntigravityUsageFetcher.Outcome.Success s)
+        {
+            Console.WriteLine($"  Email: {s.Email}");
+            Console.WriteLine($"  Weekly used: {s.Snapshot.Weekly?.UsedPercent:P1}");
+            Console.WriteLine($"  5h used: {s.Snapshot.FiveHour?.UsedPercent:P1}");
+        }
+        Expect(outcome is Backend.Usage.AntigravityUsageFetcher.Outcome.Success
+            || outcome is Backend.Usage.AntigravityUsageFetcher.Outcome.NotRunning,
+            "outcome should be Success or NotRunning, never 401 failure");
     }
 
     private static void TestDualQuotaParsing()

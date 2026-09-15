@@ -39,7 +39,14 @@ public static class AntigravityLanguageServer
         Timeout = TimeSpan.FromSeconds(6),
     };
 
-    private static int _cachedPort;
+    public sealed record LanguageServerEndpoint(int Port, string? CsrfToken);
+
+    private static LanguageServerEndpoint? _cachedEndpoint;
+
+    public static void InvalidateCache()
+    {
+        _cachedEndpoint = null;
+    }
 
     public static async Task<Reply?> Call(
         string method,
@@ -81,37 +88,68 @@ public static class AntigravityLanguageServer
     /// by walking the running Antigravity processes' listening sockets —
     /// GetExtendedTcpTable in-process; shelling out to netstat on every
     /// refresh tick would fork twice a minute for the life of the app.
-    public static async Task<int?> Discover(CancellationToken cancellationToken = default)
+    /// Each listening port is tested together with its process CSRF token.
+    public static async Task<LanguageServerEndpoint?> Discover(CancellationToken cancellationToken = default)
     {
-        var cached = _cachedPort;
-        if (cached > 0 && await IsAlive(cached, cancellationToken).ConfigureAwait(false)) return cached;
-        foreach (var pid in AntigravityProcessIds())
+        if (_cachedEndpoint is { } cached)
+        {
+            if (await IsUsable(cached.Port, cached.CsrfToken, cancellationToken).ConfigureAwait(false))
+            {
+                return cached;
+            }
+            _cachedEndpoint = null;
+        }
+
+        var pids = AntigravityProcessIds();
+        foreach (var pid in pids)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (var port in ListeningPorts(pid))
+            var ports = ListeningPorts(pid);
+            if (ports.Count == 0) continue;
+            var token = CsrfToken(pid);
+            foreach (var port in ports)
             {
-                if (port == cached) continue;
-                if (await IsAlive(port, cancellationToken).ConfigureAwait(false))
+                var ok = await IsUsable(port, token, cancellationToken).ConfigureAwait(false);
+                if (ok)
                 {
-                    _cachedPort = port;
-                    return port;
+                    var endpoint = new LanguageServerEndpoint(port, token);
+                    _cachedEndpoint = endpoint;
+                    return endpoint;
+                }
+
+                if (string.IsNullOrEmpty(token))
+                {
+                    foreach (var otherPid in pids)
+                    {
+                        if (otherPid == pid) continue;
+                        if (CsrfToken(otherPid) is { Length: > 0 } candidateToken)
+                        {
+                            var otherOk = await IsUsable(port, candidateToken, cancellationToken).ConfigureAwait(false);
+                            if (otherOk)
+                            {
+                                var endpoint = new LanguageServerEndpoint(port, candidateToken);
+                                _cachedEndpoint = endpoint;
+                                return endpoint;
+                            }
+                        }
+                    }
                 }
             }
         }
-        _cachedPort = 0;
+        _cachedEndpoint = null;
         return null;
     }
 
     /// `GetUnleashData` is the cheapest method that proves this is the RPC
-    /// port rather than a sibling plain-HTTP port the process also opens.
-    /// 401 counts as alive: the port is right and only the token is missing.
-    private static async Task<bool> IsAlive(int port, CancellationToken cancellationToken)
+    /// port and that our credentials/token are accepted (Status: 200).
+    /// An unauthenticated 401 response is NOT usable for reading quotas.
+    private static async Task<bool> IsUsable(int port, string? csrfToken, CancellationToken cancellationToken)
     {
         var reply = await Call(
-            "GetUnleashData", port, "{\"wrapper_data\":{}}", timeoutSeconds: 2,
+            "GetUnleashData", port, "{\"wrapper_data\":{}}", csrfToken: csrfToken, timeoutSeconds: 2,
             cancellationToken: cancellationToken)
             .ConfigureAwait(false);
-        return reply is { Status: 200 or 401 };
+        return reply is { Status: 200 };
     }
 
     /// Matches the CLI (whose real binary is `antigravity`, reached through
@@ -210,10 +248,14 @@ public static class AntigravityLanguageServer
     public static string? CsrfToken(int pid)
     {
         var args = ProcessCommandLine(pid);
-        if (args is null) return null;
-        var match = System.Text.RegularExpressions.Regex.Match(
-            args, "--csrf_token[=\\s]+([^\\s\"]+)");
-        return match.Success ? match.Groups[1].Value : null;
+        if (args is not null)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(
+                args, "--csrf_token[=\\s]+([^\\s\"]+)");
+            if (match.Success) return match.Groups[1].Value;
+        }
+        var envToken = Environment.GetEnvironmentVariable("ANTIGRAVITY_CSRF_TOKEN");
+        return !string.IsNullOrEmpty(envToken) ? envToken : null;
     }
 
     private static string? ProcessCommandLine(int pid)
