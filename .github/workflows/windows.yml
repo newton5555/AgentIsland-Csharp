@@ -30,7 +30,9 @@ jobs:
         env:
           AGENTISLAND_DATA_DIR: ${{ runner.temp }}/agentisland-unit-data
           AGENTISLAND_CACHE_DIR: ${{ runner.temp }}/agentisland-unit-cache
-        run: dotnet test .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName!~AgentStressAndResourceTests" --logger "trx;LogFileName=unit-tests.trx" --results-directory TestResults
+        # WPF animation/rendering tests require an interactive desktop and are
+        # intentionally kept for local visual QA, not headless CI runners.
+        run: dotnet test .\tests\AgentIsland.Tests\AgentIsland.Tests.csproj --configuration Release --no-build --filter "FullyQualifiedName!~AgentStressAndResourceTests&FullyQualifiedName!~ProviderLogoAnimationTests" --logger "trx;LogFileName=unit-tests.trx" --results-directory TestResults
 
       - name: Run Stress Tests
         env:
