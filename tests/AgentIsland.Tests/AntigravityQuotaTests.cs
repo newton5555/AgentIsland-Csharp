@@ -31,6 +31,19 @@ public class AntigravityQuotaTests
 
     private static void TestLiveEndpointDiscovery()
     {
+        // The live probe needs a running, authenticated Antigravity desktop
+        // process. Hosted CI runners have neither the local service port nor
+        // the user's login, so a 401 there is an environment result—not a
+        // quota-parser regression. Opt in explicitly when doing local QA.
+        if (!string.Equals(
+                Environment.GetEnvironmentVariable("AGENTISLAND_RUN_LIVE_PROVIDER_TESTS"),
+                "1",
+                StringComparison.Ordinal))
+        {
+            Console.WriteLine("SKIP live Antigravity endpoint probe (set AGENTISLAND_RUN_LIVE_PROVIDER_TESTS=1 to run)");
+            return;
+        }
+
         var outcome = Backend.Usage.AntigravityUsageFetcher.Fetch().GetAwaiter().GetResult();
         Console.WriteLine($"Live AntigravityUsageFetcher.Fetch(): {outcome.GetType().Name}");
         if (outcome is Backend.Usage.AntigravityUsageFetcher.Outcome.Success s)
