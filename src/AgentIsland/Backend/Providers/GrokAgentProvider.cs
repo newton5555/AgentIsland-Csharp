@@ -5,6 +5,7 @@ using AgentIsland.Core.Usage;
 using AgentIsland.Backend.Cost.Adapters;
 using AgentIsland.Backend.Monitoring.Sensors;
 using AgentIsland.Backend.Usage;
+using AgentIsland.Providers.Usage.Grok;
 
 namespace AgentIsland.Backend.Providers;
 
@@ -31,7 +32,11 @@ public sealed class GrokAgentProvider : IAgentProvider, ISessionSensor, IUsageFe
         if (outcome is GrokUsageFetcher.Outcome.Success s)
         {
             return new AppUsage(
-                new WindowUsage(s.Snapshot.WeeklyUsedPercent, s.Snapshot.WeeklyPeriodEnd, null),
+                new WindowUsage(
+                    s.Snapshot.WeeklyUsedPercent,
+                    s.Snapshot.WeeklyPeriodEnd,
+                    null,
+                    GrokBillingSnapshot.WeeklyPeriodSeconds),
                 WindowUsage.Unknown,
                 "grok");
         }

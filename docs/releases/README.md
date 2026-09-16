@@ -3,6 +3,7 @@
 本目录记录 AgentIsland for Windows 各正式版本的详细更新日志、架构设计决策与技术演进说明。
 
 | 版本号 | 发布日期 | 核心主题 | 详情文档 |
+| **v2.2.3** | 2026-09-16 | Grok 周额度进度修复、Antigravity 额度稳定性与会话状态修复 | [v2.2.3 Release Notes](v2.2.3.md) |
 | **v2.2.2** | 2026-09-14 | 日报多 Agent 细分 Tab、非置顶消耗 Agent 自动归入、DeepSeek 去重解析 | [v2.2.2 Release Notes](v2.2.2.md) |
 | **v2.2.1** | 2026-09-09 | 现代暗黑托盘微卡片、70%透明鼠标穿透模式、150%高DPI居中修复 | [v2.2.1 Release Notes](v2.2.1.md) |
 | **v2.2.0** | 2026-09-09 | 日报卡、缓存与小时明细、Antigravity 动态模型识别、多彩状态视觉 | [v2.2.0 Release Notes](v2.2.0.md) |

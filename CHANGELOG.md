@@ -4,6 +4,20 @@ All notable changes to AgentIsland for Windows will be documented in this file.
 
 > 版本条目保留各版本发布时的历史快照。当前主分支的测试数量、能力矩阵和架构边界请以根目录 README 与 `docs/architecture.md` 为准；当前测试基线为 69 项（68 项常规测试 + 1 项压力/资源测试）。
 
+## [2.2.3] - 2026-09-16
+
+### 📈 Grok 重置进度
+- 修复 Grok 周额度窗口未携带周期长度导致进度条长期显示满格的问题。
+- 周窗口按实际 7 天周期计算，倒计时刷新时会随剩余时间持续更新。
+- 补充 Grok 会话静默完成状态识别，避免已完成会话持续显示运行中。
+
+### 🔐 Antigravity 额度稳定性
+- 修复 Antigravity 额度接口在部分登录态下返回 401 时的查询与降级处理。
+- 收紧额度桶选择，避免把非 Gemini/非目标来源的结果误显示为官方额度。
+
+### 🧪 验证
+- 本地单元测试覆盖 Grok 会话状态与 Antigravity 额度解析回归场景。
+
 ## [2.2.2] - 2026-09-14
 
 ### 📊 日报多 Agent 细分 Tab 视图 (Multi-Agent Tabs)

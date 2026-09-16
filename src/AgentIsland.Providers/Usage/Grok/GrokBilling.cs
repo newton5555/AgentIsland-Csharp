@@ -46,7 +46,12 @@ public sealed record GrokBillingSnapshot(
     int? MonthlyUsedCents = null,
     int? MonthlyLimitCents = null,
     DateTimeOffset? MonthlyPeriodEnd = null,
-    IReadOnlyList<GrokProductUsage>? ProductUsage = null);
+    IReadOnlyList<GrokProductUsage>? ProductUsage = null)
+{
+    /// Grok's credit pool resets weekly. Keep this beside the snapshot so all
+    /// renderers use the same denominator instead of falling back to 5 hours.
+    public const double WeeklyPeriodSeconds = 7 * 24 * 60 * 60;
+}
 
 /// Decoders for the two `cli-chat-proxy.grok.com/v1/billing` payloads. Kept
 /// tolerant (like UsageFetcher) because the weekly response omits

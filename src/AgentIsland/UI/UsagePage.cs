@@ -6,6 +6,7 @@ using AgentIsland.UI.Providers;
 using AgentIsland.UI.Charts;
 using AgentIsland.UI.Theme;
 using AgentIsland.Core.Usage;
+using AgentIsland.Providers.Usage.Grok;
 
 namespace AgentIsland.UI;
 
@@ -365,7 +366,11 @@ public sealed class UsagePage : Border
         if (grok is null) return AppUsage.Empty;
         var snapshot = grok.Snapshot;
         return new AppUsage(
-            new WindowUsage(snapshot?.WeeklyUsedPercent ?? 0, snapshot?.WeeklyPeriodEnd, grok.ErrorCaption),
+            new WindowUsage(
+                snapshot?.WeeklyUsedPercent ?? 0,
+                snapshot?.WeeklyPeriodEnd,
+                grok.ErrorCaption,
+                GrokBillingSnapshot.WeeklyPeriodSeconds),
             WindowUsage.Unknown,
             grok.AuthModeBadge?.ToLowerInvariant());
     }
