@@ -4,7 +4,7 @@
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078D6?style=flat&logo=windows)](https://www.microsoft.com/windows)
-[![Tests](https://img.shields.io/badge/Tests-67%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
+[![Tests](https://img.shields.io/badge/Tests-118%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
 [![Memory Footprint](https://img.shields.io/badge/Working%20Set-~100MB%20(down%20from%20200MB+)-success?style=flat)](docs/performance.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -124,7 +124,7 @@ This codebase strictly adheres to modern .NET design standards:
 
 The repository includes a comprehensive, deterministic test suite covering core domain logic, concurrency safety, and STA UI dispatcher interactions:
 
-* **67 Automated Tests Passing (ALL GREEN)** — 66 regular tests plus 1 stress/resource test;
+* **118 Automated Tests Passing** — `AgentIsland.Tests` (113, including 1 stress/resource test) plus `AgentMonitoring.Tests` (5);
 * **Coverage Scope**: Domain calculators, reverse stream slicers, circuit breaker faults, MVVM ViewModels, STA UI rendering, and 1-year worst-case stress benchmarks;
 * **Sandboxed Test Isolation**: Tests execute in isolated temporary data directories, preventing interference with running application instances.
 
@@ -173,12 +173,16 @@ The compiled release artifact will be output to `dist/AgentIsland-2.2.3-win-x64.
 ```text
 AgentIsland-Csharp/
 ├─ src/
-│  ├─ AgentIsland.Core/         # Cross-platform models, AgentCapabilities, calculation policies
+│  ├─ AgentMonitoring.Core/     # Agent keys, capabilities, consumption/pricing contracts
+│  ├─ AgentMonitoring/          # Query and enablement runtime (no WPF)
+│  ├─ AgentMonitoring.Host/     # Headless Generic Host: collect + query, no WPF
+│  ├─ AgentIsland.Core/         # Desktop-shared options, storage, dispatcher contracts
 │  ├─ AgentIsland.Providers/    # Provider payload parsers, built-in catalog descriptors
 │  ├─ AgentIsland.Windows/      # Windows path resolution, winsqlite3 driver, kernel memory APIs
 │  └─ AgentIsland/              # WPF presentation host, IslandWindow, ViewModels, dashboard
 ├─ tests/
-│  └─ AgentIsland.Tests/        # 67 automated tests (66 regular + 1 stress/resource test)
+│  ├─ AgentMonitoring.Tests/    # Headless assembly and collect/query tests (no WPF)
+│  └─ AgentIsland.Tests/        # Desktop host tests
 ├─ scripts/
 │  ├─ Launch-StressTestUI.ps1   # 1-Year worst-case stress launcher script
 │  └─ Measure-ProcessResources.ps1 # Process CPU and working set profiling script

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgentIsland.Core</RootNamespace>
+    <AssemblyName>AgentMonitoring.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentIsland.Tests" />
+    <InternalsVisibleTo Include="AgentMonitoring" />
+  </ItemGroup>
+
+</Project>

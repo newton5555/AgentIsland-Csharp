@@ -1,8 +1,10 @@
 using AgentIsland.Core;
+using AgentIsland.Core.Agents;
 using AgentIsland.Core.Cost;
 using AgentIsland.Backend.Cost;
 using AgentIsland.Backend.Settings;
 using AgentIsland.UI.Providers;
+using AgentMonitoring.Queries;
 
 namespace AgentIsland.UI.Report;
 
@@ -120,16 +122,38 @@ public static class ReportPeriods
         IProviderVisibilityStore? visibilityStore = null,
         ICostQueryService? costQueryService = null,
         CancellationToken cancellationToken = default,
-        bool includeAllDetected = false)
+        bool includeAllDetected = false,
+        IMonitoringQuery? monitoringQuery = null)
     {
-        var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
         var startOffset = AtLocalBoundary(start, TimeZoneInfo.Local);
         var endOffset = AtLocalBoundary(end, TimeZoneInfo.Local);
         var visibility = visibilityStore ?? (App.Instance?.Services?.GetService(typeof(IProviderVisibilityStore)) as IProviderVisibilityStore) ?? new ProviderVisibilityStore();
-        var queryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService) ?? new CostQueryService(visibility);
+        var monitoring = monitoringQuery
+            ?? (App.Instance?.Services?.GetService(typeof(IMonitoringQuery)) as IMonitoringQuery);
         var providers = includeAllDetected
             ? DisplayProviders.All.ToArray()
             : visibility.Enabled.ToArray();
+
+        if (monitoring is not null)
+        {
+            return Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var keys = providers.Select(provider => provider.ToAgentKey()).ToArray();
+                var report = monitoring.GetReport(startOffset, endOffset, keys);
+                var output = new Dictionary<DisplayProvider, ReportSlice>();
+                foreach (var row in report.Agents)
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (row.Agent.ToDisplayProvider() is not { } provider) continue;
+                    output[provider] = row.Slice;
+                }
+                return output;
+            }, cancellationToken);
+        }
+
+        var lookback = CostSummarizer.YearHistoryDays(DateTimeOffset.Now);
+        var queryService = costQueryService ?? (App.Instance?.Services?.GetService(typeof(ICostQueryService)) as ICostQueryService) ?? new CostQueryService(visibility);
         return Task.Run(async () =>
         {
             ReportSlice Slice(IReadOnlyList<TokenEvent> events) =>
@@ -139,7 +163,7 @@ public static class ReportPeriods
             var scans = providers.ToDictionary(
                 provider => provider,
                 provider => queryService.ScanAsync(
-                    provider, lookback, DateTimeOffset.Now, cancellationToken,
+                    provider.ToAgentKey(), lookback, DateTimeOffset.Now, cancellationToken,
                     force: includeAllDetected && !visibility.IsEnabled(provider)));
 
             var output = new Dictionary<DisplayProvider, ReportSlice>();
@@ -151,11 +175,11 @@ public static class ReportPeriods
                 {
                     scan = await scans[provider].ConfigureAwait(false);
                 }
-                catch (CostQueryService.ProviderDisabledException)
+                catch (CostQueryService.AgentDisabledException)
                 {
                     continue;
                 }
-                if (!queryService.IsCurrent(provider, scan.ProviderVersion)) continue;
+                if (!queryService.IsCurrent(provider.ToAgentKey(), scan.ProviderVersion)) continue;
                 output[provider] = Slice(scan.Events);
             }
             return output;

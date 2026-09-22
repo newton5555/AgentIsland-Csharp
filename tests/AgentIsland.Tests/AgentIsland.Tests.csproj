@@ -15,11 +15,17 @@
     <ProjectReference Include="..\..\src\AgentIsland.Core\AgentIsland.Core.csproj" />
     <ProjectReference Include="..\..\src\AgentIsland.Providers\AgentIsland.Providers.csproj" />
     <ProjectReference Include="..\..\src\AgentIsland.Windows\AgentIsland.Windows.csproj" />
+    <ProjectReference Include="..\..\src\AgentMonitoring.Core\AgentMonitoring.Core.csproj" />
+    <ProjectReference Include="..\..\src\AgentMonitoring\AgentMonitoring.csproj" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Remove="System.Drawing" />
     <Using Remove="System.Windows.Forms" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Fixtures\P0\**\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

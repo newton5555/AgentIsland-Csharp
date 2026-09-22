@@ -241,6 +241,8 @@ public class ProviderPluginTests
         public void MoveProvider(int oldIndex, int newIndex) { }
         public bool IsShown(DisplayProvider provider) => SlotProviders.Contains(provider);
         public bool IsEnabled(DisplayProvider provider) => SlotProviders.Contains(provider);
+        public bool IsEnabled(AgentKey agent) =>
+            DisplayProviders.Parse(agent.Value) is { } provider && IsEnabled(provider);
         public bool Toggle(DisplayProvider provider) => true;
 
         public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;

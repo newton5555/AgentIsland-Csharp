@@ -48,6 +48,7 @@ public class ContainerVerificationTests
 
         services.AddSingleton<ProviderVisibilityStore>();
         services.AddSingleton<IProviderVisibilityStore>(sp => sp.GetRequiredService<ProviderVisibilityStore>());
+        services.AddSingleton<IAgentEnablement>(sp => sp.GetRequiredService<ProviderVisibilityStore>());
 
         services.AddSingleton<GrokUsageStore>();
         services.AddSingleton<IGrokUsageStore>(sp => sp.GetRequiredService<GrokUsageStore>());
@@ -114,6 +115,8 @@ public class ContainerVerificationTests
         var sp = CreateTestServiceProvider();
 
         AssertSingleton<IProviderVisibilityStore>(sp);
+        AssertSingleton<IAgentEnablement>(sp);
+        AssertSingleton<ICostQueryService>(sp);
         AssertSingleton<IUsageStore>(sp);
         AssertSingleton<ICostStore>(sp);
         AssertSingleton<IActivityMonitor>(sp);

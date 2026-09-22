@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>AgentMonitoring</RootNamespace>
+    <AssemblyName>AgentMonitoring</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentMonitoring.Core\AgentMonitoring.Core.csproj" />
+    <ProjectReference Include="..\AgentIsland.Providers\AgentIsland.Providers.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="AgentIsland.Tests" />
+    <InternalsVisibleTo Include="AgentMonitoring.Tests" />
+  </ItemGroup>
+
+</Project>

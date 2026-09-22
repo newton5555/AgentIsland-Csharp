@@ -26,6 +26,8 @@ public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
 
     private readonly IProviderVisibilityStore _visibilityStore;
     private readonly AgentIsland.Core.Threading.IUiDispatcher? _dispatcher;
+    private readonly AgentMonitoring.Balances.IBalanceStore? _balanceStore;
+    private readonly AgentMonitoring.Accounts.IAccountDirectory? _accounts;
 
     private DeepSeekBalanceSnapshot? _snapshot;
     private string? _errorCaption;
@@ -39,10 +41,14 @@ public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
 
     public DeepSeekBalanceStore(
         IProviderVisibilityStore visibilityStore,
-        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null)
+        AgentIsland.Core.Threading.IUiDispatcher? dispatcher = null,
+        AgentMonitoring.Balances.IBalanceStore? balanceStore = null,
+        AgentMonitoring.Accounts.IAccountDirectory? accounts = null)
     {
         _visibilityStore = visibilityStore ?? throw new ArgumentNullException(nameof(visibilityStore));
         _dispatcher = dispatcher;
+        _balanceStore = balanceStore;
+        _accounts = accounts;
 
         if (AppEnvironment.IsDemo)
         {
@@ -191,17 +197,47 @@ public sealed class DeepSeekBalanceStore : IDeepSeekBalanceStore
                 ErrorCaption = null;
                 LastUpdated = DateTimeOffset.Now;
                 Persist(success.Snapshot);
+                PublishBalance(Adapters.DeepSeekBalanceSource.ToResult(success.Snapshot));
                 break;
             case DeepSeekBalanceFetcher.Outcome.NotConfigured:
                 ErrorCaption = "no deepseek api key";
+                PublishBalance(new AgentMonitoring.Balances.BalanceFetchResult.Failed("no deepseek api key"));
                 break;
             case DeepSeekBalanceFetcher.Outcome.Unauthorized:
                 ErrorCaption = "deepseek api key rejected";
+                PublishBalance(new AgentMonitoring.Balances.BalanceFetchResult.Failed("deepseek api key rejected"));
                 break;
             case DeepSeekBalanceFetcher.Outcome.Failed failed:
                 ErrorCaption = failed.Message;
+                PublishBalance(new AgentMonitoring.Balances.BalanceFetchResult.Failed(failed.Message));
                 break;
         }
+    }
+
+    private void PublishBalance(AgentMonitoring.Balances.BalanceFetchResult result)
+    {
+        if (_balanceStore is null) return;
+        var account = _accounts?.Current(AgentIsland.Core.Agents.AgentKeys.DeepSeek)
+            ?? new AgentIsland.Core.Agents.AccountRef(AgentIsland.Core.Agents.AgentKeys.DeepSeek, null);
+        var previous = _balanceStore.Read(account);
+        var now = DateTimeOffset.Now;
+        AgentIsland.Core.Usage.RemoteBalanceSnapshot snapshot = result switch
+        {
+            AgentMonitoring.Balances.BalanceFetchResult.Success success => new(
+                account,
+                success.Balance.Currency,
+                success.Balance.Amount,
+                now,
+                now,
+                null,
+                success.IsAvailable),
+            AgentMonitoring.Balances.BalanceFetchResult.Failed failed when previous is { SucceededAt: not null } keep =>
+                keep with { FetchedAt = now, Error = failed.Error },
+            AgentMonitoring.Balances.BalanceFetchResult.Failed failed => new(
+                account, "", 0, now, null, failed.Error, false),
+            _ => previous ?? new(account, "", 0, now, null, "unknown balance result", false),
+        };
+        _balanceStore.Commit(snapshot);
     }
 
     private static void Persist(DeepSeekBalanceSnapshot fresh) => Preferences.Set(

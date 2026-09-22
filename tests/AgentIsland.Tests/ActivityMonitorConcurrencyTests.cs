@@ -212,6 +212,8 @@ public sealed class ActivityMonitorConcurrencyTests
         public void MoveProvider(int oldIndex, int newIndex) { }
         public bool IsShown(DisplayProvider provider) => _enabled.Contains(provider);
         public bool IsEnabled(DisplayProvider provider) => _enabled.Contains(provider);
+        public bool IsEnabled(AgentKey agent) =>
+            DisplayProviders.Parse(agent.Value) is { } provider && IsEnabled(provider);
         public bool Toggle(DisplayProvider provider) => SetEnabled(provider, !_enabled.Contains(provider));
     }
 

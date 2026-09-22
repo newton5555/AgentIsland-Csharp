@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
+    <ProjectReference Include="..\AgentMonitoring.Core\AgentMonitoring.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

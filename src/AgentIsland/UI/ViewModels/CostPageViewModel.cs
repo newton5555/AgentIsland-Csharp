@@ -58,6 +58,13 @@ public sealed partial class CostPageViewModel : ObservableObject, IDisposable
 
     private void OnCostChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher is not null && !dispatcher.CheckAccess())
+        {
+            dispatcher.BeginInvoke(UpdateCostData);
+            return;
+        }
+
         UpdateCostData();
     }
 

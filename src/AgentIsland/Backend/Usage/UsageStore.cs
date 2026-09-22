@@ -2,8 +2,12 @@ using System.ComponentModel;
 using System.Net.NetworkInformation;
 using System.Windows.Threading;
 using AgentIsland.Core;
+using AgentIsland.Core.Agents;
+using AgentIsland.Core.Usage;
 using AgentIsland.UI.Localization;
 using AgentIsland.UI.Providers;
+using AgentMonitoring.Accounts;
+using AgentMonitoring.Quotas;
 
 namespace AgentIsland.Backend.Usage;
 
@@ -89,7 +93,11 @@ public sealed class UsageStore : IUsageStore
     private readonly IClaudeWebLogin? _claudeWebLogin;
     private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
     private readonly AgentIsland.Core.Storage.ISettingsStorage _settingsStorage;
+    private readonly IQuotaStore? _quotaStore;
+    private readonly IQuotaRefresher? _quotaRefresher;
+    private readonly IAccountDirectory? _accounts;
     private readonly Dictionary<DisplayProvider, AppUsage> _usages = new();
+    private readonly Dictionary<DisplayProvider, string?> _displayedAccountId = new();
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -117,7 +125,10 @@ public sealed class UsageStore : IUsageStore
         IDeepSeekBalanceStore? deepSeekBalanceStore = null,
         IClaudeWebLogin? claudeWebLogin = null,
         AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
-        AgentIsland.Core.Storage.ISettingsStorage? settingsStorage = null)
+        AgentIsland.Core.Storage.ISettingsStorage? settingsStorage = null,
+        IQuotaStore? quotaStore = null,
+        IQuotaRefresher? quotaRefresher = null,
+        IAccountDirectory? accounts = null)
     {
         _visibilityStore = visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         _refreshIntervalStore = refreshIntervalStore ?? new RefreshIntervalStore();
@@ -127,6 +138,9 @@ public sealed class UsageStore : IUsageStore
         _deepSeekBalanceStore = deepSeekBalanceStore;
         _claudeWebLogin = claudeWebLogin;
         _settingsStorage = settingsStorage ?? Preferences.Storage;
+        _quotaStore = quotaStore;
+        _quotaRefresher = quotaRefresher;
+        _accounts = accounts;
         _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
             ? new AgentIsland.UI.Threading.WpfUiDispatcher()
             : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
@@ -230,6 +244,7 @@ public sealed class UsageStore : IUsageStore
         }
 
         SyncProviderMode();
+        ApplyCurrentAccountSnapshots();
         if (_enabledProviders.Count == 0)
         {
             Loading = false;
@@ -484,8 +499,8 @@ public sealed class UsageStore : IUsageStore
         }
 
         RefreshWarning = WarningFor(
-            IsErrorOnly(Claude),
-            IsErrorOnly(Codex));
+            QuotaMerge.IsErrorOnly(Claude),
+            QuotaMerge.IsErrorOnly(Codex));
         UpdateLastUpdated();
 
         if (_enabledProviders.Count == 0)
@@ -530,21 +545,28 @@ public sealed class UsageStore : IUsageStore
         if (slot.Task is not null) return;
 
         var generation = slot.Generation;
+        var account = CurrentAccount(provider);
         var cts = new CancellationTokenSource();
         var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var task = Task.Run(
-            () => FetchCore(provider, cts.Token),
+            () => FetchCore(provider, account, cts.Token),
             CancellationToken.None);
         slot.Cancellation = cts;
         slot.Task = task;
         slot.CompletionTcs = tcs;
-        _ = ObserveCoreRefresh(provider, generation, task, cts, tcs);
+        _ = ObserveCoreRefresh(provider, account, generation, task, cts, tcs);
     }
 
     private Task<AppUsage> FetchCore(
         DisplayProvider provider,
+        AccountRef account,
         CancellationToken cancellationToken)
     {
+        if (_quotaRefresher is not null)
+        {
+            return FetchViaQuota(account, cancellationToken);
+        }
+
         if (_injectedFetchers.TryGetValue(provider, out var fetcher))
         {
             return FetchWithRetry(ct => fetcher.FetchUsageAsync(ct).AsTask(), cancellationToken);
@@ -557,8 +579,42 @@ public sealed class UsageStore : IUsageStore
         };
     }
 
+    private async Task<AppUsage> FetchViaQuota(AccountRef account, CancellationToken cancellationToken)
+    {
+        var snapshot = await _quotaRefresher!.RefreshAsync(account, cancellationToken).ConfigureAwait(false);
+        return snapshot.Usage;
+    }
+
+    private AccountRef CurrentAccount(DisplayProvider provider)
+    {
+        var key = provider.ToAgentKey();
+        return _accounts?.Current(key) ?? new AccountRef(key, null);
+    }
+
+    private void ApplyCurrentAccountSnapshots()
+    {
+        if (_quotaStore is null) return;
+        foreach (var provider in CoreProviders)
+        {
+            if (!_enabledProviders.Contains(provider)) continue;
+            var account = CurrentAccount(provider);
+            if (_displayedAccountId.TryGetValue(provider, out var shown) && shown == account.AccountId)
+                continue;
+            _displayedAccountId[provider] = account.AccountId;
+            var snapshot = _quotaStore.Read(account);
+            ApplyCoreUsage(provider, snapshot?.Usage ?? AppUsage.Empty);
+        }
+    }
+
+    private void ApplyCoreUsage(DisplayProvider provider, AppUsage usage)
+    {
+        if (provider == DisplayProvider.Claude) Claude = usage;
+        else if (provider == DisplayProvider.Codex) Codex = usage;
+    }
+
     private async Task ObserveCoreRefresh(
         DisplayProvider provider,
+        AccountRef account,
         long generation,
         Task<AppUsage> task,
         CancellationTokenSource cts,
@@ -595,25 +651,43 @@ public sealed class UsageStore : IUsageStore
                         return;
                     }
 
-                    var failed = IsErrorOnly(result);
-                    if (provider == DisplayProvider.Claude)
+                    var current = CurrentAccount(provider);
+                    if (current.AccountId != account.AccountId)
                     {
-                        var merged = MergedUsage(Claude, result);
-                        Claude = merged;
-                        SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
+                        ApplyCoreUsage(provider, _quotaStore?.Read(current)?.Usage ?? AppUsage.Empty);
+                        _displayedAccountId[provider] = current.AccountId;
+                        UpdateLoading();
+                        return;
                     }
+
+                    var failed = QuotaMerge.IsErrorOnly(result);
+                    var merged = _quotaRefresher is not null
+                        ? result
+                        : QuotaMerge.Apply(provider == DisplayProvider.Claude ? Claude : Codex, result);
+                    if (_quotaStore is not null && _quotaRefresher is null)
+                    {
+                        _quotaStore.Commit(new QuotaSnapshot(
+                            account,
+                            merged,
+                            DateTimeOffset.Now,
+                            failed ? _quotaStore.Read(account)?.SucceededAt : DateTimeOffset.Now,
+                            failed ? (result.FiveHour.Error ?? result.Weekly.Error) : null));
+                    }
+
+                    ApplyCoreUsage(provider, merged);
+                    _displayedAccountId[provider] = account.AccountId;
+                    if (provider == DisplayProvider.Claude)
+                        SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
                     else
                     {
-                        var merged = MergedUsage(Codex, result);
-                        Codex = merged;
                         SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
                         if (!failed) MaybeAutoSwitchCodex(merged);
                     }
 
                     if (!failed) _providerUpdatedAt[provider] = DateTimeOffset.Now;
                     RefreshWarning = WarningFor(
-                        IsErrorOnly(Claude),
-                        IsErrorOnly(Codex));
+                        QuotaMerge.IsErrorOnly(Claude),
+                        QuotaMerge.IsErrorOnly(Codex));
                     UpdateLastUpdated();
                     UpdateLoading();
                 }
@@ -721,6 +795,8 @@ public sealed class UsageStore : IUsageStore
         if (!CodexAccountSwitcher.Activate(next)) return;
         _codexAutoSwitchTried.Add(next.Label);
         CodexAutoSwitched = next.Label;
+        _displayedAccountId.Remove(DisplayProvider.Codex);
+        ApplyCurrentAccountSnapshots();
         Refresh();
     }
 
@@ -738,12 +814,6 @@ public sealed class UsageStore : IUsageStore
         return Math.Max(1, value);
     }
 
-    /// True when both windows have errors and zero values — nothing useful
-    /// to show, so we keep whatever we had before.
-    private static bool IsErrorOnly(AppUsage usage) =>
-        usage.FiveHour.Error is not null && usage.Weekly.Error is not null
-        && usage.FiveHour.UsedPercent == 0 && usage.Weekly.UsedPercent == 0;
-
     /// Transient-network retry (macOS ae5bafc): an SSL hiccup or timeout
     /// gets two more tries with a short backoff before anything is shown.
     /// A superseding refresh cancels the wait, and a genuine outage still
@@ -754,31 +824,10 @@ public sealed class UsageStore : IUsageStore
         for (var attempt = 0; ; attempt++)
         {
             var result = await fetch(token);
-            if (!IsErrorOnly(result) || attempt >= 2 || token.IsCancellationRequested) return result;
+            if (!QuotaMerge.IsErrorOnly(result) || attempt >= 2 || token.IsCancellationRequested) return result;
             try { await Task.Delay(TimeSpan.FromSeconds(attempt == 0 ? 1 : 3), token); }
             catch (TaskCanceledException) { return result; }
         }
-    }
-
-    /// Don't clobber existing good values when a fetch returns an all-error
-    /// result: preserve the last useful percentages but carry the new error
-    /// forward so the UI admits the values are stale. If the existing value
-    /// is itself error-only (cold start, series of failures), let the new
-    /// error through.
-    private static AppUsage MergedUsage(AppUsage existing, AppUsage fetched)
-    {
-        if (!IsErrorOnly(fetched) || IsErrorOnly(existing)) return fetched;
-        var error = fetched.FiveHour.Error ?? fetched.Weekly.Error;
-        return new AppUsage(
-            new WindowUsage(
-                existing.FiveHour.UsedPercent, existing.FiveHour.ResetAt, error,
-                existing.FiveHour.PeriodSeconds),
-            new WindowUsage(
-                existing.Weekly.UsedPercent, existing.Weekly.ResetAt, error,
-                existing.Weekly.PeriodSeconds),
-            existing.Plan,
-            existing.ResetCards,
-            existing.ResetCardDetails);
     }
 
     private string? WarningFor(bool codexFailed, bool claudeFailed)
@@ -948,11 +997,11 @@ public sealed class UsageStore : IUsageStore
         var fetched = await UsageFetcher.FetchClaude().ConfigureAwait(false);
         _uiDispatcher.BeginInvoke(() =>
         {
-            var merged = MergedUsage(Claude, fetched);
+            var merged = QuotaMerge.Apply(Claude, fetched);
             Claude = merged;
             SaveCachedSnapshot(merged, Codex, fetchedClaude: true, fetchedCodex: false);
-            RefreshWarning = IsErrorOnly(fetched) ? L10n.Tr("Claude stale") : null;
-            if (!IsErrorOnly(fetched)) LastUpdated = DateTimeOffset.Now;
+            RefreshWarning = QuotaMerge.IsErrorOnly(fetched) ? L10n.Tr("Claude stale") : null;
+            if (!QuotaMerge.IsErrorOnly(fetched)) LastUpdated = DateTimeOffset.Now;
             ClaudeReauthInProgress = false;
         });
     }
@@ -962,13 +1011,13 @@ public sealed class UsageStore : IUsageStore
         var fetched = await UsageFetcher.FetchCodex().ConfigureAwait(false);
         _uiDispatcher.BeginInvoke(() =>
         {
-            var merged = MergedUsage(Codex, fetched);
+            var merged = QuotaMerge.Apply(Codex, fetched);
             Codex = merged;
             SaveCachedSnapshot(Claude, merged, fetchedClaude: false, fetchedCodex: true);
-            RefreshWarning = IsErrorOnly(fetched) && _visibilityStore.CodexVisible
+            RefreshWarning = QuotaMerge.IsErrorOnly(fetched) && _visibilityStore.CodexVisible
                 ? L10n.Tr("Codex stale")
                 : null;
-            if (!IsErrorOnly(fetched)) LastUpdated = DateTimeOffset.Now;
+            if (!QuotaMerge.IsErrorOnly(fetched)) LastUpdated = DateTimeOffset.Now;
             CodexReauthInProgress = false;
         });
     }

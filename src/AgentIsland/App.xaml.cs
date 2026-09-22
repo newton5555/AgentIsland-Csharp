@@ -1,3 +1,4 @@
+using System.IO;
 using System.Windows;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -83,7 +84,44 @@ public partial class App : System.Windows.Application
                         options.TotalRequestTimeout.Timeout = TimeSpan.FromSeconds(30);
                     });
 
+                services.AddSingleton(sp => new AgentMonitoring.Consumption.ConsumptionStore(
+                    Path.Combine(IslandPaths.CacheDir, "codex-consumption.v1.json")));
+                services.AddSingleton<AgentMonitoring.Consumption.IConsumptionStore>(
+                    sp => sp.GetRequiredService<AgentMonitoring.Consumption.ConsumptionStore>());
+                services.AddSingleton<AgentMonitoring.Consumption.IConsumptionQuery>(
+                    sp => sp.GetRequiredService<AgentMonitoring.Consumption.ConsumptionStore>());
+                services.AddSingleton<AgentMonitoring.Pricing.IPricer, AgentMonitoring.Pricing.SnapshotPricer>();
+                services.AddSingleton<AgentMonitoring.Consumption.IConsumptionCollector>(sp =>
+                    new AgentMonitoring.Consumption.CodexConsumptionCollector(
+                        sp.GetRequiredService<AgentMonitoring.Consumption.IConsumptionStore>(),
+                        () => AgentIsland.Providers.Cost.Codex.CodexRolloutDiscovery.FromHomes(IslandPaths.CodexHomes)));
+                services.AddSingleton(sp => new AgentIsland.Backend.Cost.Adapters.CodexCostLedgerReader(
+                    sp.GetRequiredService<AgentMonitoring.Consumption.IConsumptionQuery>(),
+                    sp.GetRequiredService<AgentMonitoring.Pricing.IPricer>()));
+
                 services.AddAgentProviders();
+
+                services.AddSingleton<AgentMonitoring.Quotas.IQuotaStore, AgentMonitoring.Quotas.QuotaStore>();
+                services.AddSingleton<AgentMonitoring.Balances.IBalanceStore, AgentMonitoring.Balances.BalanceStore>();
+                services.AddSingleton<AgentMonitoring.Accounts.IAccountDirectory, CodexAccountDirectory>();
+                services.AddSingleton<AgentMonitoring.Balances.IBalanceSource>(sp =>
+                    new AgentIsland.Backend.Usage.Adapters.DeepSeekBalanceSource(
+                        sp.GetRequiredService<AgentMonitoring.Accounts.IAccountDirectory>()));
+                services.AddSingleton<AgentMonitoring.Quotas.IQuotaRefresher>(sp =>
+                {
+                    var directory = sp.GetRequiredService<AgentMonitoring.Accounts.IAccountDirectory>();
+                    var sources = sp.GetServices<IAgentProvider>()
+                        .Where(provider => provider.UsageFetcher is not null)
+                        .Select(provider => new AgentMonitoring.Quotas.UsageFetcherQuotaSource(
+                            provider.Descriptor.Key, provider.UsageFetcher!, directory));
+                    return new AgentMonitoring.Quotas.QuotaRefresher(
+                        sp.GetRequiredService<AgentMonitoring.Quotas.IQuotaStore>(),
+                        sources);
+                });
+                services.AddSingleton<AgentMonitoring.Balances.IBalanceRefresher>(sp =>
+                    new AgentMonitoring.Balances.BalanceRefresher(
+                        sp.GetRequiredService<AgentMonitoring.Balances.IBalanceStore>(),
+                        sp.GetServices<AgentMonitoring.Balances.IBalanceSource>()));
 
                 // UI & Settings Stores
                 services.AddSingleton<IslandModel>();
@@ -107,6 +145,7 @@ public partial class App : System.Windows.Application
                 // Domain & Usage Stores
                 services.AddSingleton<ProviderVisibilityStore>();
                 services.AddSingleton<IProviderVisibilityStore>(sp => sp.GetRequiredService<ProviderVisibilityStore>());
+                services.AddSingleton<IAgentEnablement>(sp => sp.GetRequiredService<ProviderVisibilityStore>());
 
                 services.AddSingleton<GrokUsageStore>();
                 services.AddSingleton<IGrokUsageStore>(sp => sp.GetRequiredService<GrokUsageStore>());
@@ -120,6 +159,11 @@ public partial class App : System.Windows.Application
                 services.AddSingleton<DeepSeekBalanceStore>();
                 services.AddSingleton<IDeepSeekBalanceStore>(sp => sp.GetRequiredService<DeepSeekBalanceStore>());
 
+                services.AddSingleton<ILedgerSnapshotStore, LedgerSnapshotStore>();
+                services.AddSingleton<AgentMonitoring.Activity.IActivitySnapshotStore, AgentMonitoring.Activity.ActivitySnapshotStore>();
+                services.AddSingleton<AgentMonitoring.Notifications.ReminderBroker>();
+                services.AddSingleton<AgentMonitoring.Runtime.AgentRuntime>();
+                services.AddSingleton<IMonitoringQuery, MonitoringQueryService>();
                 services.AddSingleton<CostQueryService>();
                 services.AddSingleton<ICostQueryService>(sp => sp.GetRequiredService<CostQueryService>());
 
@@ -139,6 +183,8 @@ public partial class App : System.Windows.Application
 
                 services.AddSingleton<AgentReminderCenter>();
                 services.AddSingleton<IAgentReminderCenter>(sp => sp.GetRequiredService<AgentReminderCenter>());
+                services.AddSingleton<AgentMonitoring.Notifications.IReminderSink>(
+                    sp => sp.GetRequiredService<AgentReminderCenter>());
 
                 services.AddSingleton<UsageExhaustionAlarm>();
                 services.AddSingleton<IUsageExhaustionAlarm>(sp => sp.GetRequiredService<UsageExhaustionAlarm>());

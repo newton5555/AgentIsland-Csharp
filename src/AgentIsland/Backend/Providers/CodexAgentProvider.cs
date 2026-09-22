@@ -11,7 +11,12 @@ namespace AgentIsland.Backend.Providers;
 public sealed class CodexAgentProvider : IAgentProvider, ISessionSensor, IUsageFetcher, ICostLedgerReader, IReauthHandler
 {
     private readonly CodexSessionSensor _sensor = new();
-    private readonly CodexCostLedgerReader _costReader = new();
+    private readonly CodexCostLedgerReader _costReader;
+
+    public CodexAgentProvider(CodexCostLedgerReader? costReader = null)
+    {
+        _costReader = costReader ?? new CodexCostLedgerReader();
+    }
 
     public AgentDescriptor Descriptor { get; } = new(
         new AgentKey("codex"),

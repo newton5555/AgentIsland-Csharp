@@ -28,14 +28,21 @@ public static class IslandPaths
     public static string ClaudeDesktopSessionsRoot => OverrideOrDefault(
         "CLAUDE_DESKTOP_DIR", Path.Combine(RoamingAppData, "Claude", "claude-code-sessions"));
 
-    public static string CodexHome
+    public static IReadOnlyList<string> CodexHomes
     {
         get
         {
             var env = Environment.GetEnvironmentVariable("CODEX_HOME");
-            return string.IsNullOrWhiteSpace(env) ? Path.Combine(Home, ".codex") : env;
+            if (string.IsNullOrWhiteSpace(env))
+                return new[] { Path.Combine(Home, ".codex") };
+            return env.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
         }
     }
+
+    public static string CodexHome => CodexHomes[0];
 
     public static string CodexSessionsRoot => Path.Combine(CodexHome, "sessions");
 

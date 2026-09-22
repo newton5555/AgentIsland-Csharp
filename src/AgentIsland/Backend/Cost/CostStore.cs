@@ -34,6 +34,8 @@ public sealed class CostStore : ICostStore
     private readonly IProviderVisibilityStore? _visibilityStore;
     private readonly RefreshIntervalStore? _intervalStore;
     private readonly ICostQueryService? _costQueryService;
+    private readonly AgentMonitoring.Consumption.IConsumptionCollector? _collector;
+    private readonly AgentMonitoring.Runtime.AgentRuntime? _runtime;
     private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -43,11 +45,15 @@ public sealed class CostStore : ICostStore
         RefreshIntervalStore? intervalStore = null,
         ICostQueryService? costQueryService = null,
         AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
-        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null)
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null,
+        AgentMonitoring.Consumption.IConsumptionCollector? collector = null,
+        AgentMonitoring.Runtime.AgentRuntime? runtime = null)
     {
         _visibilityStore = visibilityStore;
         _intervalStore = intervalStore;
         _costQueryService = costQueryService;
+        _collector = collector;
+        _runtime = runtime;
         _providers = providers?.ToArray() ?? Array.Empty<AgentIsland.Core.Agents.IAgentProvider>();
         _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
             ? new AgentIsland.UI.Threading.WpfUiDispatcher()
@@ -139,7 +145,7 @@ public sealed class CostStore : ICostStore
         {
             _providerModeVersions.TryGetValue(provider, out var version);
             _providerModeVersions[provider] = version + 1;
-            _costQueryService?.Invalidate(provider);
+            _costQueryService?.Invalidate(provider.ToAgentKey());
             ClearProviderMemory(provider);
         }
         foreach (var inFlight in _inFlightProviders.Values)
@@ -204,7 +210,7 @@ public sealed class CostStore : ICostStore
             foreach (var provider in removed)
             {
                 SetSummary(provider, ProviderCostSummary.Empty);
-                _costQueryService?.Invalidate(provider);
+                _costQueryService?.Invalidate(provider.ToAgentKey());
                 if (_inFlightProviders.Remove(provider, out var inFlight))
                 {
                     inFlight.CompletionTcs.TrySetResult();
@@ -269,7 +275,7 @@ public sealed class CostStore : ICostStore
             var queryService = _costQueryService ?? new CostQueryService(
                 _visibilityStore ?? new ProviderVisibilityStore(),
                 _providers);
-            var task = queryService.ScanAsync(provider, lookback, now);
+            var task = CollectThenQuery(provider, queryService, lookback, now);
             var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
             _inFlightProviders[provider] = new CostInFlight
@@ -383,7 +389,7 @@ public sealed class CostStore : ICostStore
         if (result is not null
             && providerModeVersion == CurrentProviderModeVersion(provider)
             && _activeProviders.Contains(provider)
-            && queryService.IsCurrent(provider, result.ProviderVersion))
+            && queryService.IsCurrent(provider.ToAgentKey(), result.ProviderVersion))
         {
             SetSummary(provider, result.Summary);
             LastUpdated = DateTimeOffset.Now;
@@ -396,6 +402,23 @@ public sealed class CostStore : ICostStore
         }
     }
 
+
+    private async Task<CostScanResult> CollectThenQuery(
+        DisplayProvider provider,
+        ICostQueryService queryService,
+        int lookback,
+        DateTimeOffset now)
+    {
+        if (_runtime is not null)
+            return await _runtime.CollectCostAsync(provider.ToAgentKey(), lookback, now).ConfigureAwait(false);
+
+        if (provider == DisplayProvider.Codex && _collector is not null)
+        {
+            await _collector.CollectAsync(provider.ToAgentKey()).ConfigureAwait(false);
+        }
+
+        return await queryService.ScanAsync(provider.ToAgentKey(), lookback, now).ConfigureAwait(false);
+    }
 
     private long CurrentProviderModeVersion(DisplayProvider provider) =>
         _providerModeVersions.TryGetValue(provider, out var version) ? version : 0;

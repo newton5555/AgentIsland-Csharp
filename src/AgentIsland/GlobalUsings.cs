@@ -14,3 +14,5 @@ global using AgentIsland.Backend.Updates;
 global using AgentIsland.Backend.Usage;
 global using AgentIsland.UI.Localization;
 global using AgentIsland.UI.Providers;
+global using AgentMonitoring.Enablement;
+global using AgentMonitoring.Queries;

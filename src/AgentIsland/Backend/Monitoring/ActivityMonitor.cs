@@ -6,6 +6,8 @@ using AgentIsland.Backend.Alarms;
 using AgentIsland.UI.Providers;
 using AgentIsland.Core.Usage;
 using AgentIsland.Windows.Monitoring;
+using AgentMonitoring.Activity;
+using AgentMonitoring.Notifications;
 
 namespace AgentIsland.Backend.Monitoring;
 
@@ -53,8 +55,13 @@ public sealed class ActivityMonitor : IActivityMonitor
         TriggerTool.DeepSeek,
     };
     private readonly Dictionary<TriggerTool, AgentIsland.Core.Agents.ISessionSensor> _injectedSensors = new();
+    private readonly Dictionary<string, AgentIsland.Core.Agents.ISessionSensor> _sensorsByAgent = new(StringComparer.Ordinal);
+    private AgentKey[] _monitoredAgents = Array.Empty<AgentKey>();
     private readonly AgentIsland.Backend.Settings.IProviderVisibilityStore _visibilityStore;
     private readonly AgentIsland.Backend.Alarms.IAgentReminderCenter? _reminderCenter;
+    private readonly IActivitySnapshotStore? _activityStore;
+    private readonly ReminderBroker? _reminderBroker;
+    private readonly IReminderSink? _reminderSink;
     private readonly AgentIsland.Core.Threading.IUiDispatcher _uiDispatcher;
 
     /// <summary>
@@ -66,10 +73,16 @@ public sealed class ActivityMonitor : IActivityMonitor
         AgentIsland.Backend.Settings.IProviderVisibilityStore? visibilityStore = null,
         AgentIsland.Backend.Alarms.IAgentReminderCenter? reminderCenter = null,
         AgentIsland.Core.Threading.IUiDispatcher? uiDispatcher = null,
-        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null)
+        IEnumerable<AgentIsland.Core.Agents.IAgentProvider>? providers = null,
+        IActivitySnapshotStore? activityStore = null,
+        ReminderBroker? reminderBroker = null,
+        IReminderSink? reminderSink = null)
     {
         _visibilityStore = visibilityStore ?? new AgentIsland.Backend.Settings.ProviderVisibilityStore();
         _reminderCenter = reminderCenter;
+        _activityStore = activityStore;
+        _reminderBroker = reminderBroker;
+        _reminderSink = reminderSink ?? reminderCenter as IReminderSink;
         _uiDispatcher = uiDispatcher ?? (System.Windows.Application.Current?.Dispatcher is not null
             ? new AgentIsland.UI.Threading.WpfUiDispatcher()
             : AgentIsland.Core.Threading.DirectUiDispatcher.Instance);
@@ -78,6 +91,7 @@ public sealed class ActivityMonitor : IActivityMonitor
             foreach (var p in providers)
             {
                 if (p.SessionSensor is null) continue;
+                _sensorsByAgent[p.Descriptor.Key.Value] = p.SessionSensor;
                 var tool = TriggerToolExtensions.FromRawValue(p.Descriptor.Key.Value);
                 if (tool is not null)
                 {
@@ -98,9 +112,12 @@ public sealed class ActivityMonitor : IActivityMonitor
             _uiDispatcher.Invoke(() => Configure(catalog));
             return;
         }
-        var configured = catalog.Modules
+        _monitoredAgents = catalog.Modules
             .Where(module => module.Descriptor.Supports(AgentCapabilities.Activity))
-            .Select(module => TriggerToolExtensions.FromRawValue(module.Descriptor.Key.Value))
+            .Select(module => module.Descriptor.Key)
+            .ToArray();
+        var configured = _monitoredAgents
+            .Select(key => TriggerToolExtensions.FromRawValue(key.Value))
             .OfType<TriggerTool>()
             .Distinct()
             .ToArray();
@@ -747,6 +764,30 @@ public sealed class ActivityMonitor : IActivityMonitor
         HashSet<TriggerTool> providersSnapshot,
         CancellationToken ct = default)
     {
+        var agentKeys = _monitoredAgents.Length > 0
+            ? _monitoredAgents
+            : providersSnapshot.Select(tool => new AgentKey(tool.RawValue())).ToArray();
+        if (_sensorsByAgent.Count > 0)
+        {
+            var results = new List<ScannedSession>();
+            foreach (var agent in agentKeys)
+            {
+                if (ct.IsCancellationRequested) break;
+                if (!_sensorsByAgent.TryGetValue(agent.Value, out var sensor)) continue;
+                try
+                {
+                    var sessions = await sensor.ScanSessionsAsync(now, lastWorkingSnapshot, ct).ConfigureAwait(false);
+                    results.AddRange(sessions);
+                }
+                catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch { }
+            }
+            results.Sort((a, b) => b.Modified.CompareTo(a.Modified));
+            return results;
+        }
         if (_injectedSensors.Count > 0)
         {
             var results = new List<ScannedSession>();
@@ -783,22 +824,77 @@ public sealed class ActivityMonitor : IActivityMonitor
         var nextStates = new Dictionary<TriggerTool, ActivityState>();
         var nextRaw = new Dictionary<TriggerTool, ActivityState>();
         var nextThreads = new Dictionary<TriggerTool, ActiveThread>();
-        foreach (var tool in _monitoredProviders)
+        var agents = _monitoredAgents.Length > 0
+            ? _monitoredAgents
+            : _monitoredProviders.Select(tool => new AgentKey(tool.RawValue())).ToArray();
+        foreach (var agent in agents)
         {
-            var result = BestSession(sessions, tool,
-                thread => _reminderCenter?.HasAcknowledged(tool, thread) ?? false);
-            nextRaw[tool] = result.State;
-            if (result.Thread is { } thread) nextThreads[tool] = thread;
-            nextStates[tool] = _visibilityStore.IsShown(tool.ToDisplayProvider())
-                ? OverlayUsageAttention(result.State, UsageFor(tool))
-                : result.State;
-            _reminderCenter?.Handle(tool, NeedsYouThreads(sessions, tool));
+            var activity = ActivityReducer.Reduce(
+                agent,
+                sessions,
+                thread => _reminderBroker?.HasAcknowledged(ReminderKeys.ForNeedsYou(agent, thread))
+                    ?? HasLegacyAck(agent, thread),
+                now);
+            _activityStore?.Replace(activity);
+            PublishReminders(agent, activity);
+
+            var tool = TriggerToolExtensions.FromRawValue(agent.Value);
+            if (tool is null) continue;
+            nextRaw[tool.Value] = activity.State;
+            if (activity.Thread is { } thread)
+                nextThreads[tool.Value] = ToLegacyThread(thread);
+            nextStates[tool.Value] = _visibilityStore.IsShown(tool.Value.ToDisplayProvider())
+                ? OverlayUsageAttention(activity.State, UsageFor(tool.Value))
+                : activity.State;
         }
         _rawStates = nextRaw;
         _threads = nextThreads;
         _states = nextStates;
         RaiseAll();
     }
+
+    private void PublishReminders(AgentKey agent, AgentActivity activity)
+    {
+        if (_reminderBroker is not null)
+        {
+            var diff = _reminderBroker.Diff(agent, activity.NeedsYouThreads);
+            foreach (var key in diff.Dismissed) _reminderSink?.Dismiss(key);
+            var mapped = TriggerToolExtensions.FromRawValue(agent.Value);
+            if (mapped is not null && _reminderCenter is not null)
+            {
+                _reminderCenter.Handle(
+                    mapped.Value,
+                    activity.NeedsYouThreads.Select(ToLegacyThread).ToList());
+            }
+            else
+            {
+                foreach (var reminder in diff.Raised) _reminderSink?.Deliver(reminder);
+            }
+
+            _reminderSink?.Observe(agent);
+            return;
+        }
+
+        var tool = TriggerToolExtensions.FromRawValue(agent.Value);
+        if (tool is null) return;
+        _reminderCenter?.Handle(tool.Value, activity.NeedsYouThreads.Select(ToLegacyThread).ToList());
+    }
+
+    private bool HasLegacyAck(AgentKey agent, ActivityThread thread)
+    {
+        var tool = TriggerToolExtensions.FromRawValue(agent.Value);
+        if (tool is null) return false;
+        return _reminderCenter?.HasAcknowledged(tool.Value, ToLegacyThread(thread)) ?? false;
+    }
+
+    private static ActiveThread ToLegacyThread(ActivityThread thread) => new(
+        thread.SessionId,
+        thread.Label,
+        thread.Cwd,
+        thread.Modified,
+        thread.TranscriptPath,
+        thread.TurnKey,
+        thread.LaunchTarget);
 
     private static AppUsage UsageFor(TriggerTool tool) =>
         UI.UsagePage.UsageFor(tool.ToDisplayProvider());

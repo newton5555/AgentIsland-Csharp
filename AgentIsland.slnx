@@ -1,11 +1,15 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/AgentMonitoring.Core/AgentMonitoring.Core.csproj" />
+    <Project Path="src/AgentMonitoring/AgentMonitoring.csproj" />
+    <Project Path="src/AgentMonitoring.Host/AgentMonitoring.Host.csproj" />
     <Project Path="src/AgentIsland.Core/AgentIsland.Core.csproj" />
     <Project Path="src/AgentIsland.Providers/AgentIsland.Providers.csproj" />
     <Project Path="src/AgentIsland.Windows/AgentIsland.Windows.csproj" />
     <Project Path="src/AgentIsland/AgentIsland.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AgentMonitoring.Tests/AgentMonitoring.Tests.csproj" />
     <Project Path="tests/AgentIsland.Tests/AgentIsland.Tests.csproj" />
   </Folder>
   <Folder Name="/assets/">
@@ -44,6 +48,7 @@
   </Folder>
   <Folder Name="/docs/">
     <File Path="docs/architecture.md" />
+    <File Path="docs/p6-headless.md" />
     <File Path="docs/migration.md" />
     <File Path="docs/performance.md" />
   </Folder>

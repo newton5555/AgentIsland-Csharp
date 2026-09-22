@@ -1,0 +1,3 @@
+{"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"sess-reason-001"}}
+{"type":"turn_context","timestamp":"2026-07-16T10:00:00Z","payload":{"model":"gpt-5.4"}}
+{"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":40,"cached_input_tokens":0,"output_tokens":20,"reasoning_output_tokens":8},"total_token_usage":{"input_tokens":40,"output_tokens":20}}}}

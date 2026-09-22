@@ -46,7 +46,7 @@ public sealed class BuiltInAgentCatalog : IAgentCatalog
             AgentCapabilities.Cost | AgentCapabilities.SessionNavigation |
             AgentCapabilities.Reauthentication, "codex"),
         Module("antigravity", "Antigravity", AgentCapabilities.Activity | AgentCapabilities.Usage |
-            AgentCapabilities.SessionNavigation, "agy"),
+            AgentCapabilities.Cost | AgentCapabilities.SessionNavigation, "agy"),
         Module("grok", "Grok", AgentCapabilities.Activity | AgentCapabilities.Usage |
             AgentCapabilities.Cost | AgentCapabilities.SessionNavigation, "grok"),
         Module("cursor", "Cursor", AgentCapabilities.Activity | AgentCapabilities.Usage |
@@ -54,7 +54,8 @@ public sealed class BuiltInAgentCatalog : IAgentCatalog
         // DeepSeek Harness exposes a local token ledger and a compressed
         // activity stream. It deliberately does not claim quota, navigation,
         // or re-auth support; balance is an optional official API card.
-        Module("deepseek", "DeepSeek", AgentCapabilities.Activity | AgentCapabilities.Cost),
+        Module("deepseek", "DeepSeek", AgentCapabilities.Activity | AgentCapabilities.Cost |
+            AgentCapabilities.Balance),
     ];
 
     private static IAgentModule Module(

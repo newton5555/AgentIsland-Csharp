@@ -1,4 +1,6 @@
 using AgentIsland.Core;
+using AgentIsland.Core.Agents;
+using AgentMonitoring.Notifications;
 
 namespace AgentIsland.Backend.Alarms;
 
@@ -7,10 +9,11 @@ namespace AgentIsland.Backend.Alarms;
 /// confirmation buffer that a fresher scan can cancel, and auto-dismissal
 /// when the turn leaves needsYou. Direct port of the macOS center with the
 /// system notification delivered as a tray balloon.
-public sealed class AgentReminderCenter : IAgentReminderCenter
+public sealed class AgentReminderCenter : IAgentReminderCenter, IReminderSink
 {
     private readonly AgentReminderStore _reminderStore;
     private readonly ITurnAlarmWindowController _alarmController;
+    private readonly ReminderBroker? _broker;
 
     private readonly Dictionary<string, DateTimeOffset> _deliveredNeedsYouKeys = new();
     private readonly Dictionary<string, HashSet<string>> _activeNeedsYouKeys = new();
@@ -36,12 +39,47 @@ public sealed class AgentReminderCenter : IAgentReminderCenter
 
     public AgentReminderCenter(
         AgentReminderStore reminderStore,
-        ITurnAlarmWindowController alarmController)
+        ITurnAlarmWindowController alarmController,
+        ReminderBroker? reminderBroker = null)
     {
         _reminderStore = reminderStore ?? throw new ArgumentNullException(nameof(reminderStore));
         _alarmController = alarmController ?? throw new ArgumentNullException(nameof(alarmController));
+        _broker = reminderBroker;
         _acknowledgedNeedsYouKeys = LoadAcknowledgedKeys();
         InstallForegroundWatch();
+    }
+
+    public void Deliver(ReminderEvent reminder)
+    {
+        var tool = TriggerToolExtensions.FromRawValue(reminder.Agent.Value);
+        if (tool is null) return;
+        Handle(tool.Value, new[]
+        {
+            new ActivityMonitor.ActiveThread(
+                reminder.Thread.SessionId,
+                reminder.Thread.Label,
+                reminder.Thread.Cwd,
+                reminder.Thread.Modified,
+                reminder.Thread.TranscriptPath,
+                reminder.Thread.TurnKey,
+                reminder.Thread.LaunchTarget),
+        });
+    }
+
+    public void Dismiss(string deliveryKey)
+    {
+        CancelPending(deliveryKey);
+        _heldAlarms.Remove(deliveryKey);
+        var raw = deliveryKey.Split('-')[0];
+        if (TriggerToolExtensions.FromRawValue(raw) is { } tool)
+            _alarmController.AutoDismiss(tool, deliveryKey);
+    }
+
+    public void Observe(AgentKey agent)
+    {
+        var tool = TriggerToolExtensions.FromRawValue(agent.Value);
+        if (tool is null) return;
+        _observedProviders.Add(tool.Value.RawValue());
     }
 
     public void Handle(TriggerTool provider, IReadOnlyList<ActivityMonitor.ActiveThread> needsYouThreads)
@@ -112,7 +150,8 @@ public sealed class AgentReminderCenter : IAgentReminderCenter
     }
 
     public bool HasAcknowledged(TriggerTool provider, ActivityMonitor.ActiveThread? thread) =>
-        _acknowledgedNeedsYouKeys.ContainsKey(DeliveryKeyFor(provider, thread));
+        _broker?.HasAcknowledged(DeliveryKeyFor(provider, thread)) == true
+        || _acknowledgedNeedsYouKeys.ContainsKey(DeliveryKeyFor(provider, thread));
 
     public void Acknowledge(TriggerTool provider, ActivityMonitor.ActiveThread? thread)
     {
@@ -121,6 +160,7 @@ public sealed class AgentReminderCenter : IAgentReminderCenter
         _heldAlarms.Remove(deliveryKey);
         _acknowledgedNeedsYouKeys[deliveryKey] = DateTimeOffset.Now;
         _deliveredNeedsYouKeys[deliveryKey] = DateTimeOffset.Now;
+        _broker?.Acknowledge(deliveryKey);
         PersistAcknowledgedKeys();
     }
 

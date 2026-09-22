@@ -4,7 +4,7 @@
 
 [![.NET 8.0](https://img.shields.io/badge/.NET-8.0-512BD4?style=flat&logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%2010%20%2F%2011%20x64-0078D6?style=flat&logo=windows)](https://www.microsoft.com/windows)
-[![Tests](https://img.shields.io/badge/Tests-67%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
+[![Tests](https://img.shields.io/badge/Tests-118%20Passing-brightgreen?style=flat&logo=githubactions)](tests/AgentIsland.Tests)
 [![Memory Footprint](https://img.shields.io/badge/Working%20Set-~100MB%20(down%20from%20200MB+)-success?style=flat)](docs/performance.md)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
@@ -124,7 +124,7 @@ catalog.Register(new BuiltInAgentModule(
 
 项目拥有完善的自动化测试套件，全面覆盖核心逻辑、并发安全与 UI 线程交互：
 
-* **67 项测试用例全部通过（ALL GREEN）**：其中 66 项常规测试，另有 1 项压力/资源测试；
+* **118 项测试用例通过**：`AgentIsland.Tests` 113 项（含 1 项压力/资源测试），`AgentMonitoring.Tests` 5 项；
 * **测试覆盖范围**：涵盖领域计算、逆向流解析、断路器熔断机制、MVVM 交互、STA UI 线程渲染以及 1 年历史数据极限压测；
 * **数据沙箱隔离**：测试执行时自动隔离至独立临时目录，杜绝与本地实际运行数据互扰。
 
@@ -175,12 +175,16 @@ dotnet test AgentIsland.sln
 ```text
 AgentIsland-Csharp/
 ├─ src/
-│  ├─ AgentIsland.Core/         # 跨平台领域模型、AgentCapabilities、通用计算契约
+│  ├─ AgentMonitoring.Core/     # Agent 标识、能力、消费与计价契约
+│  ├─ AgentMonitoring/          # 查询与启用运行时（无 WPF）
+│  ├─ AgentMonitoring.Host/     # 无窗口 Generic Host：采集与查询
+│  ├─ AgentIsland.Core/         # 桌面共用的选项、存储、Dispatcher 契约
 │  ├─ AgentIsland.Providers/    # Provider 账本/用量解析器、内置 Agent 注册目录
 │  ├─ AgentIsland.Windows/      # Windows 路径解析、winsqlite3.dll 驱动、内核内存修剪 API
 │  └─ AgentIsland/              # WPF 宿主、灵动岛悬浮窗、MVVM ViewModel、系统托盘与仪表盘
 ├─ tests/
-│  └─ AgentIsland.Tests/        # 67 项自动化测试（66 项常规 + 1 项压力/资源测试）
+│  ├─ AgentMonitoring.Tests/    # 无窗口程序集与采集/查询测试
+│  └─ AgentIsland.Tests/        # 桌面宿主测试
 ├─ scripts/
 │  ├─ Launch-StressTestUI.ps1   # 1 年最坏场景沙箱压测启动脚本
 │  └─ Measure-ProcessResources.ps1 # 进程 CPU 与物理工作集实时采样脚本

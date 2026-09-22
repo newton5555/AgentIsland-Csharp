@@ -33,12 +33,14 @@ public class AgentCatalogTests
             "unknown Agent is absent instead of receiving fake capabilities");
         Expect(catalog.Find(new AgentKey("claude"))!.Descriptor.Supports(AgentCapabilities.Activity),
             "Claude advertises activity capability");
-        Expect(!catalog.Find(new AgentKey("antigravity"))!.Descriptor.Supports(AgentCapabilities.Cost),
-            "Antigravity does not advertise unsupported cost data");
+        Expect(catalog.Find(new AgentKey("antigravity"))!.Descriptor.Supports(AgentCapabilities.Cost),
+            "Antigravity advertises local cost data");
         Expect(catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Cost),
             "DeepSeek advertises local cost data");
         Expect(catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Activity),
             "DeepSeek advertises local Harness activity data");
+        Expect(catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Balance),
+            "DeepSeek advertises official balance");
         Expect(!catalog.Find(new AgentKey("deepseek"))!.Descriptor.Supports(AgentCapabilities.Usage),
             "DeepSeek does not advertise unsupported quota data");
 

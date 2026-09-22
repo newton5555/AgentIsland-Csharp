@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using System.Text.Json;
 using AgentIsland.Core;
+using AgentIsland.Core.Agents;
 using AgentIsland.Core.Storage;
 using AgentIsland.Core.Usage;
 
@@ -103,6 +104,9 @@ public sealed class ProviderVisibilityStore : IProviderVisibilityStore
     public int SelectedCount => _enabled.Count;
 
     public bool IsEnabled(DisplayProvider provider) => _enabled.Contains(provider);
+
+    public bool IsEnabled(AgentKey agent) =>
+        DisplayProviders.Parse(agent.Value) is { } provider && IsEnabled(provider);
 
     /// Flip a provider's slot membership. Returns false when this would turn
     /// a third provider on — nothing changes and the caller explains why.

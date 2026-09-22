@@ -1,17 +1,21 @@
 # Architecture
 
-> 本文描述当前实现。下一阶段后台职责重构、`AgentMonitoring` 命名及前后台解耦见 [未来计划](future-plan.md)，尚未实施的目标不计入当前架构。
+> 本文描述当前实现。下一阶段后台职责重构见 [未来计划](future-plan.md)；P0 契约见 [p0-baseline.md](p0-baseline.md)。P1 已建立 `AgentMonitoring` 项目边界；尚未迁完的 Store 仍在 WPF 宿主。
 
 ## 依赖方向
 
 ```text
+AgentMonitoring.Host (headless, no WPF)
+└── AgentMonitoring ──> AgentMonitoring.Core, AgentIsland.Providers
+
 AgentIsland (WPF / Generic Host)
-├── AgentIsland.Core
-├── AgentIsland.Providers ──> AgentIsland.Core
-└── AgentIsland.Windows  ──> AgentIsland.Core
+├── AgentMonitoring ──────────> AgentMonitoring.Core
+├── AgentIsland.Core ─────────> AgentMonitoring.Core
+├── AgentIsland.Providers ────> AgentMonitoring.Core
+└── AgentIsland.Windows ──────> AgentIsland.Core, AgentMonitoring.Core
 ```
 
-Core 不引用 WPF、WinForms、Registry 或 Win32。Windows 目录解析、进程/窗口控制、托盘、更新替换和屏幕定位属于 `AgentIsland.Windows`；布局、动画和交互属于 WPF 项目。
+`AgentMonitoring.Core` 与 `AgentIsland.Core` 均不引用 WPF、WinForms、Registry 或 Win32。消费查询契约使用 `AgentKey`。Codex 消费由 `CodexConsumptionCollector` 写入 `ConsumptionStore`；报告查询只读存储。额度/余额快照按 `AccountRef` 隔离，失败保留上次成功值。概览、消费汇总和报告走 `IMonitoringQuery`，只读 `LedgerSnapshotStore`。活动与提醒以 `AgentKey` 为身份；`AgentRuntime` 按已注册能力采集，不读取 `DisplayProvider`。无窗口入口为 `AgentMonitoring.Host`（见 [p6-headless.md](p6-headless.md)）。Windows 目录解析、进程/窗口控制、托盘、更新替换和屏幕定位属于 `AgentIsland.Windows`；布局、动画和交互属于 WPF 项目。`DisplayProvider` 只用于岛体槽位展示，经适配层换成 `AgentKey`。
 
 WPF 项目内部也保持同样的二分：`AgentIsland.UI` 是窗口/控件/视觉层，`AgentIsland.Backend.*` 是桌面进程内的后台编排层。这里的 Backend 不是 Web 服务器。
 
@@ -42,6 +46,6 @@ Agent 不要求实现一套固定的“5 小时 + 7 天”数据模型。目录�
 3. 在组合根接入适配器；
 4. 为解析/聚合规则补测试。
 
-这些能力接口目前仍桥接到固定运行时枚举。全新 key 必须同步扩展 `DisplayProvider`、`DisplayProviders.Parse/All`、可见性/槽位及 UI 映射；活动监控还需扩展 `TriggerTool` 和对应转换。仅向 DI 和目录注册未知 key，不能使其进入当前用量、费用和活动链路。新增 Agent 验收必须覆盖这些映射和启用后的数据流。
+后台查询、活动快照和采集已按 `AgentKey` 索引，未知 key 可以进入 `GetOverviews()`、活动存储和 `AgentRuntime`。岛体两个槽位仍使用 `DisplayProvider`：要出现在槽位上仍需扩展该枚举、`Parse/All`、可见性及 UI 映射；桌面提醒弹窗还需 `TriggerTool`。
 
 当前不引入动态 DLL 插件加载，也不把每个小功能拆成独立项目；新增 Agent 先以源码内置模块形式接入：在 WPF 组合根注册 `IAgentProvider`，并在 `BuiltInAgentCatalog` 注册匹配的描述符/模块，等真实需求出现再演进插件机制。

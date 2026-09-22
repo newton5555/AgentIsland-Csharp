@@ -1,13 +1,15 @@
 using System.ComponentModel;
 using AgentIsland.Core;
 using AgentIsland.UI.Providers;
+using AgentMonitoring.Enablement;
 
 namespace AgentIsland.Backend.Settings;
 
 /// <summary>
 /// Contract for managing enabled providers and island silhouette slots.
+/// Collection enablement is the IAgentEnablement slice; slot geometry stays here.
 /// </summary>
-public interface IProviderVisibilityStore : INotifyPropertyChanged
+public interface IProviderVisibilityStore : INotifyPropertyChanged, IAgentEnablement
 {
     IReadOnlyList<DisplayProvider> SlotProviders { get; }
     IReadOnlyList<DisplayProvider> Slots { get; }

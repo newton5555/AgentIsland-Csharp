@@ -32,6 +32,8 @@
     <ProjectReference Include="..\AgentIsland.Core\AgentIsland.Core.csproj" />
     <ProjectReference Include="..\AgentIsland.Providers\AgentIsland.Providers.csproj" />
     <ProjectReference Include="..\AgentIsland.Windows\AgentIsland.Windows.csproj" />
+    <ProjectReference Include="..\AgentMonitoring.Core\AgentMonitoring.Core.csproj" />
+    <ProjectReference Include="..\AgentMonitoring\AgentMonitoring.csproj" />
   </ItemGroup>
 
   <ItemGroup>

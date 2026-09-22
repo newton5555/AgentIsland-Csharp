@@ -200,6 +200,8 @@ public sealed class StoreDispatcherConcurrencyTests
         public void MoveProvider(int oldIndex, int newIndex) { }
         public bool IsShown(DisplayProvider provider) => _enabled.Contains(provider);
         public bool IsEnabled(DisplayProvider provider) => _enabled.Contains(provider);
+        public bool IsEnabled(AgentKey agent) =>
+            DisplayProviders.Parse(agent.Value) is { } provider && IsEnabled(provider);
         public bool Toggle(DisplayProvider provider) => SetEnabled(provider, !_enabled.Contains(provider));
     }
 
@@ -219,37 +221,39 @@ public sealed class StoreDispatcherConcurrencyTests
 
     private sealed class MockCostQueryService : ICostQueryService
     {
-        public Func<DisplayProvider, int, DateTimeOffset, CancellationToken, Task<CostScanResult>>? ScanHandler { get; set; }
+        public Func<AgentKey, int, DateTimeOffset, CancellationToken, Task<CostScanResult>>? ScanHandler { get; set; }
         public int ScanCount => _scanCount;
         private int _scanCount;
-        private readonly Dictionary<DisplayProvider, long> _versions = new();
+        private readonly Dictionary<AgentKey, long> _versions = new();
 
-        public Task<CostScanResult> ScanAsync(DisplayProvider provider, int lookbackDays, DateTimeOffset now, CancellationToken consumerCancellation = default, bool force = false)
+        public Task<CostScanResult> ScanAsync(AgentKey agent, int lookbackDays, DateTimeOffset now, CancellationToken consumerCancellation = default, bool force = false)
         {
             Interlocked.Increment(ref _scanCount);
             if (ScanHandler != null)
             {
-                return ScanHandler(provider, lookbackDays, now, consumerCancellation);
+                return ScanHandler(agent, lookbackDays, now, consumerCancellation);
             }
             return Task.FromResult(new CostScanResult(
-                provider,
-                GetVersion(provider),
+                agent,
+                GetVersion(agent),
                 now,
                 Array.Empty<TokenEvent>(),
                 ProviderCostSummary.Empty));
         }
 
-        public Task<CostScanResult> ScanCurrentAsync(DisplayProvider provider, DateTimeOffset now, CancellationToken consumerCancellation = default) =>
-            ScanAsync(provider, 30, now, consumerCancellation);
+        public Task<CostScanResult> ScanCurrentAsync(AgentKey agent, DateTimeOffset now, CancellationToken consumerCancellation = default) =>
+            ScanAsync(agent, 30, now, consumerCancellation);
 
-        public void Invalidate(DisplayProvider provider) =>
-            _versions[provider] = GetVersion(provider) + 1;
+        public void Invalidate(AgentKey agent) =>
+            _versions[agent] = GetVersion(agent) + 1;
 
-        public bool IsCurrent(DisplayProvider provider, long providerVersion) =>
-            GetVersion(provider) == providerVersion;
+        public bool IsCurrent(AgentKey agent, long providerVersion) =>
+            GetVersion(agent) == providerVersion;
 
-        public long GetVersion(DisplayProvider provider) =>
-            _versions.TryGetValue(provider, out var v) ? v : 0;
+        public long GetVersion(AgentKey agent) =>
+            _versions.TryGetValue(agent, out var v) ? v : 0;
+
+        public long GetVersion(DisplayProvider provider) => GetVersion(provider.ToAgentKey());
     }
 
     private static async Task WaitForConditionAsync(Func<bool> condition, int timeoutMs = 2000)
@@ -329,7 +333,7 @@ public sealed class StoreDispatcherConcurrencyTests
             Array.Empty<double>(), Array.Empty<double>(), Array.Empty<ModelSpend>(),
             Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
 
-        costTcs.SetResult(new CostScanResult(DisplayProvider.Claude, 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), expectedCost));
+        costTcs.SetResult(new CostScanResult(DisplayProvider.Claude.ToAgentKey(), 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), expectedCost));
 
         await cAsync;
         Assert.Equal(1, costQuery.ScanCount);
@@ -392,7 +396,7 @@ public sealed class StoreDispatcherConcurrencyTests
             Array.Empty<double>(), Array.Empty<double>(), Array.Empty<ModelSpend>(),
             Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
 
-        costTcs.SetResult(new CostScanResult(DisplayProvider.Claude, 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), lateCost));
+        costTcs.SetResult(new CostScanResult(DisplayProvider.Claude.ToAgentKey(), 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), lateCost));
         await Task.Delay(50);
 
         Assert.Equal(ProviderCostSummary.Empty, costStore.Claude);
@@ -484,7 +488,7 @@ public sealed class StoreDispatcherConcurrencyTests
             Array.Empty<double>(), Array.Empty<double>(), Array.Empty<ModelSpend>(),
             Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
 
-        costTcs1.SetResult(new CostScanResult(DisplayProvider.Claude, costQuery.GetVersion(DisplayProvider.Claude), DateTimeOffset.Now, Array.Empty<TokenEvent>(), costSummary1));
+        costTcs1.SetResult(new CostScanResult(DisplayProvider.Claude.ToAgentKey(), costQuery.GetVersion(DisplayProvider.Claude), DateTimeOffset.Now, Array.Empty<TokenEvent>(), costSummary1));
         await Task.Delay(50);
         Assert.Equal(88.0, costStore.Claude.TodayDollars);
 
@@ -492,7 +496,7 @@ public sealed class StoreDispatcherConcurrencyTests
             Array.Empty<double>(), Array.Empty<double>(), Array.Empty<ModelSpend>(),
             Array.Empty<ModelSpend>(), Array.Empty<ModelSpend>(), Array.Empty<DailyTokenBucket>(), Array.Empty<string>());
 
-        costTcs0.SetResult(new CostScanResult(DisplayProvider.Claude, 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), costSummary0));
+        costTcs0.SetResult(new CostScanResult(DisplayProvider.Claude.ToAgentKey(), 0, DateTimeOffset.Now, Array.Empty<TokenEvent>(), costSummary0));
         await Task.Delay(50);
 
         // Must still be costSummary1, not overwritten by old version
@@ -600,7 +604,7 @@ public sealed class StoreDispatcherConcurrencyTests
         {
             ScanHandler = (p, _, now, _) =>
             {
-                if (p == DisplayProvider.Claude)
+                if (p.Value == "claude")
                 {
                     return Task.FromException<CostScanResult>(new System.IO.IOException("Corrupt database log"));
                 }

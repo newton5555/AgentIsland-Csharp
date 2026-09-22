@@ -1,4 +1,5 @@
 using AgentIsland.Core;
+using AgentIsland.Core.Agents;
 
 namespace AgentIsland.UI.Providers;
 
@@ -131,6 +132,10 @@ public static class DisplayProviderExtensions
         TriggerTool.DeepSeek => DisplayProvider.DeepSeek,
         _ => DisplayProvider.Claude,
     };
+
+    public static AgentKey ToAgentKey(this DisplayProvider provider) => new(provider.RawValue());
+
+    public static DisplayProvider? ToDisplayProvider(this AgentKey key) => DisplayProviders.Parse(key.Value);
 }
 
 /// Pure selection rules for the island's two slots — no singleton, no
