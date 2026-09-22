@@ -1,5 +1,7 @@
 # Architecture
 
+> 本文描述当前实现。下一阶段后台职责重构、`AgentMonitoring` 命名及前后台解耦见 [未来计划](future-plan.md)，尚未实施的目标不计入当前架构。
+
 ## 依赖方向
 
 ```text

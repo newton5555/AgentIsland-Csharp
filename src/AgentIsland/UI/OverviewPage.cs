@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using System.Windows.Shapes;
 using System.Windows.Threading;
 using AgentIsland.Core.Cost;
@@ -12,13 +13,22 @@ namespace AgentIsland.UI;
 
 /// Year overview, macOS layout: a hero row (YYYY TOKEN total, active-day
 /// count, provider share legend for every provider that ran), month labels,
-/// and the full-year contribution grid. Each day takes its dominant
-/// provider's hue (intensity = token volume); a day split roughly between its
-/// top-2 providers renders a diagonal two-color cell. Clicking a day shows
-/// its per-provider detail line.
+/// and the full-year contribution grid. Each day uses its dominant provider's
+/// intensity; Antigravity days display the original Gemini Spark art, while a day
+/// split roughly between its top-2 providers renders a diagonal two-color
+/// cell. Clicking a day shows its per-provider detail line.
 public sealed class OverviewPage : Border
 {
     private const int Rows = 7;
+    private static readonly Lazy<BitmapImage> AntigravitySpark = new(() =>
+    {
+        // The bundled PNG composites Assets/spark.svg over the four colour
+        // corners shown in design/artifacts/spark-corners/tile.html. WPF uses
+        // this 256 px render so the SVG's gradient and blur stay intact.
+        var image = new BitmapImage(new Uri("pack://application:,,,/AgentIsland;component/Assets/spark-filled.png"));
+        if (image.CanFreeze) image.Freeze();
+        return image;
+    });
 
     private readonly TextBlock _heroLabel;
     private readonly TextBlock _heroValue;
@@ -344,48 +354,17 @@ public sealed class OverviewPage : Border
             return MakeCellRect(cell, IslandColors.Brush(IslandColors.For(provider), intensity));
         }
 
-        var stops = ProviderIdentity.BrandStops(provider);
-        var grid = new Grid
+        var image = new Image
         {
+            Source = AntigravitySpark.Value,
             Width = cell,
             Height = cell,
-            UseLayoutRounding = true,
+            Stretch = Stretch.Uniform,
+            Opacity = intensity,
             SnapsToDevicePixels = true,
-            Clip = new RectangleGeometry(new Rect(0, 0, cell, cell), 2, 2),
         };
-        for (var index = 0; index < stops.Count; index++)
-        {
-            // A tiny heatmap cell is only about 12 DIP high.  Star-sized rows
-            // can therefore land on half pixels and make adjacent Google
-            // colours bleed into one another.  Round each boundary so every
-            // horizontal band remains a flat, device-aligned colour block.
-            var top = Math.Round(cell * index / stops.Count);
-            var bottom = Math.Round(cell * (index + 1) / stops.Count);
-            grid.RowDefinitions.Add(new RowDefinition
-            {
-                Height = new GridLength(Math.Max(0.5, bottom - top), GridUnitType.Pixel),
-            });
-            var band = new Rectangle
-            {
-                // Scale the solid RGB colour instead of lowering brush
-                // opacity.  Alpha compositing against the dark canvas was
-                // muting yellow/green and made the ramp look like new hues.
-                Fill = IslandColors.Brush(ScaleAntigravityColor(stops[index], intensity)),
-                SnapsToDevicePixels = true,
-            };
-            Grid.SetRow(band, index);
-            grid.Children.Add(band);
-        }
-        return grid;
-    }
-
-    private static Color ScaleAntigravityColor(Color color, double intensity)
-    {
-        var factor = Math.Clamp(intensity, 0.30, 1.0);
-        return Color.FromRgb(
-            (byte)Math.Round(color.R * factor),
-            (byte)Math.Round(color.G * factor),
-            (byte)Math.Round(color.B * factor));
+        RenderOptions.SetBitmapScalingMode(image, BitmapScalingMode.HighQuality);
+        return image;
     }
 
     private static Grid MakeSplitCell(
@@ -400,12 +379,18 @@ public sealed class OverviewPage : Border
             Height = cell,
             Clip = new RectangleGeometry(new Rect(0, 0, cell, cell), 2, 2),
         };
-        var upperLeftElement = MakeProviderCell(cell, intensity, upperLeft);
+        var upperLeftElement = MakeProviderCell(
+            cell,
+            intensity,
+            upperLeft);
         upperLeftElement.Clip = TriangleGeometry(
             new Point(0, 0), new Point(cell, 0), new Point(0, cell));
         host.Children.Add(upperLeftElement);
 
-        var lowerRightElement = MakeProviderCell(cell, intensity, lowerRight);
+        var lowerRightElement = MakeProviderCell(
+            cell,
+            intensity,
+            lowerRight);
         lowerRightElement.Clip = TriangleGeometry(
             new Point(cell, 0), new Point(cell, cell), new Point(0, cell));
         host.Children.Add(lowerRightElement);

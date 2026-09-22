@@ -170,6 +170,8 @@ dotnet test AgentIsland.sln
 
 ## 📂 解决方案分层架构
 
+当前架构说明见 [architecture.md](docs/architecture.md)；下一阶段的后台职责重构与前后台解耦见 [未来计划](docs/future-plan.md)。
+
 ```text
 AgentIsland-Csharp/
 ├─ src/

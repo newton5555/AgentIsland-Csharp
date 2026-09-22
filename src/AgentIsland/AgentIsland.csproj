@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Resource Include="Assets\**\*.png" />
+    <Resource Include="Assets\*.svg" />
     <Resource Include="Assets\*.ico" />
   </ItemGroup>
 

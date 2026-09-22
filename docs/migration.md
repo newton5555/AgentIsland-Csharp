@@ -1,5 +1,7 @@
 # Migration Notes
 
+> 2026-09-22：已规划下一阶段后台职责重构与前后台彻底解耦，完整方案见 [未来计划](future-plan.md)。下文保留既有迁移记录；后续演进方向以该计划为准。
+
 ## 与 Agent Island 2.1.2 的关系
 
 本仓库是基于 Agent Island 2.1.2 的独立 Windows fork。2.1.2 提供产品交互、状态语义、报告结构和视觉方向的参考；本仓库没有继续携带 macOS 的 Xcode、SwiftUI、Sparkle 或 Keychain 运行时，而是在同一产品目标下重做 Windows 宿主。
