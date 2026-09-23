@@ -21,6 +21,7 @@ public sealed class AgentRuntime
 
     private sealed class Slot
     {
+        public long Version;
         public Task<CostScanResult>? Task;
         public CancellationTokenSource? Cts;
     }
@@ -55,6 +56,8 @@ public sealed class AgentRuntime
         Task<CostScanResult> shared;
         lock (_gate)
         {
+            if (!_enablement.IsEnabled(agent))
+                return Task.FromException<CostScanResult>(new CostQueryService.AgentDisabledException(agent));
             var slot = SlotFor(agent);
             if (slot.Task is { IsCompleted: false } existing)
             {
@@ -64,7 +67,10 @@ public sealed class AgentRuntime
             {
                 slot.Cts?.Dispose();
                 var cts = new CancellationTokenSource();
-                shared = Task.Run(() => CollectCore(agent, lookbackDays, now, cts.Token), CancellationToken.None);
+                var version = slot.Version;
+                shared = Task.Run(
+                    () => CollectCore(agent, lookbackDays, now, slot, version, cts.Token),
+                    CancellationToken.None);
                 slot.Cts = cts;
                 slot.Task = shared;
                 _ = Observe(slot, shared, cts);
@@ -72,6 +78,18 @@ public sealed class AgentRuntime
         }
 
         return cancellationToken.CanBeCanceled ? shared.WaitAsync(cancellationToken) : shared;
+    }
+
+    public void Invalidate(AgentKey agent)
+    {
+        lock (_gate)
+        {
+            var slot = SlotFor(agent);
+            slot.Version++;
+            slot.Cts?.Cancel();
+            slot.Cts = null;
+            slot.Task = null;
+        }
     }
 
     private Slot SlotFor(AgentKey agent)
@@ -105,17 +123,27 @@ public sealed class AgentRuntime
         AgentKey agent,
         int lookbackDays,
         DateTimeOffset now,
+        Slot slot,
+        long version,
         CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (agent.Value == AgentKeys.Codex.Value && _codexCollector is not null)
             await _codexCollector.CollectAsync(agent, cancellationToken).ConfigureAwait(false);
+        cancellationToken.ThrowIfCancellationRequested();
 
         IReadOnlyList<TokenEvent> events = _readers.TryGetValue(agent, out var reader)
             ? await reader.ReadCostEventsAsync(lookbackDays, cancellationToken).ConfigureAwait(false)
             : Array.Empty<TokenEvent>();
+        cancellationToken.ThrowIfCancellationRequested();
         var summary = CostSummarizer.Summarize(events, now);
         var result = new CostScanResult(agent, 0, now, events, summary);
-        _snapshots.Replace(new LedgerSnapshot(agent, 0, now, events, summary));
+        lock (_gate)
+        {
+            if (slot.Version != version || cancellationToken.IsCancellationRequested)
+                throw new OperationCanceledException(cancellationToken);
+            _snapshots.Replace(new LedgerSnapshot(agent, 0, now, events, summary));
+        }
         return result;
     }
 }

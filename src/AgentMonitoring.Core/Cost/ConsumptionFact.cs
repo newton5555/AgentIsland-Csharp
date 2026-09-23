@@ -64,7 +64,9 @@ public sealed record SourceRef(
     string? ProjectId,
     string? AccountId,
     string? SourcePath,
-    long? ByteOffset);
+    long? ByteOffset,
+    long? CumulativeInputTokens = null,
+    long? CumulativeOutputTokens = null);
 
 /// Fields Pricing needs that are not token counts. OfficialCostUsd is a
 /// provider-reported amount, not a table estimate.

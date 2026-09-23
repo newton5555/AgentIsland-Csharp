@@ -146,6 +146,7 @@ public sealed class CostStore : ICostStore
             _providerModeVersions.TryGetValue(provider, out var version);
             _providerModeVersions[provider] = version + 1;
             _costQueryService?.Invalidate(provider.ToAgentKey());
+            _runtime?.Invalidate(provider.ToAgentKey());
             ClearProviderMemory(provider);
         }
         foreach (var inFlight in _inFlightProviders.Values)
@@ -211,6 +212,7 @@ public sealed class CostStore : ICostStore
             {
                 SetSummary(provider, ProviderCostSummary.Empty);
                 _costQueryService?.Invalidate(provider.ToAgentKey());
+                _runtime?.Invalidate(provider.ToAgentKey());
                 if (_inFlightProviders.Remove(provider, out var inFlight))
                 {
                     inFlight.CompletionTcs.TrySetResult();

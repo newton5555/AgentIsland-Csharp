@@ -78,7 +78,9 @@ public sealed class MonitoringQueryService : IMonitoringQuery
         DateTimeOffset end,
         IReadOnlyList<AgentKey>? agents = null)
     {
-        var report = GetReport(start, end, agents);
+        var keys = agents ?? KnownAgents();
+        var eventSnapshots = CaptureEvents(keys);
+        var report = BuildReport(start, end, keys, eventSnapshots);
         var byAgent = new List<AgentSpendRow>();
         var models = new Dictionary<string, (long Tokens, long Billable, double Dollars)>(StringComparer.OrdinalIgnoreCase);
         var daily = new Dictionary<DateTime, (long Tokens, long Billable, double Dollars)>();
@@ -89,7 +91,7 @@ public sealed class MonitoringQueryService : IMonitoringQuery
         {
             long agentTokens = 0, agentBillable = 0;
             var agentUnpriced = false;
-            foreach (var tokenEvent in Events(row.Agent, out _))
+            foreach (var tokenEvent in eventSnapshots[row.Agent])
             {
                 var local = tokenEvent.Timestamp.ToLocalTime();
                 if (local < start.ToLocalTime() || local >= end.ToLocalTime()) continue;
@@ -146,12 +148,21 @@ public sealed class MonitoringQueryService : IMonitoringQuery
         IReadOnlyList<AgentKey>? agents = null)
     {
         var keys = agents ?? KnownAgents();
+        return BuildReport(start, end, keys, CaptureEvents(keys));
+    }
+
+    private static ReportQueryResult BuildReport(
+        DateTimeOffset start,
+        DateTimeOffset end,
+        IReadOnlyList<AgentKey> keys,
+        IReadOnlyDictionary<AgentKey, IReadOnlyList<TokenEvent>> eventSnapshots)
+    {
         var slices = new List<AgentReportSlice>();
         long totalTokens = 0;
         double totalDollars = 0;
         foreach (var agent in keys)
         {
-            var events = Events(agent, out _);
+            var events = eventSnapshots[agent];
             var slice = CostSummarizer.Slice(events, start, end);
             slices.Add(new AgentReportSlice(agent, slice));
             totalTokens += slice.DailyTokens.Sum(bucket => bucket.Tokens);
@@ -159,6 +170,17 @@ public sealed class MonitoringQueryService : IMonitoringQuery
         }
 
         return new ReportQueryResult(start, end, slices, totalTokens, totalDollars);
+    }
+
+    private Dictionary<AgentKey, IReadOnlyList<TokenEvent>> CaptureEvents(IReadOnlyList<AgentKey> agents)
+    {
+        var snapshots = new Dictionary<AgentKey, IReadOnlyList<TokenEvent>>();
+        foreach (var agent in agents)
+        {
+            if (!snapshots.ContainsKey(agent))
+                snapshots[agent] = Events(agent, out _);
+        }
+        return snapshots;
     }
 
     private IReadOnlyList<AgentKey> KnownAgents()

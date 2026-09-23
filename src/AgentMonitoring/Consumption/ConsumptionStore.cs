@@ -186,7 +186,9 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
         ReasoningAccounting ReasoningAccounting,
         ServiceTier ServiceTier,
         bool LongContext,
-        double? OfficialCostUsd)
+        double? OfficialCostUsd,
+        long? CumulativeInputTokens = null,
+        long? CumulativeOutputTokens = null)
     {
         public static FactDto From(ConsumptionFact fact) => new(
             fact.Source.Agent.Value,
@@ -208,10 +210,14 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
             fact.Tokens.ReasoningAccounting,
             fact.Pricing.ServiceTier,
             fact.Pricing.LongContext,
-            fact.Pricing.OfficialCostUsd);
+            fact.Pricing.OfficialCostUsd,
+            fact.Source.CumulativeInputTokens,
+            fact.Source.CumulativeOutputTokens);
 
         public ConsumptionFact ToFact() => new(
-            new SourceRef(new AgentKey(Agent), RecordId, SessionId, ProjectId, AccountId, SourcePath, ByteOffset),
+            new SourceRef(
+                new AgentKey(Agent), RecordId, SessionId, ProjectId, AccountId, SourcePath, ByteOffset,
+                CumulativeInputTokens, CumulativeOutputTokens),
             Timestamp,
             new ModelRef(RawModel, CanonicalModel, IsFallback),
             new TokenBuckets(Input, Output, CacheCreation, CacheRead, Reasoning, ReasoningAccounting),

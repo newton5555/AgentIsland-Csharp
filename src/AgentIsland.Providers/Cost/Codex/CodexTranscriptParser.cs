@@ -129,8 +129,9 @@ public static class CodexTranscriptParser
         var sessionId = state.SessionId ?? "";
         var cumulativeIn = totalIn ?? lastInput;
         var cumulativeOut = totalOut ?? outputTokens;
+        var recordIdentity = string.IsNullOrEmpty(sessionId) ? Path.GetFullPath(path) : sessionId;
         var recordId =
-            $"{sessionId}|{timestamp:o}|{cumulativeIn}|{cumulativeOut}|{lastInput}|{outputTokens}";
+            $"{recordIdentity}|{timestamp:o}|{cumulativeIn}|{cumulativeOut}|{lastInput}|{outputTokens}";
         var canonical = Pricing.CanonicalModelName(state.CurrentModel);
         var accounting = reasoning > 0
             ? ReasoningAccounting.IncludedInOutput
@@ -144,7 +145,9 @@ public static class CodexTranscriptParser
                 state.ProjectId,
                 AccountId: null,
                 path,
-                nextOffset),
+                nextOffset,
+                cumulativeIn,
+                cumulativeOut),
             timestamp,
             new ModelRef(state.CurrentModel, canonical, state.ModelIsFallback),
             new TokenBuckets(
@@ -184,7 +187,8 @@ public static class CodexTranscriptParser
         if (raw is null) return;
         state.ServiceTier = raw.ToLowerInvariant() switch
         {
-            "fast" or "priority" => ServiceTier.Fast,
+            "fast" => ServiceTier.Fast,
+            "priority" => ServiceTier.Priority,
             "standard" or "default" => ServiceTier.Standard,
             _ => state.ServiceTier,
         };

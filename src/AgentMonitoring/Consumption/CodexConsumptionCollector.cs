@@ -138,8 +138,22 @@ public sealed class CodexConsumptionCollector : IConsumptionCollector
 
         if (Volatile.Read(ref _generation) != generation) return;
 
-        var kept = CodexReplayPlan.Apply(incoming, ParentBaselines(_store.ReadFileStates()));
         var replacing = new HashSet<string>(replaceSources, StringComparer.OrdinalIgnoreCase);
+        var statesByPath = new Dictionary<string, CodexFileState>(StringComparer.OrdinalIgnoreCase);
+        foreach (var state in _store.ReadFileStates())
+        {
+            if (!replacing.Contains(state.Cursor.SourceIdentity))
+                statesByPath[state.Cursor.SourceIdentity] = state;
+        }
+        foreach (var (path, state) in fileStates)
+            statesByPath[path] = state;
+
+        var parentSessions = statesByPath.Values
+            .Where(state => string.IsNullOrEmpty(state.ForkedFromId) && !string.IsNullOrEmpty(state.SessionId))
+            .Select(state => state.SessionId!)
+            .ToHashSet(StringComparer.Ordinal);
+        var parentHistory = ParentHistory(incoming, replacing, parentSessions);
+        var kept = CodexReplayPlan.Apply(incoming, parentHistory);
         var facts = new List<ConsumptionFact>();
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var turn in kept)
@@ -155,24 +169,47 @@ public sealed class CodexConsumptionCollector : IConsumptionCollector
         _store.Commit(AgentKeys.Codex, facts, fileStates, replaceSources);
     }
 
-    private static Dictionary<string, (long Input, long Output)> ParentBaselines(
-        IReadOnlyList<CodexFileState> states)
+    private IReadOnlyDictionary<string, IReadOnlyList<CodexUsageCheckpoint>> ParentHistory(
+        IReadOnlyList<CodexParsedTurn> incoming,
+        IReadOnlySet<string> replacing,
+        IReadOnlySet<string> parentSessions)
     {
-        var totals = new Dictionary<string, (long Input, long Output)>(StringComparer.Ordinal);
-        foreach (var state in states)
+        var history = new Dictionary<string, List<CodexUsageCheckpoint>>(StringComparer.Ordinal);
+        foreach (var fact in _store.Read(AgentKeys.Codex))
         {
-            if (state.SessionId is not { Length: > 0 } session) continue;
-            if (!string.IsNullOrEmpty(state.ForkedFromId)) continue;
-            if (state.LastTotalInput is not { } input || state.LastTotalOutput is not { } output) continue;
-            if (!totals.TryGetValue(session, out var current)
-                || input > current.Input
-                || output > current.Output)
-            {
-                totals[session] = (input, output);
-            }
+            var session = fact.Source.SessionId;
+            if (session is null || !parentSessions.Contains(session)) continue;
+            if (fact.Source.SourcePath is { } path && replacing.Contains(path)) continue;
+            if (fact.Source.CumulativeInputTokens is not { } input
+                || fact.Source.CumulativeOutputTokens is not { } output) continue;
+            AddCheckpoint(history, session, new CodexUsageCheckpoint(fact.Timestamp, input, output));
         }
 
-        return totals;
+        foreach (var turn in incoming)
+        {
+            var session = turn.Fact.Source.SessionId;
+            if (session is null || !parentSessions.Contains(session) || turn.ForkedFromId is not null) continue;
+            AddCheckpoint(history, session,
+                new CodexUsageCheckpoint(turn.Fact.Timestamp, turn.CumulativeInput, turn.CumulativeOutput));
+        }
+
+        return history.ToDictionary(
+            pair => pair.Key,
+            pair => (IReadOnlyList<CodexUsageCheckpoint>)pair.Value,
+            StringComparer.Ordinal);
+    }
+
+    private static void AddCheckpoint(
+        IDictionary<string, List<CodexUsageCheckpoint>> history,
+        string session,
+        CodexUsageCheckpoint checkpoint)
+    {
+        if (!history.TryGetValue(session, out var checkpoints))
+        {
+            checkpoints = new List<CodexUsageCheckpoint>();
+            history[session] = checkpoints;
+        }
+        checkpoints.Add(checkpoint);
     }
 
     private static CodexParseState FromFileState(CodexFileState state) => new()

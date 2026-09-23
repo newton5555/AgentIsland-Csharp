@@ -123,33 +123,53 @@ public static class Jsonl
         if (startOffset > stream.Length) yield break;
         stream.Position = startOffset;
         var pending = new List<byte>(256);
-        var pendingStart = startOffset;
+        var skippingOversizedLine = false;
+        const int maxLineBytes = 1_000_000;
         var buffer = new byte[64 * 1024];
         while (true)
         {
             var read = stream.Read(buffer, 0, buffer.Length);
             if (read == 0) yield break;
 
+            var bufferStart = stream.Position - read;
             var consumed = 0;
             for (var i = 0; i < read; i++)
             {
                 if (buffer[i] != (byte)'\n') continue;
-                pending.AddRange(buffer.AsSpan(consumed, i - consumed).ToArray());
-                var nextOffset = pendingStart + pending.Count + 1;
-                if (pending.Count > 0 && pending[^1] == (byte)'\r')
-                    pending.RemoveAt(pending.Count - 1);
-                if (pending.Count > 0 && pending.Count <= 1_000_000)
+                if (!skippingOversizedLine)
                 {
-                    yield return (System.Text.Encoding.UTF8.GetString(pending.ToArray()), nextOffset);
+                    pending.AddRange(buffer.AsSpan(consumed, i - consumed).ToArray());
+                    if (pending.Count > 0 && pending[^1] == (byte)'\r')
+                        pending.RemoveAt(pending.Count - 1);
+                    if (pending.Count > maxLineBytes)
+                    {
+                        pending.Clear();
+                        skippingOversizedLine = true;
+                    }
                 }
+
+                var nextOffset = bufferStart + i + 1;
+                if (!skippingOversizedLine)
+                {
+                    if (pending.Count > 0)
+                        yield return (System.Text.Encoding.UTF8.GetString(pending.ToArray()), nextOffset);
+                }
+
                 pending.Clear();
-                pendingStart = nextOffset;
+                skippingOversizedLine = false;
                 consumed = i + 1;
             }
 
-            if (consumed < read)
+            if (consumed < read && !skippingOversizedLine)
+            {
                 pending.AddRange(buffer.AsSpan(consumed, read - consumed).ToArray());
-            if (pending.Count > 1_000_000) pending.Clear();
+                // A CR byte may still be the terminator on the next read.
+                if (pending.Count > maxLineBytes + 1)
+                {
+                    pending.Clear();
+                    skippingOversizedLine = true;
+                }
+            }
         }
     }
 }
