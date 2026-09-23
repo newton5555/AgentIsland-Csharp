@@ -67,7 +67,9 @@ public sealed class MonitoringQueryService : IMonitoringQuery
             quota?.FetchedAt,
             balance?.FetchedAt,
             activity?.State ?? ActivityState.Idle,
-            activity?.UpdatedAt);
+            activity?.UpdatedAt,
+            activity?.Thread,
+            activity?.NeedsYouThreads.Count ?? 0);
     }
 
     public IReadOnlyList<AgentOverview> GetOverviews() =>

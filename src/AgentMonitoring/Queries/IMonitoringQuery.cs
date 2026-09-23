@@ -2,6 +2,7 @@ using AgentIsland.Core;
 using AgentIsland.Core.Agents;
 using AgentIsland.Core.Cost;
 using AgentIsland.Core.Usage;
+using AgentMonitoring.Activity;
 
 namespace AgentMonitoring.Queries;
 
@@ -43,7 +44,9 @@ public sealed record AgentOverview(
     DateTimeOffset? QuotaAt,
     DateTimeOffset? BalanceAt,
     ActivityState Activity = ActivityState.Idle,
-    DateTimeOffset? ActivityAt = null);
+    DateTimeOffset? ActivityAt = null,
+    ActivityThread? CurrentActivity = null,
+    int NeedsYouCount = 0);
 
 /// Read-only composition of collected ledgers, quotas, and balances.
 /// Does not start file scans or network refresh.

@@ -1,6 +1,6 @@
 # 未来计划：后台职责重构与前后台解耦
 
-更新日期：2026-09-23。状态：P0–P6 规划项已落地，评审缺陷已按优先级修复。无窗口宿主见 [p6-headless.md](p6-headless.md)。
+更新日期：2026-09-23。状态：P0–P6 原规划范围已落地并完成已知评审修复；本机多前端服务扩展进入 P7，基础 loopback API 已实现，完整 Agent 订阅与采集尚未完成。现状见 [p6-headless.md](p6-headless.md)。
 
 来源：任务「项目重构计划」（`01a064f9-9a29-7400-b3aa-848e9da31c15`）2026-09-22 的连续讨论，以及同日对 [ccusage](https://github.com/ccusage/ccusage) 主分支提交 [`4e67d789`](https://github.com/ccusage/ccusage/commit/4e67d789) 的静态实现对照（未做性能跑分）。本文件作为后续版本规划的统一入口。阶段编号表示依赖顺序，不代表已承诺的版本号或交付日期。
 
@@ -10,7 +10,7 @@
 
 - `AgentIsland` 专指桌面 UI 产品；后台统一使用 `AgentMonitoring`，目录与命名空间按实际业务职责组织。
 - 后台不创建 WPF 窗口、不依赖 UI 线程；关闭和重建前端不影响采集、刷新或已有状态。
-- 先在同一进程内完成解耦，以无窗口宿主验证后台；独立服务进程、IPC、远程服务留待实际需要时再规划。
+- 后台以无窗口宿主独立运行，并通过仅本机 loopback API 服务多个前端；局域网/远程访问不在当前范围。
 - 本轮规划暂不考虑 Avalonia 迁移；现有方案保留为历史参考，不作为本计划的前置条件或交付项。
 - 保留现有统计语义、Provider 能力和 WPF 交互，在每条业务链完成替换后逐步清理旧实现。
 - 保留现有 Worker 的任务合并、取消令牌和运行代次控制，并与 UI 解耦；无 UI 化建立在这套调度之上，而不是重做调度。
@@ -21,7 +21,7 @@
 
 已经落到后台的部分：`ConsumptionFact` 与字节游标采集、Codex 跨文件/分叉去重、独立 `SnapshotPricer`、额度/余额按 `AccountRef` 存储与请求、`IMonitoringQuery` 只读快照、`AgentRuntime` 内部取消、`ReminderBroker` 观察基线。当前架构见 [architecture.md](architecture.md)，P0 契约见 [p0-baseline.md](p0-baseline.md)，无窗口入口见 [p6-headless.md](p6-headless.md)。
 
-仍留在 WPF 宿主、不作为本轮缺口的部分：
+仍留在 WPF 宿主、属于 P7 后续迁移范围的部分：
 
 - `UsageStore`、`CostStore`、`ActivityMonitor` 仍编排桌面刷新，部分路径使用 Dispatcher。
 - 岛体两个槽位仍用 `DisplayProvider`；后台查询与采集使用 `AgentKey`。
@@ -57,7 +57,7 @@ ccusage 对照结论见第 12 节。
 | AgentIsland.Providers | 各 Agent 的日志格式、协议、能力适配器 |
 | AgentMonitoring | 运行时调度、采集协调、状态存储、账户协调、组合查询、提醒规则 |
 | AgentIsland.Windows | Windows 路径、凭据、进程发现、只读数据库适配 |
-| AgentMonitoring.Host | 无窗口采集与查询宿主 |
+| AgentMonitoring.Host | 无窗口后台宿主、本机只读 HTTP API（当前只采 Codex 消费） |
 
 目标依赖：Providers → Core；AgentMonitoring → Core/Providers；Windows → Core 中的平台契约；宿主组装 AgentMonitoring。后台项目不得反向引用 AgentIsland WPF。后续若再拆 `AgentMonitoring.Providers` / `AgentMonitoring.Windows`，职责与此表对应，不另起一套边界。
 
@@ -176,6 +176,12 @@ P0 固定上述契约。P2 在 Codex 消费闭环中落地第一版实现；其�
 
 WPF ViewModel 订阅变化、获取快照并自行切回 UI 线程；启停、刷新、账户操作通过明确命令提交。重新创建窗口时先读取最新快照，再订阅后续变化，避免遗漏更新。账户切换策略独立于额度查询；查询不得暗中切换账户。
 
+### 本机多前端接口（P7）
+
+`AgentMonitoring.Host` 默认只绑定 loopback，提供 `/api/v1` 只读 JSON 路由及存活/就绪/采集健康检查。CORS 默认关闭；浏览器前端只能通过配置精确 loopback Origin 开启。活动状态须携带可用性和更新时间，缺少快照时返回 `unknown`，不能将默认值当成真实 `Idle`。当前 API 是查询边界的落地，不表示所有 Agent 已有采集能力。
+
+P7 尚需完成：从 WPF 宿主迁出各 Provider 与平台适配器；定义独立于岛体槽位的 Agent 订阅配置；将活动、额度、余额和消费采集接入 Headless Host；为需要跨重启保留的数据增加存储；由 WPF 与其他前端共用此 API。迁移完成前，Host 与 WPF 使用隔离的消费文件，避免两个进程并发覆写。
+
 提醒规则输出结构化事件，桌面侧负责声音、托盘或弹窗。一次性提醒需要稳定事件标识和消费规则，防止重建窗口重复提醒。导航由 Provider 给出语义目标，桌面侧执行并反馈真实结果。
 
 ## 8. Codex 首条迁移链示例
@@ -205,9 +211,10 @@ AgentMonitoring/Consumption/
 | P4 查询与 UI 适配 | 已落地 `IMonitoringQuery` / `LedgerSnapshotStore`。采集写入快照；`GetOverview` / `GetConsumptionSummary` / `GetReport` 只读。报告页优先走查询；CostPage 自己切回 UI 线程 | 同一范围原始总数一致，UI 不直接操作扫描器或其他页面 Store |
 | P5 其余 Agent、活动、提醒 | 已落地 `ActivityReducer`/`AgentRuntime`/`ReminderBroker`/`NavigationTarget`。活动与提醒用 AgentKey；采集按能力注册的 ledger reader；WPF 只投递提醒。未知 key 无需 DisplayProvider 即可进入活动快照与查询 | 各 Agent 按实际能力回归，注册扩展不再依赖后台 UI 枚举 |
 | P6 无窗口验收与收尾 | 已落地 `AgentMonitoring.Host` 与 `AgentMonitoring.Tests`。`--once` / 常驻采集不加载 WPF；持久化消费存储上重建查询合计一致；Runtime 不残留 in-flight。采样方法见 [p6-headless.md](p6-headless.md) | 后台不加载 WPF，前端重建恢复最新状态，持续运行无任务或订阅累积 |
+| P7 本机服务与多前端接入 | 已落地 loopback-only HTTP v1 查询 API、采集健康端点、失败隔离/下周期重试及 API 集成测试。当前服务仍只采 Codex 消费；订阅模型和其余 Agent 采集未完成 | WPF 与至少一个非 WPF 前端读取同一服务；订阅配置不依赖显示槽位；活动/额度/余额按能力刷新并标记来源、错误和新鲜度；重启与失败恢复有集成测试 |
 | 评审修复 | 重建先解析再一次性替换事实与游标；分叉重放读取已存储父基线；`AgentRuntime` 内部 CTS；`FetchAsync(AccountRef)` 拒绝用当前凭据写停车账户；空扫描也 `Observe`；额度按窗口合并；`TokenEvent` 保留推理/档位/来源；`GetOverviews` 并入额度/余额/活动 Agent | 解析失败不丢旧事实；父文件未变时子重建不重计；取消一个等待者不取消共享采集；停车账户刷新不污染；第一次真实 NeedsYou 可投递；单窗口失败保留另一窗口 |
 
-按 P0 → P1 → P2 → P3 → P4 → P5 → P6 推进，随后处理评审缺陷。每阶段保留可运行程序和明确回归记录，完成新链路对照后才删除相应旧流程。
+按 P0 → P1 → P2 → P3 → P4 → P5 → P6 → P7 推进，随后处理评审缺陷。每阶段保留可运行程序和明确回归记录，完成新链路对照后才删除相应旧流程。
 
 消费模型、跨文件去重和独立定价在 P0 固定规则与样本，在 P2 随 Codex 闭环落地。不要把增量存储做在精简 `TokenEvent` 之上，也不要把 Pricing 留到全部 Agent 迁完再拆。
 
@@ -239,7 +246,7 @@ AgentMonitoring/Consumption/
 - 持久化格式变更提供版本标识、旧数据读取/重建方案和回退说明；先备份，避免覆盖原始历史与凭据。
 - 当前已有 UI 和素材未提交修改，实施阶段应单独核对并保留。
 - 每阶段在本文件更新状态、对应提交、验证结果和剩余问题；现状变化同步到 architecture.md，历史实施记录写入 migration.md。
-- 后续考虑独立后台进程或其他前端时，以本次无 UI 契约为基础另开方案。
+- 本机服务为当前目标；若未来要开放局域网/远程访问，必须另行设计认证、授权、TLS、审计与威胁模型，不能直接改变监听地址。
 
 ## 12. 与 ccusage 的对照结论
 

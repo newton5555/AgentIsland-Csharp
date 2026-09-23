@@ -15,6 +15,7 @@ public sealed class CodexParseState
     public ServiceTier ServiceTier { get; set; }
     public long? LastTotalInput { get; set; }
     public long? LastTotalOutput { get; set; }
+    public DateTimeOffset? FirstTurnTimestamp { get; set; }
 }
 
 public sealed record CodexParsedTurn(
@@ -22,7 +23,8 @@ public sealed record CodexParsedTurn(
     string? ForkedFromId,
     DateTimeOffset? SessionStartedAt,
     long CumulativeInput,
-    long CumulativeOutput);
+    long CumulativeOutput,
+    DateTimeOffset? FirstTurnTimestamp = null);
 
 /// Parses Codex JSONL into consumption facts. Same-file replay (equal running
 /// totals) is dropped here; fork inheritance is applied by CodexReplayPlan.
@@ -124,6 +126,7 @@ public static class CodexTranscriptParser
         var reasoning = Jsonl.GetLong(usage, "reasoning_output_tokens") ?? 0;
         if (lastInput == 0 && outputTokens == 0) return;
         if (Jsonl.ParseIso8601(Jsonl.GetString(root, "timestamp")) is not { } timestamp) return;
+        state.FirstTurnTimestamp ??= timestamp;
 
         var nonCached = Math.Max(0, lastInput - cachedInput);
         var sessionId = state.SessionId ?? "";
@@ -164,7 +167,8 @@ public static class CodexTranscriptParser
             state.ForkedFromId,
             state.SessionStartedAt,
             cumulativeIn,
-            cumulativeOut));
+            cumulativeOut,
+            state.FirstTurnTimestamp));
     }
 
     private static void ReadSessionMeta(System.Text.Json.JsonElement root, CodexParseState state)

@@ -1,12 +1,13 @@
 # Architecture
 
-> 本文描述当前实现。下一阶段后台职责重构见 [未来计划](future-plan.md)；P0 契约见 [p0-baseline.md](p0-baseline.md)。P1 已建立 `AgentMonitoring` 项目边界；尚未迁完的 Store 仍在 WPF 宿主。
+> 本文描述当前实现。后台职责重构见 [未来计划](future-plan.md)；P0 契约见 [p0-baseline.md](p0-baseline.md)。`AgentMonitoring.Host` 已提供仅 loopback 的本机只读 API；完整多 Agent 采集和订阅仍在迁移中。
 
 ## 依赖方向
 
 ```text
-AgentMonitoring.Host (headless, no WPF)
+AgentMonitoring.Host (headless, loopback HTTP API)
 └── AgentMonitoring ──> AgentMonitoring.Core, AgentIsland.Providers
+    当前运行采集：Codex 本地消费
 
 AgentIsland (WPF / Generic Host)
 ├── AgentMonitoring ──────────> AgentMonitoring.Core
@@ -15,7 +16,7 @@ AgentIsland (WPF / Generic Host)
 └── AgentIsland.Windows ──────> AgentIsland.Core, AgentMonitoring.Core
 ```
 
-`AgentMonitoring.Core` 与 `AgentIsland.Core` 均不引用 WPF、WinForms、Registry 或 Win32。消费查询契约使用 `AgentKey`。Codex 消费由 `CodexConsumptionCollector` 写入 `ConsumptionStore`；报告查询只读存储。额度/余额快照按 `AccountRef` 隔离，失败保留上次成功值。概览、消费汇总和报告走 `IMonitoringQuery`，只读 `LedgerSnapshotStore`。活动与提醒以 `AgentKey` 为身份；`AgentRuntime` 按已注册能力采集，不读取 `DisplayProvider`。无窗口入口为 `AgentMonitoring.Host`（见 [p6-headless.md](p6-headless.md)）。Windows 目录解析、进程/窗口控制、托盘、更新替换和屏幕定位属于 `AgentIsland.Windows`；布局、动画和交互属于 WPF 项目。`DisplayProvider` 只用于岛体槽位展示，经适配层换成 `AgentKey`。
+`AgentMonitoring.Core` 与 `AgentIsland.Core` 均不引用 WPF、WinForms、Registry 或 Win32。消费查询契约使用 `AgentKey`。Codex 消费由 `CodexConsumptionCollector` 写入 `ConsumptionStore`；本机 API 提供版本化只读 JSON 查询和采集健康状态。概览、消费汇总和报告走 `IMonitoringQuery`。额度/余额快照按 `AccountRef` 隔离；活动与提醒以 `AgentKey` 为身份。当前 Headless Host 尚未注册 WPF 中的 Provider、活动、额度或余额采集器，完整状态监控仍在迁移中。无窗口入口见 [p6-headless.md](p6-headless.md)。Windows 目录解析、进程/窗口控制、托盘、更新替换和屏幕定位属于 `AgentIsland.Windows`；布局、动画和交互属于 WPF 项目。`DisplayProvider` 只用于岛体槽位展示，经适配层换成 `AgentKey`。
 
 WPF 项目内部也保持同样的二分：`AgentIsland.UI` 是窗口/控件/视觉层，`AgentIsland.Backend.*` 是桌面进程内的后台编排层。这里的 Backend 不是 Web 服务器。
 

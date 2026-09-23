@@ -9,14 +9,16 @@ namespace AgentMonitoring.Consumption;
 public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
 {
     private readonly string? _persistPath;
+    private readonly bool _strictPersistence;
     private readonly object _gate = new();
     private readonly Dictionary<AgentKey, List<ConsumptionFact>> _facts = new();
     private readonly Dictionary<string, CodexFileState> _files = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _recordIds = new(StringComparer.Ordinal);
 
-    public ConsumptionStore(string? persistPath = null)
+    public ConsumptionStore(string? persistPath = null, bool strictPersistence = false)
     {
         _persistPath = persistPath;
+        _strictPersistence = strictPersistence;
         if (_persistPath is not null) Load();
     }
 
@@ -139,8 +141,10 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
             foreach (var file in snapshot.Files)
                 _files[file.Path] = file.ToState();
         }
-        catch
+        catch (Exception exception)
         {
+            if (_strictPersistence)
+                throw new InvalidDataException($"Unable to load consumption store '{_persistPath}'. The source file was left unchanged.", exception);
         }
     }
 
@@ -159,8 +163,10 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
             File.WriteAllText(tmp, JsonSerializer.Serialize(snapshot));
             File.Move(tmp, _persistPath, overwrite: true);
         }
-        catch
+        catch (Exception exception)
         {
+            if (_strictPersistence)
+                throw new IOException($"Unable to persist consumption store '{_persistPath}'.", exception);
         }
     }
 
@@ -238,7 +244,12 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
         bool ModelIsFallback,
         ServiceTier ServiceTier,
         long? LastTotalInput,
-        long? LastTotalOutput)
+        long? LastTotalOutput,
+        DateTimeOffset? FirstTurnTimestamp = null,
+        List<AgentIsland.Providers.Cost.Codex.CodexUsageCheckpoint>? UsageHistory = null,
+        long? ForkBaselineInput = null,
+        long? ForkBaselineOutput = null,
+        bool ForkReplayPassedBaseline = false)
     {
         public static FileDto From(string path, CodexFileState state) => new(
             path,
@@ -254,7 +265,12 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
             state.ModelIsFallback,
             state.ServiceTier,
             state.LastTotalInput,
-            state.LastTotalOutput);
+            state.LastTotalOutput,
+            state.FirstTurnTimestamp,
+            state.UsageHistory?.ToList(),
+            state.ForkBaselineInput,
+            state.ForkBaselineOutput,
+            state.ForkReplayPassedBaseline);
 
         public CodexFileState ToState() => new(
             new ScanCursor(AgentKeys.Codex, Path, Position, ParserVersion, Size, MtimeUtcTicks, null),
@@ -266,6 +282,11 @@ public sealed class ConsumptionStore : IConsumptionStore, IConsumptionQuery
             ModelIsFallback,
             ServiceTier,
             LastTotalInput,
-            LastTotalOutput);
+            LastTotalOutput,
+            FirstTurnTimestamp,
+            UsageHistory,
+            ForkBaselineInput,
+            ForkBaselineOutput,
+            ForkReplayPassedBaseline);
     }
 }

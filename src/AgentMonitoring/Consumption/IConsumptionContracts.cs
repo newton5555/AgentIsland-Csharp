@@ -38,4 +38,9 @@ public sealed record CodexFileState(
     bool ModelIsFallback,
     ServiceTier ServiceTier,
     long? LastTotalInput,
-    long? LastTotalOutput);
+    long? LastTotalOutput,
+    DateTimeOffset? FirstTurnTimestamp = null,
+    IReadOnlyList<AgentIsland.Providers.Cost.Codex.CodexUsageCheckpoint>? UsageHistory = null,
+    long? ForkBaselineInput = null,
+    long? ForkBaselineOutput = null,
+    bool ForkReplayPassedBaseline = false);

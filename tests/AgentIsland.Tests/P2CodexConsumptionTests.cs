@@ -78,6 +78,201 @@ public class P2CodexConsumptionTests
     }
 
     [Fact]
+    public async Task ForkCompactionReset_KeepsCountingAfterBaselineWasPassed()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"p2-fork-reset-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var parent = Path.Combine(dir, "parent.jsonl");
+        var child = Path.Combine(dir, "child.jsonl");
+        var persist = Path.Combine(dir, "consumption.json");
+        try
+        {
+            await File.WriteAllTextAsync(parent, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"parent-reset"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+
+                """);
+            await File.WriteAllTextAsync(child, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:01Z","payload":{"id":"child-reset","forked_from_id":"parent-reset"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:02Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":3},"total_token_usage":{"input_tokens":130,"output_tokens":13}}}}
+
+                """);
+
+            var files = new[]
+            {
+                new CodexRolloutFile(parent, "home", "parent.jsonl", false),
+                new CodexRolloutFile(child, "home", "child.jsonl", false),
+            };
+            var store = new ConsumptionStore(persist);
+            await new CodexConsumptionCollector(store, () => files).CollectAsync(AgentKeys.Codex);
+            Assert.Equal(130, store.Read(AgentKeys.Codex).Sum(item => item.Tokens.Input));
+
+            await File.AppendAllTextAsync(child, """
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:03Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":3},"total_token_usage":{"input_tokens":30,"output_tokens":3}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:04Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":20,"cached_input_tokens":0,"output_tokens":2},"total_token_usage":{"input_tokens":50,"output_tokens":5}}}}
+
+                """);
+
+            var reopened = new ConsumptionStore(persist);
+            await new CodexConsumptionCollector(reopened, () => files).CollectAsync(AgentKeys.Codex);
+            var facts = reopened.Read(AgentKeys.Codex);
+            Assert.Equal(4, facts.Count);
+            Assert.Equal(180, facts.Sum(item => item.Tokens.Input));
+            Assert.Equal(18, facts.Sum(item => item.Tokens.Output));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ParentDiscoveredLater_RebuildsPreviouslyUnfilteredChild()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"p2-late-parent-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var parent = Path.Combine(dir, "parent.jsonl");
+        var child = Path.Combine(dir, "child.jsonl");
+        try
+        {
+            await File.WriteAllTextAsync(child, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:01Z","payload":{"id":"late-child","forked_from_id":"late-parent"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:02Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":3},"total_token_usage":{"input_tokens":130,"output_tokens":13}}}}
+
+                """);
+
+            IReadOnlyList<CodexRolloutFile> files = new[]
+            {
+                new CodexRolloutFile(child, "home", "child.jsonl", false),
+            };
+            var store = new ConsumptionStore();
+            var collector = new CodexConsumptionCollector(store, () => files);
+            await collector.CollectAsync(AgentKeys.Codex);
+            Assert.Equal(130, store.Read(AgentKeys.Codex).Sum(item => item.Tokens.Input));
+
+            await File.WriteAllTextAsync(parent, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"late-parent"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+
+                """);
+            files = new[]
+            {
+                new CodexRolloutFile(parent, "home", "parent.jsonl", false),
+                new CodexRolloutFile(child, "home", "child.jsonl", false),
+            };
+            await collector.CollectAsync(AgentKeys.Codex);
+
+            var facts = store.Read(AgentKeys.Codex);
+            Assert.Equal(2, facts.Count);
+            Assert.Equal(130, facts.Sum(item => item.Tokens.Input));
+            Assert.Equal(13, facts.Sum(item => item.Tokens.Output));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task ParentBaselineChanged_RebuildsChildFacts()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"p2-parent-baseline-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var parent = Path.Combine(dir, "parent.jsonl");
+        var child = Path.Combine(dir, "child.jsonl");
+        try
+        {
+            await File.WriteAllTextAsync(parent, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"changed-parent"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":80,"cached_input_tokens":0,"output_tokens":8},"total_token_usage":{"input_tokens":80,"output_tokens":8}}}}
+
+                """);
+            await File.WriteAllTextAsync(child, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:01Z","payload":{"id":"changed-child","forked_from_id":"changed-parent"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":80,"cached_input_tokens":0,"output_tokens":8},"total_token_usage":{"input_tokens":80,"output_tokens":8}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:02Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":20,"cached_input_tokens":0,"output_tokens":2},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:03Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":3},"total_token_usage":{"input_tokens":130,"output_tokens":13}}}}
+
+                """);
+
+            var files = new[]
+            {
+                new CodexRolloutFile(parent, "home", "parent.jsonl", false),
+                new CodexRolloutFile(child, "home", "child.jsonl", false),
+            };
+            var store = new ConsumptionStore();
+            var collector = new CodexConsumptionCollector(store, () => files);
+            await collector.CollectAsync(AgentKeys.Codex);
+            Assert.Equal(130, store.Read(AgentKeys.Codex).Sum(item => item.Tokens.Input));
+
+            await File.WriteAllTextAsync(parent, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"changed-parent"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":80,"cached_input_tokens":0,"output_tokens":8},"total_token_usage":{"input_tokens":80,"output_tokens":8}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":20,"cached_input_tokens":0,"output_tokens":2},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+
+                """);
+            File.SetLastWriteTimeUtc(parent, DateTime.UtcNow.AddMinutes(1));
+            await collector.CollectAsync(AgentKeys.Codex);
+
+            var facts = store.Read(AgentKeys.Codex);
+            Assert.Equal(3, facts.Count);
+            Assert.Equal(130, facts.Sum(item => item.Tokens.Input));
+            Assert.Equal(13, facts.Sum(item => item.Tokens.Output));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
+    public async Task NestedFork_UsesForkedParentCheckpointHistory()
+    {
+        var dir = Path.Combine(Path.GetTempPath(), $"p2-nested-fork-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        var parent = Path.Combine(dir, "parent.jsonl");
+        var child = Path.Combine(dir, "child.jsonl");
+        var grandchild = Path.Combine(dir, "grandchild.jsonl");
+        try
+        {
+            await File.WriteAllTextAsync(parent, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:00Z","payload":{"id":"root-session"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+
+                """);
+            await File.WriteAllTextAsync(child, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:01Z","payload":{"id":"fork-session","forked_from_id":"root-session"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:01Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":100,"cached_input_tokens":0,"output_tokens":10},"total_token_usage":{"input_tokens":100,"output_tokens":10}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:02Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":30,"cached_input_tokens":0,"output_tokens":3},"total_token_usage":{"input_tokens":130,"output_tokens":13}}}}
+
+                """);
+            await File.WriteAllTextAsync(grandchild, """
+                {"type":"session_meta","timestamp":"2026-07-16T10:00:02Z","payload":{"id":"nested-session","forked_from_id":"fork-session"}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:02Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":130,"cached_input_tokens":0,"output_tokens":13},"total_token_usage":{"input_tokens":130,"output_tokens":13}}}}
+                {"type":"event_msg","timestamp":"2026-07-16T10:00:03Z","payload":{"type":"token_count","info":{"last_token_usage":{"input_tokens":20,"cached_input_tokens":0,"output_tokens":2},"total_token_usage":{"input_tokens":150,"output_tokens":15}}}}
+
+                """);
+
+            var files = new[]
+            {
+                new CodexRolloutFile(parent, "home", "parent.jsonl", false),
+                new CodexRolloutFile(child, "home", "child.jsonl", false),
+                new CodexRolloutFile(grandchild, "home", "grandchild.jsonl", false),
+            };
+            var facts = await CollectAsync(files);
+            Assert.Equal(3, facts.Count);
+            Assert.Equal(150, facts.Sum(item => item.Tokens.Input));
+            Assert.Equal(15, facts.Sum(item => item.Tokens.Output));
+        }
+        finally
+        {
+            try { Directory.Delete(dir, true); } catch { }
+        }
+    }
+
+    [Fact]
     public async Task Query_DoesNotDiscoverFiles()
     {
         var files = Describe(LoadCases().First(item => item.Id == "01-same-file-replay"));

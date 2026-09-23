@@ -11,7 +11,7 @@ public readonly record struct CodexRolloutFile(
 /// Sessions copy wins when the same relative path exists in archived_sessions.
 public static class CodexRolloutDiscovery
 {
-    public const string ParserVersion = "codex-replay-v2";
+    public const string ParserVersion = "codex-replay-v3";
 
     public static IReadOnlyList<CodexRolloutFile> PreferActive(IEnumerable<CodexRolloutFile> files)
     {

@@ -3,7 +3,6 @@ using AgentMonitoring.Consumption;
 using AgentMonitoring.Host;
 using AgentMonitoring.Queries;
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
 
 if (args.Any(arg => string.Equals(arg, "--once", StringComparison.OrdinalIgnoreCase)))
 {
@@ -20,4 +19,5 @@ if (args.Any(arg => string.Equals(arg, "--once", StringComparison.OrdinalIgnoreC
     return;
 }
 
-await HeadlessServices.CreateHostBuilder(args).Build().RunAsync();
+var app = HeadlessServices.CreateWebApplication();
+await app.RunAsync();
